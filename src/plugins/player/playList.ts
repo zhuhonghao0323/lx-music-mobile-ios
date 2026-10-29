@@ -2,6 +2,7 @@ import TrackPlayer, { State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { defaultUrl } from '@/config'
 import { resolvePlayableUrl } from './cache'
+import { updateNowPlayingMetadataCompat } from './nativeCompat'
 // import { action as playerAction } from '@/store/modules/player'
 import settingState from '@/store/setting/state'
 import playerState from '@/store/player/state'
@@ -226,7 +227,9 @@ const updateMetaInfo = async(mInfo: LX.Player.MusicInfo) => {
     title = playerState.lastLyric
     artist = `${mInfo.name}${mInfo.singer ? ` - ${mInfo.singer}` : ''}`
   }
-  await TrackPlayer.updateNowPlayingMetadata({
+  // 注意：iOS 的原生只接受 1 个参数，必须走 compat 封装，
+  // 直接调 TrackPlayer.updateNowPlayingMetadata(m, playing) 会在 iOS 上越界崩溃
+  await updateNowPlayingMetadataCompat({
     title,
     artist,
     album: mInfo.album ?? undefined,

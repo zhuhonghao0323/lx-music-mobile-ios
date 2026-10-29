@@ -5,6 +5,7 @@ import { playMusic as handlePlayMusic } from './playList'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
 import { toast } from '@/utils/tools'
 import playerState from '@/store/player/state'
+import { updateNowPlayingMetadataCompat } from './nativeCompat'
 // import { PlayerMusicInfo } from '@/store/modules/player/playInfo'
 
 
@@ -190,8 +191,8 @@ export const updateNowPlayingTitles = async(titles: NowPlayingTitles) => {
   if (titles.album != null) metadata.album = titles.album
   // 完整歌词（titles.lyric）无法通过 nowPlayingInfo 呈现，iOS 锁屏歌词由系统控制
   if (Object.keys(metadata).length === 0) return
-  // 第二个参数是「当前是否在播放」，用于同步锁屏的播放速率显示
-  return TrackPlayer.updateNowPlayingMetadata(metadata as unknown as NowPlayingMetadata, playerState.isPlay)
+  // 走 compat 封装：iOS 的原生只接受 1 个参数，多传 playing 会越界崩溃
+  return updateNowPlayingMetadataCompat(metadata as unknown as NowPlayingMetadata, playerState.isPlay)
 }
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
