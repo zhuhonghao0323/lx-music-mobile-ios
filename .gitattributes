@@ -1,0 +1,25 @@
+# 行尾规范化
+#
+# 这个仓库要在 Windows 上改代码、在 macOS 上构建 iOS。不锁行尾会出问题：
+#   - ios/Vendor/LXLibFLAC/build_xcframework.sh 带 CRLF 时 bash 会报 bad interpreter
+#   - *.pbxproj / *.podspec 被自动转换后 diff 噪音巨大
+
+* text=auto
+
+*.sh            text eol=lf
+*.podspec       text eol=lf
+*.rb            text eol=lf
+Gemfile         text eol=lf
+*.pbxproj       text eol=lf
+*.xcscheme      text eol=lf
+*.plist         text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# 二进制资源不做行尾转换
+*.ttf           binary
+*.png           binary
+*.jpg           binary
+*.ipa           binary
+*.a             binary
+*.xcframework   binary
