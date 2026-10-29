@@ -1,0 +1,164 @@
+name: Build iOS Unsigned IPA
+
+# 产出物：未签名的 LxMusicMobile-unsigned.ipa
+#   - TrollStore 巨魔可直接安装
+#   - 也可用 Sideloadly / AltStore / i4Tools 等工具自签后安装
+# 不涉及：开发者证书、描述文件、推送、App Store 上架
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '要构建的 Git ref（留空则用当前分支）'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'src/**'
+      - 'package.json'
+      - 'react-native.config.js'
+      - '.github/workflows/ios-unsigned-build.yml'
+
+concurrency:
+  group: ios-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-14
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Select Xcode
+        run: |
+          # RN 0.73 在 Xcode 16 上编译 RCT-Folly / Hermes 容易踩坑，
+          # 优先用 15.x；找不到再退回系统默认版本。
+          for v in 15.4 15.3 15.2 15.1 15.0.1; do
+            if [ -d "/Applications/Xcode_${v}.app" ]; then
+              sudo xcode-select -s "/Applications/Xcode_${v}.app"
+              echo "Using Xcode ${v}"
+              break
+            fi
+          done
+          xcodebuild -version
+
+      - name: Show toolchain versions
+        run: |
+          node -v
+          npm -v
+          pod --version
+
+      - name: Configure git for npm git dependencies
+        run: |
+          # package-lock.json 里 4 个 fork 依赖（track-player / file-system /
+          # local-media-metadata / background-timer）记录的地址是 git+ssh 协议：
+          #   git+ssh://git@github.com/lyswhut/xxx.git
+          # CI runner 上没有配置 SSH key，npm ci 会直接 Permission denied。
+          # 这里把 ssh 形式重写成 https，npm 克隆时就会走匿名 https。
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --get-regexp 'url\..*\.insteadof'
+
+      - name: Install npm dependencies
+        run: |
+          npm ci --no-audit --no-fund || {
+            echo "::warning::npm ci 失败，回退到 npm install"
+            npm install --no-audit --no-fund
+          }
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: |
+          # 第一次跑可能因为 CDN 索引未就绪失败，重试一次
+          pod install --repo-update || pod install
+
+      - name: Archive (unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          # xcbeautify 在 GitHub 的 macOS 镜像里通常预装，没有就退回 cat
+          PIPE_CMD=cat
+          if command -v xcbeautify >/dev/null 2>&1; then PIPE_CMD=xcbeautify; fi
+
+          xcodebuild \
+            -workspace LxMusicMobile.xcworkspace \
+            -scheme LxMusicMobile \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/LxMusicMobile.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            ENABLE_BITCODE=NO \
+            clean archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | $PIPE_CMD
+          # 管道下 xcodebuild 的退出码需要单独确认
+          if grep -qE "^(\*\* ARCHIVE FAILED|error:)" "$RUNNER_TEMP/archive.log"; then
+            echo "::error::xcodebuild archive 失败，完整日志见 build-log 附件"
+            tail -n 300 "$RUNNER_TEMP/archive.log"
+            exit 1
+          fi
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/LxMusicMobile.xcarchive/Products/Applications/LxMusicMobile.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::归档产物中找不到 LxMusicMobile.app"
+            ls -R "$RUNNER_TEMP/LxMusicMobile.xcarchive/Products" || true
+            exit 1
+          fi
+
+          # 关键产物校验：少了任何一项，装上去也是坏的
+          test -f "$APP/main.jsbundle" || { echo "::error::缺少 main.jsbundle，JS 未打进包"; exit 1; }
+          test -f "$APP/user-api-preload.js" || { echo "::error::缺少 user-api-preload.js，自定义音源脚本无法运行"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$APP/Info.plist" | grep -q audio \
+            || { echo "::error::Info.plist 缺少 UIBackgroundModes=audio"; exit 1; }
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+
+          VERSION=$(node -p "require('./package.json').version")
+          IPA_NAME="LxMusicMobile-v${VERSION}-unsigned.ipa"
+
+          cd "$RUNNER_TEMP"
+          rm -f "$IPA_NAME"
+          zip -qry "$IPA_NAME" Payload
+          echo "IPA_NAME=$IPA_NAME" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          ls -lh "$IPA_NAME"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LxMusicMobile-unsigned-ipa
+          path: ${{ runner.temp }}/${{ env.IPA_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ runner.temp }}/archive.log
+          if-no-files-found: ignore
+          retention-days: 7
