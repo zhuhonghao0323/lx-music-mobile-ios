@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>CFBundleDisplayName</key>
+	<string>洛雪音乐</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- ============ 音频后台播放 ============
+	     没有 audio 这个后台模式，App 一进后台 JS 线程就被挂起，
+	     RNTP 的播放服务拿不到远程事件，锁屏控件会立刻失效。
+	     这是「后台播放 + 锁屏控件」能工作的前提。 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+
+	<!-- ============ 网络 ============
+	     音源解析出来的播放地址、封面、歌词大量是明文 http，
+	     自签/TrollStore 场景不经过审核，直接放开 ATS 最省事。
+	     注意：这条如果拿去上架会被拒，本项目不需要上架。 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- 同步功能需要访问局域网内的桌面端服务，iOS 14+ 会弹本地网络权限 -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>用于在局域网内与洛雪音乐桌面端同步歌单、收藏与播放列表。</string>
+
+	<!-- ============ 字体 ============
+	     icomoon.ttf 由 LXMobileNative 的 pod resources 打进 App bundle，
+	     PostScript 名为 icomoon，与 src/resources/fonts/selection.json 中一致。 -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>icomoon.ttf</string>
+	</array>
+
+	<!-- ============ 文件导入 ============
+	     UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace 让 App 的
+	     Documents 目录在「文件」App 里可见，用户可以直接把自定义音源脚本、
+	     本地音乐、歌单备份拖进来。iOS 没有 Android 的 SAF 目录选择器，
+	     这是最接近的替代方案。 -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- 声明可以接收的文件类型：音源脚本(.js/.json)与洛雪歌单包(.lxmc) -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>洛雪音乐音源脚本</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.javascript-source</string>
+				<string>public.json</string>
+				<string>cn.toside.lxmusic.script</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>洛雪音乐歌单备份</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>cn.toside.lxmusic.playlist</string>
+			</array>
+		</dict>
+	</array>
+
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>cn.toside.lxmusic.script</string>
+			<key>UTTypeDescription</key>
+			<string>洛雪音乐音源脚本</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.javascript-source</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>js</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>cn.toside.lxmusic.playlist</string>
+			<key>UTTypeDescription</key>
+			<string>洛雪音乐歌单备份</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>lxmc</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+
+	<!-- ============ 深链 ============
+	     与 Android 的 android:scheme="lxmusic" 对齐，桌面端/浏览器可用 lxmusic:// 唤起 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>cn.toside.lxmusic</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lxmusic</string>
+			</array>
+		</dict>
+	</array>
+
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+
+	<!-- 只支持 arm64：旧模板里的 armv7 会让部分安装器判定为不支持当前设备 -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<!-- 侧载分发不涉及出口合规审查，声明后避免每次安装弹提示 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- 预留：若后续接入系统音乐库（MPMediaLibrary）需要此描述，缺失会直接崩溃 -->
+	<key>NSAppleMusicUsageDescription</key>
+	<string>用于读取本地音乐文件的歌曲信息与封面。</string>
+</dict>
+</plist>

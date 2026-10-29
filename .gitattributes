@@ -1,0 +1,24 @@
+# 行尾规范化
+#
+# 这个仓库需要在 Windows 上开发、在 macOS 上构建 iOS，如果不锁行尾会出现：
+#   - build-ios-unsigned.sh 在 Mac 上带 CRLF → bash 报 "bad interpreter: ^M"
+#   - pbxproj / podspec 被 Git 自动转换后 diff 噪音巨大
+# 因此对脚本与构建描述文件强制 LF。
+
+* text=auto
+
+*.sh            text eol=lf
+*.podspec       text eol=lf
+*.rb            text eol=lf
+Gemfile         text eol=lf
+*.pbxproj       text eol=lf
+*.xcscheme      text eol=lf
+*.plist         text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# 二进制资源不做行尾转换
+*.ttf           binary
+*.png           binary
+*.jpg           binary
+*.ipa           binary

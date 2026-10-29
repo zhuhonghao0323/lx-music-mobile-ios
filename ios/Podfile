@@ -1,0 +1,74 @@
+# 洛雪音乐 iOS 工程配置
+#
+# 与 RN 官方模板的差异（逐条对应改动原因）：
+#   1. 固定 platform 为 14.0：TrollStore 覆盖 iOS 14+，同时避开 13.x 上
+#      SwiftAudio / RNN 的部分兼容分支；RN 0.73 本身最低支持 13.4，抬到 14.0 无副作用。
+#   2. 关闭 Flipper：Flipper 只在 DEBUG 调试时需要，且会引入大量 pod 与 OpenSSL 依赖，
+#      在 CI 上极易编译失败；未签名 IPA 走 Release 构建，不需要它。
+#   3. 引入本地 pod LXMobileNative：承载 userApi/utils/cache/crypto 四个原生模块，
+#      这样新增源文件不需要改 project.pbxproj。
+#   4. post_install 统一关闭签名：产出未签名 IPA 供自签/TrollStore 使用，
+#      避免 archive 阶段因缺证书而失败。
+
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, '14.0'
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'LxMusicMobile' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # 不启用 Flipper（见文件头说明）
+    :flipper_configuration => FlipperConfiguration.disabled,
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  # 洛雪音乐自定义原生模块（音源脚本沙箱、系统能力、缓存、加解密）
+  pod 'LXMobileNative', :path => './LXMobileNative'
+
+  target 'LxMusicMobileTests' do
+    inherit! :complete
+    # Pods for testing
+  end
+
+  post_install do |installer|
+    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false
+    )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        # 未签名构建：关闭所有 target 的签名要求，
+        # 否则 CI 上没有开发者证书时会直接失败。
+        build_config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        build_config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+        build_config.build_settings['CODE_SIGN_IDENTITY'] = ''
+        build_config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+
+        # 部分第三方 pod 默认用较新的部署版本，统一压到 14.0
+        target_version = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if target_version && target_version.to_f > 14.0
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+        end
+
+        # Xcode 14+ 已废弃 bitcode
+        build_config.build_settings['ENABLE_BITCODE'] = 'NO'
+      end
+    end
+  end
+end
