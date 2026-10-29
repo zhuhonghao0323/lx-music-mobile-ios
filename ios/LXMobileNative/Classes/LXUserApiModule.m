@@ -178,7 +178,9 @@ RCT_EXPORT_MODULE(UserApiModule)
 
   // __lx_native_call__(key, action, data)：脚本 -> 原生
   context[@"__lx_native_call__"] = ^JSValue *(JSValue *key, JSValue *action, JSValue *data) {
-    __typeof__(weakSelf) strongSelf = weakSelf;
+    // 注意：不能用 __typeof__(weakSelf)，它展开后仍是 __weak，
+    // 通过 weak 指针访问 ivar 会被 clang 拒绝（-Warc-unsafe-retained-assign）。
+    LXUserApiModule *strongSelf = weakSelf;
     if (strongSelf == nil) return nil;
     if (![[key toString] isEqualToString:strongSelf->_scriptKey]) return nil;
     NSString *actionName = [action toString] ?: @"";
@@ -257,7 +259,9 @@ RCT_EXPORT_MODULE(UserApiModule)
 
   // set_timeout(id, ms)：preload 只负责登记回调，由原生负责在 ms 后回调 __set_timeout__
   context[@"__lx_native_call__set_timeout"] = ^JSValue *(JSValue *idValue, JSValue *delayValue) {
-    __typeof__(weakSelf) strongSelf = weakSelf;
+    // 注意：不能用 __typeof__(weakSelf)，它展开后仍是 __weak，
+    // 通过 weak 指针访问 ivar 会被 clang 拒绝（-Warc-unsafe-retained-assign）。
+    LXUserApiModule *strongSelf = weakSelf;
     if (strongSelf == nil) return nil;
     int identifier = [idValue toInt32];
     int delay = [delayValue toInt32];
@@ -266,7 +270,7 @@ RCT_EXPORT_MODULE(UserApiModule)
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)delay * NSEC_PER_MSEC),
                    strongSelf->_queue, ^{
-      __typeof__(weakSelf) strong = weakSelf;
+      LXUserApiModule *strong = weakSelf;
       if (strong == nil) return;
       // 脚本已被替换/销毁，旧定时器直接丢弃
       if (generation != strong->_generation) return;
