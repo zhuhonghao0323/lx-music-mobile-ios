@@ -83,6 +83,16 @@ jobs:
             npm install --no-audit --no-fund
           }
 
+      - name: Sync shared assets into pod
+        run: |
+          # user-api-preload.js 与 icomoon.ttf 是 Android/iOS 共用的资源，
+          # 但 CocoaPods 只认 pod 目录内的资源路径（越界路径会被静默跳过），
+          # 所以每次构建前都从源头同步一份，保证两端一致。
+          mkdir -p ios/LXMobileNative/Resources
+          cp android/app/src/main/assets/script/user-api-preload.js ios/LXMobileNative/Resources/
+          cp src/resources/fonts/icomoon.ttf ios/LXMobileNative/Resources/
+          ls -l ios/LXMobileNative/Resources/
+
       - name: Install CocoaPods dependencies
         working-directory: ios
         run: |

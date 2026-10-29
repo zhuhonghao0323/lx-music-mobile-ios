@@ -43,6 +43,16 @@ xcodebuild -version >/dev/null 2>&1 || fail "未找到 Xcode 命令行工具，�
 log "Node $(node -v) / $(pod --version | sed 's/^/CocoaPods /')"
 log "Xcode $(xcodebuild -version | head -1)"
 
+# ---------- 同步共享资源 ----------
+# user-api-preload.js 与 icomoon.ttf 是 Android/iOS 共用的资源，
+# 但 CocoaPods 只认 pod 目录内的资源路径（../.. 越界路径会被静默跳过，
+# 表现为 app bundle 里缺文件），所以构建前从源头同步一份。
+log "同步共享资源到 pod 目录..."
+mkdir -p ios/LXMobileNative/Resources
+cp android/app/src/main/assets/script/user-api-preload.js ios/LXMobileNative/Resources/
+cp src/resources/fonts/icomoon.ttf ios/LXMobileNative/Resources/
+ls -l ios/LXMobileNative/Resources/
+
 # ---------- 安装 Pods ----------
 log "安装 CocoaPods 依赖（首次会比较慢，需要编译 Hermes 等）..."
 pushd ios >/dev/null

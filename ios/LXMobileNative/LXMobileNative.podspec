@@ -30,18 +30,22 @@ Pod::Spec.new do |s|
 
   s.dependency 'React-Core'
 
-  # 复用 Android 侧同一份资源，避免两处拷贝日后不同步：
-  #   - user-api-preload.js：自定义音源脚本的宿主 API 注入脚本，与 QuickJS 版完全一致
-  #   - icomoon.ttf：图标字体（需配合 Info.plist 的 UIAppFonts 注册）
+  # 资源必须放在 pod 目录内部。
   #
-  # 注意：CocoaPods 要求资源路径必须是**相对路径**，且不能以 / 开头。
-  # 这里用 File.expand_path 生成绝对路径会直接报
-  #   "File Patterns: File patterns must be relative and cannot start with a slash"
-  # 所以只能用相对于 podspec 所在目录的 ../.. 形式。
-  s.resources = [
-    '../../android/app/src/main/assets/script/user-api-preload.js',
-    '../../src/resources/fonts/icomoon.ttf',
-  ]
+  # 踩过的两个坑：
+  #   1. 用 File.expand_path 生成绝对路径 → pod 校验直接失败：
+  #      "File Patterns: File patterns must be relative and cannot start with a slash"
+  #   2. 改成 '../../android/...' 这种相对路径 → 校验能过，但 CocoaPods 在
+  #      **复制资源阶段**会静默跳过越界路径，最终 app bundle 里根本没有这些文件，
+  #      表现为 CI 打包时校验失败："缺少 user-api-preload.js"
+  #
+  # 所以只能放在 Resources/ 下。这两个文件是 Android/iOS 共用的：
+  #   - user-api-preload.js：音源脚本沙箱的宿主 API 注入脚本
+  #   - icomoon.ttf：图标字体（配合 Info.plist 的 UIAppFonts 注册）
+  # 源头分别是 android/app/src/main/assets/script/ 与 src/resources/fonts/，
+  # 构建脚本（scripts/build-ios-unsigned.sh）和 CI 都会在 pod install 前
+  # 自动从源头同步过来，避免两边不一致。
+  s.resources = ['Resources/*']
 
   # 纯 Objective-C 静态库，不设 DEFINES_MODULE（那会要求额外的 modulemap），
   # 只保留 CLANG_ENABLE_MODULES 以便用 @import 方式引用 React
