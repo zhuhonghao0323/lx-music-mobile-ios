@@ -33,6 +33,54 @@ static void LXConfigureAudioSession(void) {
   }
 }
 
+/// 崩溃日志落盘。
+///
+/// 背景：react-native-exception-handler 在 iOS 上只弹一个不含 App 符号的提示框，
+/// 拿不到可用堆栈。这里额外把 NSException 的 callStackSymbols 写到
+/// Documents/crash.log（Info.plist 已开启 UIFileSharingEnabled，
+/// 用户可以在「文件」App 里直接导出），用于定位原生崩溃。
+static NSUncaughtExceptionHandler *LXPreviousUncaughtHandler = NULL;
+
+static void LXHandleUncaughtException(NSException *exception) {
+  @try {
+    NSMutableString *text = [NSMutableString string];
+    [text appendString:@"\n===== LXMusic iOS Crash =====\n"];
+    [text appendFormat:@"time   : %@\n", [NSDate date]];
+    [text appendFormat:@"name   : %@\n", exception.name ?: @"(unknown)"];
+    [text appendFormat:@"reason : %@\n", exception.reason ?: @"(unknown)"];
+    [text appendString:@"\n--- callStackSymbols ---\n"];
+    NSArray<NSString *> *symbols = exception.callStackSymbols;
+    if (symbols.count > 0) {
+      [text appendFormat:@"%@\n", [symbols componentsJoinedByString:@"\n"]];
+    } else {
+      [text appendString:@"(empty)\n"];
+    }
+    [text appendString:@"\n--- callStackReturnAddresses ---\n"];
+    [text appendFormat:@"%@\n", [exception.callStackReturnAddresses componentsJoinedByString:@"\n"]];
+    [text appendString:@"===== END =====\n"];
+
+    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    if (documents.length > 0) {
+      NSString *path = [documents stringByAppendingPathComponent:@"crash.log"];
+      NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+      if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        [data writeToFile:path atomically:YES];
+      } else {
+        NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
+        [handle seekToEndOfFile];
+        [handle writeData:data];
+        [handle closeFile];
+      }
+    }
+  } @catch (NSException *__unused ignored) {
+    // 崩溃处理里再崩就没救了，直接放过
+  }
+
+  if (LXPreviousUncaughtHandler != NULL) {
+    LXPreviousUncaughtHandler(exception);
+  }
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
   LXConfigureAudioSession();
@@ -42,6 +90,15 @@ static void LXConfigureAudioSession(void) {
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
+
+  // react-native-exception-handler 会在 JS 初始化时（app.ts 导入 errorHandle）
+  // 设置自己的 uncaught handler。这里延迟 3 秒接管：
+  // 把它的 handler 存为 previous，崩溃时先落盘再交给它弹原有提示框。
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
+                 dispatch_get_main_queue(), ^{
+    LXPreviousUncaughtHandler = NSGetUncaughtExceptionHandler();
+    NSSetUncaughtExceptionHandler(&LXHandleUncaughtException);
+  });
 
   return YES;
 }
