@@ -171,6 +171,8 @@ export const checkUserApiUpdate = async(
  * 从后台切回前台、解锁回到 App 都不应该触发（不注册 AppState 监听即可）。
  */
 export const runAutoUpdate = async(): Promise<void> => {
+  // 总开关关闭时，所有音源都不自动检查
+  if (!settingState.setting['common.userApiAutoUpdateEnabled']) return
   const list = [...userApiState.list]
   for (const info of list) {
     if (!info.sourceUrl || info.autoUpdate === false) continue

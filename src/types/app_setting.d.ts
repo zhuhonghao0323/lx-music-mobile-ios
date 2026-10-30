@@ -39,6 +39,13 @@ declare global {
       'common.apiSource': string
 
       /**
+       * URL 音源自动更新总开关。
+       * 关闭后所有 URL 音源都不再自动检查更新，但仍可手动点更新按钮。
+       * 单个音源自身还可以用 autoUpdate 再单独关掉。
+       */
+      'common.userApiAutoUpdateEnabled': boolean
+
+      /**
        * 音源名称类型，原名、别名
        */
       'common.sourceNameType': 'alias' | 'real'

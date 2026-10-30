@@ -599,5 +599,7 @@
   "user_api_bind_url_title": "Bind update URL",
   "user_api_bind_url_message": "Enter the online script URL (.js) of this source to check for updates.\nSources imported by older versions have no recorded URL, bind it once.",
   "user_api_bind_url_invalid": "Please enter a valid http(s) URL",
-  "user_api_bind_url_success": "Update URL bound"
+  "user_api_bind_url_success": "Update URL bound",
+  "setting_basic_user_api_auto_update_enabled": "Auto update URL scripts",
+  "setting_basic_user_api_auto_update_enabled_desc": "When enabled, the app checks all bound URL scripts for new versions on cold start"
 }

@@ -66,6 +66,14 @@ const registerPlaybackService = async() => {
   })
 
   TrackPlayer.addEventListener(TPEvent.RemoteDuck, ({ permanent, paused, ducking }) => {
+    // 「与其他应用同时播放」模式下忽略系统的音频中断与 ducking。
+    //
+    // 关键：原生层（RNTrackPlayer.swift 的 handleInterruption）收到
+    // AVAudioSession.interruptionNotification 时**只发这个事件，不会自己暂停**，
+    // 真正执行 pause() 的是下面这段 JS。所以即使 setupPlayer 已经配好
+    // mixWithOthers，只要这里不提前返回，其他 App 一出声音乐就会被停掉。
+    if (settingState.setting['player.isPlayWithOtherApps']) return
+
     // On iOS, interruptions surface through RemoteDuck and we need to explicitly
     // restore playback/volume after the system finishes ducking or pausing audio.
     if (permanent) {

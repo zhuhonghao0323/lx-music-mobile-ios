@@ -1,8 +1,7 @@
-import { Alert, Platform } from 'react-native'
-
 import { checkUserApiUpdate } from '@/core/userApiUpdater'
 import { updateUserApiInfo } from '@/utils/data'
 import { action } from '@/store/userApi'
+import { log } from '@/utils/log'
 import { confirmDialog, toast } from '@/utils/tools'
 
 /**
@@ -48,43 +47,32 @@ export const canUpdateUserApi = (info: LX.UserApi.UserApiInfo): boolean => {
 }
 
 /**
- * 给存量音源补绑更新地址。
+ * 给存量音源补绑更新地址并立即检查一次。
  *
- * 背景：`sourceUrl` 只有在「在线导入」时才会被记录，而升级前导入的音源没有这个字段，
+ * 背景：`sourceUrl` 只有在「在线导入」时才会被记录，升级前导入的音源没有这个字段，
  * 脚本内容本身也不包含下载地址，所以只能让用户手动补一次。
- * 绑定之后这个音源就能正常参与版本检查与自动更新。
+ *
+ * 输入交互由调用方（列表内联输入框）负责——之前用 Alert.prompt，
+ * 但在 iOS 上不可靠，改成内联输入后这个函数只做校验与保存。
  */
-export const bindSourceUrl = (info: LX.UserApi.UserApiInfo): void => {
-  const applyUrl = (input?: string) => {
-    const url = (input ?? '').trim()
-    if (!/^https?:\/\//.test(url)) {
-      toast(global.i18n.t('user_api_bind_url_invalid'))
-      return
-    }
-    const next: LX.UserApi.UserApiInfo = {
-      ...info,
-      sourceUrl: url,
-      autoUpdate: info.autoUpdate !== false,
-      lastCheckTime: 0,
-    }
-    void updateUserApiInfo(info.id, next).then(() => {
-      action.updateUserApi(next)
-      // 绑定后立刻检查一次，用户能马上看到结果，不用再去找更新按钮
-      void handleManualUpdate(next)
-    })
+export const saveSourceUrl = async(info: LX.UserApi.UserApiInfo, input: string): Promise<boolean> => {
+  const url = input.trim()
+  if (!/^https?:\/\//.test(url)) {
+    toast(global.i18n.t('user_api_bind_url_invalid'))
+    return false
   }
-
-  if (Platform.OS == 'ios') {
-    // 用系统原生 prompt，避免在「自定义源管理」这个 Modal 里再套一层 Modal
-    Alert.prompt(
-      global.i18n.t('user_api_bind_url_title'),
-      global.i18n.t('user_api_bind_url_message'),
-      [
-        { text: global.i18n.t('cancel'), style: 'cancel' },
-        { text: global.i18n.t('confirm'), onPress: applyUrl },
-      ],
-      'plain-text',
-      info.sourceUrl ?? '',
-    )
+  const next: LX.UserApi.UserApiInfo = {
+    ...info,
+    sourceUrl: url,
+    autoUpdate: info.autoUpdate !== false,
+    lastCheckTime: 0,
   }
+  const saved = await updateUserApiInfo(info.id, next)
+  // 即使持久化没命中（内存列表里找不到这条），也要先更新 store，
+  // 保证界面上的更新按钮能立刻出现；下次冷启动会从存储重新读。
+  action.updateUserApi(next)
+  if (!saved) log.warn('[userApi] 绑定地址未能写入存储，仅更新了内存状态')
+  // 绑定后立刻检查一次，用户不用再去找更新按钮
+  void handleManualUpdate(next)
+  return true
 }

@@ -6,6 +6,7 @@ import SubTitle from '../../components/SubTitle'
 import CheckBox from '@/components/common/CheckBox'
 import { createStyle } from '@/utils/tools'
 import { setApiSource } from '@/core/apiSource'
+import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useSettingValue } from '@/store/setting/hook'
@@ -110,6 +111,12 @@ export default memo(() => {
     })
   }, [userApiListRaw, apiStatus, apiSourceSetting, t])
 
+  const theme = useTheme()
+  const autoUpdateEnabled = useSettingValue('common.userApiAutoUpdateEnabled')
+  const handleAutoUpdateChange = useCallback((check: boolean) => {
+    updateSetting({ 'common.userApiAutoUpdateEnabled': check })
+  }, [])
+
   const modalRef = useRef<UserApiEditModalType>(null)
   const handleShow = () => {
     modalRef.current?.show()
@@ -138,6 +145,22 @@ export default memo(() => {
       {
         isUserApiSupported
           ? (
+              <View style={styles.autoUpdateRow}>
+                <CheckBox
+                  check={autoUpdateEnabled}
+                  label={t('setting_basic_user_api_auto_update_enabled')}
+                  onChange={handleAutoUpdateChange}
+                />
+                <Text size={12} color={theme['c-500']} style={styles.autoUpdateDesc}>
+                  {t('setting_basic_user_api_auto_update_enabled_desc')}
+                </Text>
+              </View>
+            )
+          : null
+      }
+      {
+        isUserApiSupported
+          ? (
               <>
                 <View style={styles.btn}>
                   <Button onPress={handleShow}>{t('setting_basic_source_user_api_btn')}</Button>
@@ -161,6 +184,13 @@ const styles = createStyle({
   btn: {
     marginTop: 10,
     flexDirection: 'row',
+  },
+  autoUpdateRow: {
+    marginTop: 10,
+  },
+  autoUpdateDesc: {
+    marginTop: 2,
+    marginLeft: 28,
   },
   itemRow: {
     flexDirection: 'row',

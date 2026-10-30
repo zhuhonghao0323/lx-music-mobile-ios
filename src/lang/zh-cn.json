@@ -599,5 +599,7 @@
   "user_api_bind_url_title": "绑定更新地址",
   "user_api_bind_url_message": "填入该音源的在线脚本地址（.js），用于检查新版本。\n旧版本导入的音源没有记录来源地址，绑定一次即可。",
   "user_api_bind_url_invalid": "请输入有效的 http(s) 地址",
-  "user_api_bind_url_success": "已绑定更新地址"
+  "user_api_bind_url_success": "已绑定更新地址",
+  "setting_basic_user_api_auto_update_enabled": "自动更新URL音源",
+  "setting_basic_user_api_auto_update_enabled_desc": "开启后，App 冷启动时会自动检查所有已绑定地址的音源是否有新版本"
 }

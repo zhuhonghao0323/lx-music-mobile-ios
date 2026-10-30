@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import Text from '@/components/common/Text'
 import { View, TouchableOpacity, ScrollView } from 'react-native'
 import { confirmDialog, createStyle } from '@/utils/tools'
@@ -7,9 +7,10 @@ import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { useSettingValue } from '@/store/setting/hook'
 import { removeUserApi, setUserApiAllowShowUpdateAlert, setUserApiAutoUpdate } from '@/core/userApi'
-import { bindSourceUrl, canUpdateUserApi, handleManualUpdate } from './updateAction'
+import { canUpdateUserApi, handleManualUpdate, saveSourceUrl } from './updateAction'
 import { BorderRadius } from '@/theme'
 import CheckBox from '@/components/common/CheckBox'
+import Input from '@/components/common/Input'
 import { Icon } from '@/components/common/Icon'
 import settingState from '@/store/setting/state'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
@@ -18,19 +19,30 @@ import { setApiSource } from '@/core/apiSource'
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate, onBindUrl }: {
+const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate, onSaveUrl }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
   onChangeAutoUpdate: (id: string, enabled: boolean) => void
   onUpdate: (item: LX.UserApi.UserApiInfo) => void
-  onBindUrl: (item: LX.UserApi.UserApiInfo) => void
+  onSaveUrl: (item: LX.UserApi.UserApiInfo, url: string) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
   // 只有 URL 导入且版本号可比较的音源才提供更新能力
   const canUpdate = canUpdateUserApi(item)
+  // 未绑定时点「绑定更新地址」展开一个内联输入框，
+  // 不用弹窗：这个列表本身已经在 Modal 里，再套一层弹层在 iOS 上不可靠
+  const [binding, setBinding] = useState(false)
+  const [bindUrl, setBindUrl] = useState('')
+  const confirmBind = () => {
+    const url = bindUrl.trim()
+    if (!url) return
+    onSaveUrl(item, url)
+    setBinding(false)
+    setBindUrl('')
+  }
   const changeAllowShowUpdateAlert = (check: boolean) => {
     onChangeAllowShowUpdateAlert(item.id, check)
   }
@@ -67,10 +79,26 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
           canUpdate
             ? <CheckBox check={item.autoUpdate !== false} label={t('user_api_auto_update')} onChange={changeAutoUpdate} size={0.86} />
             : (
-                // 存量音源没有记录来源地址，给个入口手动补绑一次
-                <TouchableOpacity style={styles.bindBtn} onPress={() => { onBindUrl(item) }}>
-                  <Text size={12} color={theme['c-primary']}>{t('user_api_bind_url_btn')}</Text>
-                </TouchableOpacity>
+                binding
+                  ? (
+                      <View style={styles.bindRow}>
+                        <Input
+                          value={bindUrl}
+                          onChangeText={setBindUrl}
+                          placeholder="https://.../script.js"
+                          style={{ ...styles.bindInput, backgroundColor: theme['c-primary-input-background'] }}
+                        />
+                        <TouchableOpacity style={styles.bindOk} onPress={confirmBind}>
+                          <Text size={13} color={theme['c-primary']}>{t('confirm')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  : (
+                      // 存量音源没有记录来源地址，给个入口手动补绑一次
+                      <TouchableOpacity style={styles.bindBtn} onPress={() => { setBinding(true) }}>
+                        <Text size={12} color={theme['c-primary']}>{t('user_api_bind_url_btn')}</Text>
+                      </TouchableOpacity>
+                    )
               )
         }
       </View>
@@ -132,8 +160,8 @@ export default () => {
   const handleUpdate = useCallback((item: LX.UserApi.UserApiInfo) => {
     void handleManualUpdate(item)
   }, [])
-  const handleBindUrl = useCallback((item: LX.UserApi.UserApiInfo) => {
-    bindSourceUrl(item)
+  const handleSaveUrl = useCallback((item: LX.UserApi.UserApiInfo, url: string) => {
+    void saveSourceUrl(item, url)
   }, [])
 
   return (
@@ -151,7 +179,7 @@ export default () => {
                 onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
                 onChangeAutoUpdate={handleChangeAutoUpdate}
                 onUpdate={handleUpdate}
-                onBindUrl={handleBindUrl}
+                onSaveUrl={handleSaveUrl}
               />
               )
             })
@@ -199,6 +227,22 @@ const styles = createStyle({
     paddingTop: 4,
     paddingBottom: 2,
     alignSelf: 'flex-start',
+  },
+  bindRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  bindInput: {
+    flexGrow: 1,
+    flexShrink: 1,
+    borderRadius: 4,
+    height: 30,
+  },
+  bindOk: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   tipText: {
     textAlign: 'center',

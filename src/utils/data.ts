@@ -616,11 +616,13 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
  * 更新音源列表项上的字段（autoUpdate / lastCheckTime / userModified 等）。
  * 只改元数据，不动脚本本身。
  */
-export const updateUserApiInfo = async(id: string, patch: Partial<LX.UserApi.UserApiInfo>) => {
+export const updateUserApiInfo = async(id: string, patch: Partial<LX.UserApi.UserApiInfo>): Promise<boolean> => {
   const targetApi = userApis?.find(api => api.id == id)
-  if (!targetApi) return
+  // 内存里没有这条记录时不要静默成功，调用方需要知道持久化没生效
+  if (!targetApi) return false
   Object.assign(targetApi, patch)
   await saveData(userApiPrefix, userApis)
+  return true
 }
 
 /**
