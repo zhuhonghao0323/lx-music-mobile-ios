@@ -161,17 +161,20 @@ export const checkUserApiUpdate = async(
 }
 
 /**
- * 后台批量检查：只处理开启了自动更新、且到了检查间隔的音源。
+ * 冷启动时批量检查一次。
+ *
+ * 只处理开启了自动更新、且不是「用户手动改过脚本」的音源。
+ * 顺序执行，避免同时初始化多个脚本互相干扰；
  * 任何单个音源的失败都不会影响其他音源。
+ *
+ * 注意：这个函数只应在 App 冷启动时调用一次。
+ * 从后台切回前台、解锁回到 App 都不应该触发（不注册 AppState 监听即可）。
  */
-export const runAutoUpdate = async(intervalMs: number): Promise<void> => {
+export const runAutoUpdate = async(): Promise<void> => {
   const list = [...userApiState.list]
-  const now = Date.now()
   for (const info of list) {
     if (!info.sourceUrl || info.autoUpdate === false) continue
     if (info.userModified) continue
-    if (now - (info.lastCheckTime ?? 0) < intervalMs) continue
-    // 顺序执行，避免同时初始化多个脚本互相干扰
     await checkUserApiUpdate(info).catch(() => {})
   }
 }

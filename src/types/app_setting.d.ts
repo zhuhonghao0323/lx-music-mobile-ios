@@ -39,13 +39,6 @@ declare global {
       'common.apiSource': string
 
       /**
-       * URL 音源后台自动更新的检查间隔（天）。
-       * '1' 每天 / '3' 每 3 天 / '7' 每周。
-       * 只在音源自身开启了「自动更新URL音源」时生效。
-       */
-      'common.userApiAutoUpdateInterval': '1' | '3' | '7'
-
-      /**
        * 音源名称类型，原名、别名
        */
       'common.sourceNameType': 'alias' | 'real'

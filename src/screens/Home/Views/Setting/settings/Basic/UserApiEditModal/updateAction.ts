@@ -69,7 +69,8 @@ export const bindSourceUrl = (info: LX.UserApi.UserApiInfo): void => {
     }
     void updateUserApiInfo(info.id, next).then(() => {
       action.updateUserApi(next)
-      toast(global.i18n.t('user_api_bind_url_success'))
+      // 绑定后立刻检查一次，用户能马上看到结果，不用再去找更新按钮
+      void handleManualUpdate(next)
     })
   }
 

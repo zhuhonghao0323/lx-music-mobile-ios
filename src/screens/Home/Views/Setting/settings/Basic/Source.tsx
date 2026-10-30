@@ -17,7 +17,6 @@ import { useTheme } from '@/store/theme/hook'
 import { isUserApiSupported } from '@/utils/nativeModules/userApi'
 import { Icon } from '@/components/common/Icon'
 import { canUpdateUserApi, handleManualUpdate } from './UserApiEditModal/updateAction'
-import UserApiAutoUpdateInterval from './UserApiAutoUpdateInterval'
 // import { importUserApi, removeUserApi } from '@/core/userApi'
 
 const apiSourceList = apiSourceInfo.map(api => ({
@@ -136,11 +135,6 @@ export default memo(() => {
           ))
         }
       </View>
-      {
-        isUserApiSupported && userApiListRaw.some(api => api.sourceUrl)
-          ? <UserApiAutoUpdateInterval />
-          : null
-      }
       {
         isUserApiSupported
           ? (

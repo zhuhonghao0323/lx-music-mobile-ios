@@ -255,19 +255,12 @@ export default async(setting: LX.AppSetting) => {
 
   setUserApiList(await getUserApiList())
 
-  // ---- URL 音源自动更新调度 ----
-  // 触发时机：App 启动后延迟执行一次，之后每小时轮询一次。
-  // 真正是否检查由每个音源的 lastCheckTime 与用户配置的间隔共同决定，
-  // 所以这里的轮询频率只需要足够细，不需要等于用户设置的间隔。
-  const getIntervalMs = () => {
-    const days = parseInt(settingState.setting['common.userApiAutoUpdateInterval']) || 1
-    return days * 24 * 60 * 60 * 1000
-  }
-  // 延迟 10 秒，避开启动阶段的脚本初始化，避免两者互相干扰
+  // ---- URL 音源自动更新 ----
+  // 只在 App 冷启动时检查一次。
+  // 这个 init 函数只在进程启动时执行，从后台切回前台、解锁回到 App 都不会重新触发，
+  // 所以这里不需要注册 AppState 监听，也不需要有定时器。
+  // 延迟 3 秒是为了避开启动阶段的脚本初始化，避免两者互相干扰。
   BackgroundTimer.setTimeout(() => {
-    void runAutoUpdate(getIntervalMs())
-  }, 10_000)
-  BackgroundTimer.setInterval(() => {
-    void runAutoUpdate(getIntervalMs())
-  }, 60 * 60 * 1000)
+    void runAutoUpdate()
+  }, 3_000)
 }
