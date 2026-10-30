@@ -30,3 +30,21 @@ export const setUserApiAllowShowUpdateAlert = (id: string, enable: boolean) => {
 
   event.list_changed([...state.list])
 }
+
+export const setUserApiAutoUpdate = (id: string, enable: boolean) => {
+  const targetIndex = state.list.findIndex(api => api.id == id)
+  if (targetIndex < 0) return
+  state.list[targetIndex].autoUpdate = enable
+  state.list.splice(targetIndex, 1, { ...state.list[targetIndex] })
+
+  event.list_changed([...state.list])
+}
+
+/** 用新的元数据整体替换列表里的某一项（更新脚本后调用） */
+export const updateUserApi = (info: LX.UserApi.UserApiInfo) => {
+  const targetIndex = state.list.findIndex(api => api.id == info.id)
+  if (targetIndex < 0) return
+  state.list.splice(targetIndex, 1, info)
+
+  event.list_changed([...state.list])
+}

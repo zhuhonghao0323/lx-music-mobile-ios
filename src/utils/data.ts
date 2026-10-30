@@ -551,7 +551,18 @@ const matchInfo = (scriptInfo: string) => {
 
   return infos as Record<keyof typeof INFO_NAMES, string>
 }
-export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo> => {
+
+/**
+ * 从脚本文本里解析头部注释中的元信息（name / version / author ...）。
+ * 更新音源时需要用它拿到远端脚本的版本号，与本地对比。
+ * 解析不到头部注释时返回 null。
+ */
+export const parseUserApiScriptInfo = (script: string): Record<keyof typeof INFO_NAMES, string> | null => {
+  const result = /^\/\*[\S|\s]+?\*\//.exec(script)
+  if (!result) return null
+  return matchInfo(result[0])
+}
+export const addUserApi = async(script: string, sourceUrl?: string): Promise<LX.UserApi.UserApiInfo> => {
   const result = /^\/\*[\S|\s]+?\*\//.exec(script)
   if (!result) throw new Error(global.i18n.t('user_api_add_failed_tip'))
 
@@ -562,6 +573,16 @@ export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo>
     id: `user_api_${Math.random().toString().substring(2, 5)}_${Date.now()}`,
     ...scriptInfo,
     allowShowUpdateAlert: true,
+    // 只有通过 URL 在线导入的音源才记录来源，也才有资格参与更新检查。
+    // 本地文件导入的音源这三个字段保持 undefined，UI 上不会渲染更新相关控件。
+    ...(sourceUrl
+      ? {
+          sourceUrl,
+          autoUpdate: true,
+          lastCheckTime: 0,
+          userModified: false,
+        }
+      : {}),
   }
   userApis.push(apiInfo)
   await saveDataMultiple([
@@ -589,4 +610,23 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
   if (!targetApi) return
   targetApi.allowShowUpdateAlert = enable
   await saveData(userApiPrefix, userApis)
+}
+
+/**
+ * 更新音源列表项上的字段（autoUpdate / lastCheckTime / userModified 等）。
+ * 只改元数据，不动脚本本身。
+ */
+export const updateUserApiInfo = async(id: string, patch: Partial<LX.UserApi.UserApiInfo>) => {
+  const targetApi = userApis?.find(api => api.id == id)
+  if (!targetApi) return
+  Object.assign(targetApi, patch)
+  await saveData(userApiPrefix, userApis)
+}
+
+/**
+ * 覆盖音源的脚本文本（自动/手动更新时用）。
+ * 与列表项分开存储，和 addUserApi 的写入方式保持一致。
+ */
+export const updateUserApiScript = async(id: string, script: string) => {
+  await saveData(`${userApiPrefix}${id}`, script)
 }

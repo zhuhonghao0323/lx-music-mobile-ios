@@ -39,6 +39,13 @@ declare global {
       'common.apiSource': string
 
       /**
+       * URL 音源后台自动更新的检查间隔（天）。
+       * '1' 每天 / '3' 每 3 天 / '7' 每周。
+       * 只在音源自身开启了「自动更新URL音源」时生效。
+       */
+      'common.userApiAutoUpdateInterval': '1' | '3' | '7'
+
+      /**
        * 音源名称类型，原名、别名
        */
       'common.sourceNameType': 'alias' | 'real'
@@ -189,6 +196,20 @@ declare global {
        * 是否启用音频卸载功能（这可以节省耗电量，没有播放异常问题不建议关闭）
        */
       'player.isEnableAudioOffload': boolean
+
+      /**
+       * 与其他应用同时播放。
+       * 开启后音频会话带 mixWithOthers，可与其它音视频 App 同时出声；
+       * 代价是系统侧媒体能力（锁屏/通知栏/控制中心/车载显示、线控切歌、Siri 切歌）不可用。
+       * iOS 上通过重建播放器并传入 iosCategory/iosCategoryOptions 实现（RNTP 的
+       * updateOptions 不处理音频会话配置，只有 setupPlayer 会读取）。
+       */
+      'player.isPlayWithOtherApps': boolean
+
+      /**
+       * 用户是否已勾选「下次不再提醒」，勾选后切换上面的开关不再弹风险提示
+       */
+      'player.isPlayWithOtherAppsTipDisabled': boolean
 
       /**
        * 是否显示歌词翻译

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from 'react'
 
-import { View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
 
 import SubTitle from '../../components/SubTitle'
 import CheckBox from '@/components/common/CheckBox'
@@ -15,6 +15,9 @@ import UserApiEditModal, { type UserApiEditModalType } from './UserApiEditModal'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { isUserApiSupported } from '@/utils/nativeModules/userApi'
+import { Icon } from '@/components/common/Icon'
+import { canUpdateUserApi, handleManualUpdate } from './UserApiEditModal/updateAction'
+import UserApiAutoUpdateInterval from './UserApiAutoUpdateInterval'
 // import { importUserApi, removeUserApi } from '@/core/userApi'
 
 const apiSourceList = apiSourceInfo.map(api => ({
@@ -29,28 +32,42 @@ const useActive = (id: string) => {
   return isActive
 }
 
-const Item = ({ id, name, desc, statusLabel, change }: {
+const Item = ({ id, name, desc, statusLabel, change, onUpdate }: {
   id: string
   name: string
   desc?: string
   statusLabel?: string
   change: (id: string) => void
+  /** 传入时在条目前面显示更新图标（只有 URL 导入的音源才有） */
+  onUpdate?: () => void
 }) => {
   const isActive = useActive(id)
   const theme = useTheme()
-  // const [toggleCheckBox, setToggleCheckBox] = useState(false)
   return (
-    <CheckBox marginBottom={5} check={isActive} onChange={() => { change(id) }} need>
-      <Text style={styles.sourceLabel}>
-        {name}
-        {
-          desc ? <Text style={styles.sourceDesc} color={theme['c-500']} size={13}>  {desc}</Text> : null
-        }
-        {
-          statusLabel ? <Text style={styles.sourceStatus} size={13}>  {statusLabel}</Text> : null
-        }
-      </Text>
-    </CheckBox>
+    <View style={styles.itemRow}>
+      {
+        onUpdate
+          ? (
+              <TouchableOpacity style={styles.updateBtn} onPress={onUpdate}>
+                <Icon name="available_updates" color={theme['c-primary']} size={15} />
+              </TouchableOpacity>
+            )
+          : null
+      }
+      <View style={styles.itemContent}>
+        <CheckBox marginBottom={5} check={isActive} onChange={() => { change(id) }} need>
+          <Text style={styles.sourceLabel}>
+            {name}
+            {
+              desc ? <Text style={styles.sourceDesc} color={theme['c-500']} size={13}>  {desc}</Text> : null
+            }
+            {
+              statusLabel ? <Text style={styles.sourceStatus} size={13}>  {statusLabel}</Text> : null
+            }
+          </Text>
+        </CheckBox>
+      </View>
+    </View>
   )
 }
 
@@ -82,6 +99,8 @@ export default memo(() => {
       return {
         id: api.id,
         name: api.name,
+        canUpdate: canUpdateUserApi(api),
+        raw: api,
         label: `${api.name}${statusLabel}`,
         desc: [/^\d/.test(api.version) ? `v${api.version}` : api.version].filter(Boolean).join(', '),
         statusLabel,
@@ -104,9 +123,24 @@ export default memo(() => {
           list.map(({ id, name }) => <Item name={name} id={id} key={id} change={setApiSourceId} />)
         }
         {
-          userApiList.map(({ id, name, desc, statusLabel }) => <Item name={name} desc={desc} statusLabel={statusLabel} id={id} key={id} change={setApiSourceId} />)
+          userApiList.map(({ id, name, desc, statusLabel, canUpdate, raw }) => (
+            <Item
+              name={name}
+              desc={desc}
+              statusLabel={statusLabel}
+              id={id}
+              key={id}
+              change={setApiSourceId}
+              onUpdate={canUpdate ? () => { void handleManualUpdate(raw) } : undefined}
+            />
+          ))
         }
       </View>
+      {
+        isUserApiSupported && userApiListRaw.some(api => api.sourceUrl)
+          ? <UserApiAutoUpdateInterval />
+          : null
+      }
       {
         isUserApiSupported
           ? (
@@ -133,6 +167,18 @@ const styles = createStyle({
   btn: {
     marginTop: 10,
     flexDirection: 'row',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemContent: {
+    flex: 1,
+  },
+  updateBtn: {
+    paddingVertical: 6,
+    paddingRight: 8,
+    paddingLeft: 2,
   },
   sourceLabel: {
 

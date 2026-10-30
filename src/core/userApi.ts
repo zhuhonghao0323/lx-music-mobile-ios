@@ -1,5 +1,5 @@
 import { action, state } from '@/store/userApi'
-import { addUserApi, getUserApiScript, removeUserApi as removeUserApiFromStore, setUserApiAllowShowUpdateAlert as setUserApiAllowShowUpdateAlertFromStore } from '@/utils/data'
+import { addUserApi, getUserApiScript, removeUserApi as removeUserApiFromStore, setUserApiAllowShowUpdateAlert as setUserApiAllowShowUpdateAlertFromStore, updateUserApiInfo } from '@/utils/data'
 import { destroy, loadScript } from '@/utils/nativeModules/userApi'
 import { log as writeLog } from '@/utils/log'
 
@@ -27,9 +27,10 @@ export const setUserApiList: typeof action['setUserApiList'] = (list) => {
   action.setUserApiList(list)
 }
 
-export const importUserApi = async(script: string) => {
-  const info = await addUserApi(script)
+export const importUserApi = async(script: string, sourceUrl?: string) => {
+  const info = await addUserApi(script, sourceUrl)
   action.addUserApi(info)
+  return info
 }
 
 export const removeUserApi = async(ids: string[]) => {
@@ -40,6 +41,12 @@ export const removeUserApi = async(ids: string[]) => {
 export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean) => {
   await setUserApiAllowShowUpdateAlertFromStore(id, enable)
   action.setUserApiAllowShowUpdateAlert(id, enable)
+}
+
+/** 切换某个 URL 音源是否参与后台自动更新 */
+export const setUserApiAutoUpdate = async(id: string, enable: boolean) => {
+  await updateUserApiInfo(id, { autoUpdate: enable })
+  action.setUserApiAutoUpdate(id, enable)
 }
 
 export const log = {

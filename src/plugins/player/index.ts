@@ -1,4 +1,4 @@
-import TrackPlayer, { State } from 'react-native-track-player'
+import TrackPlayer, { IOSCategory, IOSCategoryOptions, State } from 'react-native-track-player'
 import { Platform } from 'react-native'
 import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache, destroy as destroyPlayer, getPosition } from './utils'
 import { getCurrentTrack, restoreTrack, updateMetaData } from './playList'
@@ -40,6 +40,13 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
     handleAudioFocus: isHandleAudioFocus,
     audioOffload: isEnableAudioOffload,
     autoUpdateMetadata: false,
+    // iOS 音频会话：只有 setupPlayer 会读取这几个字段，
+    // updateOptions 不处理音频会话（见 RNTrackPlayer.swift 的 setup 实现）。
+    // 因此「与其他应用同时播放」切换时走的是 destroy + 重新 setup（见 reloadConfig）。
+    // 关闭状态下不传，保持 RNTP 默认的 playback（无 mixWithOthers）。
+    ...(Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']
+      ? { iosCategory: IOSCategory.Playback, iosCategoryOptions: [IOSCategoryOptions.MixWithOthers] }
+      : {}),
   })
   global.lx.playerStatus.isInitialized = true
   global.lx.playerStatus.isIniting = false

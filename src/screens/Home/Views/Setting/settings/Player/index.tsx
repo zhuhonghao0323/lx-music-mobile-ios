@@ -5,6 +5,7 @@ import IsSavePlayTime from './IsSavePlayTime'
 import PlayHighQuality from './PlayHighQuality'
 import IsHandleAudioFocus from './IsHandleAudioFocus'
 import IsEnableAudioOffload from './IsEnableAudioOffload'
+import IsPlayWithOtherApps from './IsPlayWithOtherApps'
 import IsAutoCleanPlayedList from './IsAutoCleanPlayedList'
 import IsShowBluetoothLyric from './IsShowBluetoothLyric'
 import IsShowNotificationImage from './IsShowNotificationImage'
@@ -25,6 +26,7 @@ export default memo(() => {
       <IsAutoCleanPlayedList />
       <IsHandleAudioFocus />
       <IsEnableAudioOffload />
+      <IsPlayWithOtherApps />
       {isDesktopLyricSupported ? <IsShowBluetoothLyric /> : null}
       <IsShowNotificationImage />
       <IsShowLyricTranslation />

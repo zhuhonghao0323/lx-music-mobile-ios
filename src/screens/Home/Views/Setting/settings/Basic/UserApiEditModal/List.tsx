@@ -6,7 +6,8 @@ import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { useSettingValue } from '@/store/setting/hook'
-import { removeUserApi, setUserApiAllowShowUpdateAlert } from '@/core/userApi'
+import { removeUserApi, setUserApiAllowShowUpdateAlert, setUserApiAutoUpdate } from '@/core/userApi'
+import { canUpdateUserApi, handleManualUpdate } from './updateAction'
 import { BorderRadius } from '@/theme'
 import CheckBox from '@/components/common/CheckBox'
 import { Icon } from '@/components/common/Icon'
@@ -17,16 +18,23 @@ import { setApiSource } from '@/core/apiSource'
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert }: {
+const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
+  onChangeAutoUpdate: (id: string, enabled: boolean) => void
+  onUpdate: (item: LX.UserApi.UserApiInfo) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
+  // 只有 URL 导入且版本号可比较的音源才提供更新能力
+  const canUpdate = canUpdateUserApi(item)
   const changeAllowShowUpdateAlert = (check: boolean) => {
     onChangeAllowShowUpdateAlert(item.id, check)
+  }
+  const changeAutoUpdate = (check: boolean) => {
+    onChangeAutoUpdate(item.id, check)
   }
   const handleRemove = () => {
     onRemove(item.id, item.name)
@@ -54,8 +62,22 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert }: {
           ) : null
         }
         <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
+        {
+          canUpdate
+            ? <CheckBox check={item.autoUpdate !== false} label={t('user_api_auto_update')} onChange={changeAutoUpdate} size={0.86} />
+            : null
+        }
       </View>
       <View style={styles.listItemRight}>
+        {
+          canUpdate
+            ? (
+                <TouchableOpacity style={styles.btn} onPress={() => { onUpdate(item) }}>
+                  <Icon name="available_updates" color={theme['c-button-font']} />
+                </TouchableOpacity>
+              )
+            : null
+        }
         <TouchableOpacity style={styles.btn} onPress={handleRemove}>
           <Icon name="close" color={theme['c-button-font']} />
         </TouchableOpacity>
@@ -98,6 +120,12 @@ export default () => {
   const handleChangeAllowShowUpdateAlert = useCallback((id: string, enabled: boolean) => {
     void setUserApiAllowShowUpdateAlert(id, enabled)
   }, [])
+  const handleChangeAutoUpdate = useCallback((id: string, enabled: boolean) => {
+    void setUserApiAutoUpdate(id, enabled)
+  }, [])
+  const handleUpdate = useCallback((item: LX.UserApi.UserApiInfo) => {
+    void handleManualUpdate(item)
+  }, [])
 
   return (
     <ScrollView style={styles.scrollView} keyboardShouldPersistTaps={'always'}>
@@ -112,6 +140,8 @@ export default () => {
                 activeId={apiSource}
                 onRemove={handleRemove}
                 onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
+                onChangeAutoUpdate={handleChangeAutoUpdate}
+                onUpdate={handleUpdate}
               />
               )
             })
