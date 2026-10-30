@@ -1037,6 +1037,66 @@ const patchTrackPlayerSoundEffectRefresh = async() => {
   })
 }
 
+
+/**
+ * 让 updateOptions 支持动态配置 iOS 音频会话。
+ *
+ * 背景：这个 fork 的 RNTrackPlayer.swift 只在 setupPlayer 里读
+ * iosCategory / iosCategoryOptions，updateOptions 完全不碰音频会话，
+ * 而 setupPlayer 第二次调用会因为 hasInitialized 直接返回。
+ * 结果就是「与其他应用同时播放」只能靠销毁重建播放器来切换，代价是播放中断，
+ * 而且部分场景下配置并不一定能落到系统上。
+ *
+ * 这里给 updateOptions 补一个 applyAudioSessionOptions：
+ * 传了 iosCategory 才重新 setCategory + setActive，没传就完全不干预。
+ * 这样 JS 侧可以像酷狗/波点那样，在播放过程中直接切换混音模式。
+ */
+const patchTrackPlayerAudioSession = async() => {
+  const filePath = 'node_modules/react-native-track-player/ios/RNTrackPlayer/RNTrackPlayer.swift'
+
+  await patchFileByRegex({
+    filePath,
+    pattern: /        resolve\(NSNull\(\)\)\n    \}\n\n    @objc\(add:before:resolver:rejecter:\)/,
+    replacement: `        applyAudioSessionOptions(options)
+
+        resolve(NSNull())
+    }
+
+    /// LXMusic: 按传入的 iosCategory / iosCategoryOptions / iosCategoryMode 重新配置 AVAudioSession。
+    /// 未传 iosCategory 时什么都不做，保持 setupPlayer 时的配置。
+    private func applyAudioSessionOptions(_ options: [String: Any]) {
+        guard let categoryName = options["iosCategory"] as? String,
+              let category = SessionCategory(rawValue: categoryName) else { return }
+
+        var categoryOptions: AVAudioSession.CategoryOptions = []
+        if let optionNames = options["iosCategoryOptions"] as? [String] {
+            let mapped = optionNames.compactMap { SessionCategoryOptions(rawValue: $0)?.mapConfigToAVAudioSessionCategoryOptions() }
+            categoryOptions = AVAudioSession.CategoryOptions(mapped)
+        }
+
+        var categoryMode: AVAudioSession.Mode = .default
+        if let modeName = options["iosCategoryMode"] as? String,
+           let mode = SessionCategoryMode(rawValue: modeName) {
+            categoryMode = mode.mapConfigToAVAudioSessionCategoryMode()
+        }
+
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                category.mapConfigToAVAudioSessionCategory(),
+                mode: categoryMode,
+                options: categoryOptions
+            )
+            try AVAudioSession.sharedInstance().setActive(true)
+            print("[LXMusic] audio session updated: category=\\(categoryName) options=\\(categoryOptions.rawValue)")
+        } catch {
+            print("[LXMusic] audio session update failed: \\(error)")
+        }
+    }
+
+    @objc(add:before:resolver:rejecter:)`,
+  })
+}
+
 ;(async() => {
   for (const target of patchTargets) {
     try {
@@ -1054,6 +1114,11 @@ const patchTrackPlayerSoundEffectRefresh = async() => {
     await patchTrackPlayerSoundEffectRefresh()
   } catch (err) {
     console.error(`Patch TrackPlayer sound effect refresh failed: ${err.message}`)
+  }
+  try {
+    await patchTrackPlayerAudioSession()
+  } catch (err) {
+    console.error(`Patch TrackPlayer audio session failed: ${err.message}`)
   }
   try {
     await ensureFileContent({

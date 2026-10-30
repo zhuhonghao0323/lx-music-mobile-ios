@@ -120,6 +120,7 @@ export {
 }
 
 export {
+  applyAudioMix,
   setResource,
   setPause,
   setPlay,

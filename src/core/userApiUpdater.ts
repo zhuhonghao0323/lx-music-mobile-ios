@@ -39,8 +39,18 @@ const MAX_SCRIPT_SIZE = 9_000_000
 /** 等待音源重新初始化结果的上限 */
 const INIT_TIMEOUT = 15_000
 
-/** 版本号是否可用于比较：必须以数字开头（排除空串、`beta` 之类） */
-const isComparableVersion = (version?: string): version is string => !!version && /^\d/.test(version)
+/**
+ * 版本号是否可用于比较。
+ *
+ * 只接受纯数字点分格式（如 8.9.1 / 1.2.3.4），这样 compareVer 的比较结果才可靠。
+ * 排除空串、`beta`、`1.0.0-beta` 这类预发布标记——
+ * 项目自带的 compareVer 会把非数字字符换算成负数参与比较，
+ * 对预发布版本会得出错误结论，不如直接判定「不支持更新」。
+ */
+const isComparableVersion = (version?: string): version is string => {
+  if (!version) return false
+  return /^\d+(\.\d+){0,3}$/.test(version.trim())
+}
 
 const fetchRemoteScript = async(url: string): Promise<string> => {
   const resp = await httpFetch(url).promise

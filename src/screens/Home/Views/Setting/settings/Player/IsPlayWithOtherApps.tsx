@@ -8,7 +8,7 @@ import { useSettingValue } from '@/store/setting/hook'
 import CheckBox from '@/components/common/CheckBox'
 import ConfirmAlert, { type ConfirmAlertType } from '@/components/common/ConfirmAlert'
 import Text from '@/components/common/Text'
-import { reloadConfig } from '@/plugins/player'
+import { applyAudioMix } from '@/plugins/player'
 
 import CheckBoxItem from '../../components/CheckBoxItem'
 
@@ -24,11 +24,11 @@ export default memo(() => {
 
   const applyChange = useCallback((enabled: boolean) => {
     updateSetting({ 'player.isPlayWithOtherApps': enabled })
-    // iOS 的音频会话只在 setupPlayer 时配置，updateOptions 不会处理，
-    // 所以这里必须走「销毁 + 重建 + 恢复播放」。
-    // reloadConfig 内部已处理 FLAC 播放快照与当前曲目/进度的恢复，
-    // 播放器未初始化时它会直接返回，安全。
-    void reloadConfig()
+    // 直接改音频会话，不销毁播放器：
+    // dependencies-patch.js 给 RNTrackPlayer.swift 的 updateOptions 补了
+    // applyAudioSessionOptions，传 iosCategory 就会重新 setCategory + setActive。
+    // 这样切换时播放不中断，和酷狗/波点的做法一致。
+    void applyAudioMix(enabled)
   }, [])
 
   const handleChange = useCallback((check: boolean) => {

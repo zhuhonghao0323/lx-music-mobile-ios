@@ -1,4 +1,4 @@
-import TrackPlayer, { Capability, RepeatMode, State } from 'react-native-track-player'
+import TrackPlayer, { Capability, IOSCategory, IOSCategoryOptions, RepeatMode, State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { playMusic as handlePlayMusic } from './playList'
 import { destroyTrackPlayerCore } from './trackPlayerCore'
@@ -438,6 +438,37 @@ const defaultUpdateOptions = Platform.OS == 'ios'
 
 export const updateOptions = async(options = defaultUpdateOptions) => {
   return TrackPlayer.updateOptions(options)
+}
+
+/**
+ * 切换「与其他应用同时播放」的音频会话策略。
+ *
+ * iOS 上走 updateOptions 动态改 AVAudioSession（见 dependencies-patch.js 里
+ * 给 RNTrackPlayer.swift 补的 applyAudioSessionOptions）：
+ * 不需要销毁重建播放器，播放不会中断。
+ *
+ * - 开启：playback + mixWithOthers，可与其它音视频 App 同时出声；
+ *   同时清空 capabilities，放弃锁屏/控制中心/线控等系统媒体能力
+ *   （mixWithOthers 下这些能力本来也会失效，主动清掉更干净）。
+ * - 关闭：恢复 playback（无 mixWithOthers）与默认 capabilities。
+ */
+export const applyAudioMix = async(enable: boolean) => {
+  if (Platform.OS !== 'ios') return
+  const options = enable
+    ? {
+        // 开启混音时放弃所有系统媒体控制能力
+        capabilities: [] as Capability[],
+        iosCategory: IOSCategory.Playback,
+        iosCategoryOptions: [IOSCategoryOptions.MixWithOthers],
+      }
+    : {
+        ...defaultUpdateOptions,
+        iosCategory: IOSCategory.Playback,
+        iosCategoryOptions: [] as IOSCategoryOptions[],
+      }
+  // iosCategory/iosCategoryOptions 属于 PlayerOptions，不在 MetadataOptions 类型里，
+  // 但原生侧的 updateOptions 已经补上了对这两个字段的处理
+  await (TrackPlayer.updateOptions as unknown as (o: Record<string, unknown>) => Promise<void>)(options)
 }
 
 // export const setMaxCache = async size => {

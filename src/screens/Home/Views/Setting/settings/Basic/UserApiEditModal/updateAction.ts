@@ -41,9 +41,10 @@ export const handleManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<v
   }
 }
 
-/** 该音源是否支持更新：必须来自 URL 导入，且本地版本号可比较 */
+/** 该音源是否支持更新：必须来自 URL 导入，且本地版本号是可比较的点分数字 */
 export const canUpdateUserApi = (info: LX.UserApi.UserApiInfo): boolean => {
-  return !!info.sourceUrl && /^\d/.test(info.version ?? '')
+  const version = (info.version ?? '').trim()
+  return !!info.sourceUrl && /^\d+(\.\d+){0,3}$/.test(version)
 }
 
 /**
