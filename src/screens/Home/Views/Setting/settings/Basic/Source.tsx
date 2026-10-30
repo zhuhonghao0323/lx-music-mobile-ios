@@ -1,6 +1,6 @@
-import { memo, useCallback, useMemo, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import { TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, TouchableOpacity, View } from 'react-native'
 
 import SubTitle from '../../components/SubTitle'
 import CheckBox from '@/components/common/CheckBox'
@@ -39,17 +39,31 @@ const Item = ({ id, name, desc, statusLabel, change, onUpdate }: {
   statusLabel?: string
   change: (id: string) => void
   /** 传入时在条目前面显示更新图标（只有 URL 导入的音源才有） */
-  onUpdate?: () => void
+  onUpdate?: () => Promise<void>
 }) => {
   const isActive = useActive(id)
   const theme = useTheme()
+  const [updating, setUpdating] = useState(false)
+  const handleUpdate = async() => {
+    if (updating || !onUpdate) return
+    setUpdating(true)
+    try {
+      await onUpdate()
+    } finally {
+      setUpdating(false)
+    }
+  }
   return (
     <View style={styles.itemRow}>
       {
         onUpdate
           ? (
-              <TouchableOpacity style={styles.updateBtn} onPress={onUpdate}>
-                <Icon name="available_updates" color={theme['c-primary']} size={15} />
+              <TouchableOpacity style={styles.updateBtn} onPress={handleUpdate} disabled={updating}>
+                {
+                  updating
+                    ? <ActivityIndicator size="small" color={theme['c-primary']} />
+                    : <Icon name="available_updates" color={theme['c-primary']} size={15} />
+                }
               </TouchableOpacity>
             )
           : null
@@ -137,7 +151,7 @@ export default memo(() => {
               id={id}
               key={id}
               change={setApiSourceId}
-              onUpdate={canUpdate ? () => { void handleManualUpdate(raw) } : undefined}
+              onUpdate={canUpdate ? async() => { await handleManualUpdate(raw) } : undefined}
             />
           ))
         }

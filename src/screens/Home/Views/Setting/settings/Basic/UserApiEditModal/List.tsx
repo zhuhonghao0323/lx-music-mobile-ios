@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import Text from '@/components/common/Text'
-import { View, TouchableOpacity, ScrollView } from 'react-native'
+import { ActivityIndicator, View, TouchableOpacity, ScrollView } from 'react-native'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
@@ -25,7 +25,7 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
   onChangeAutoUpdate: (id: string, enabled: boolean) => void
-  onUpdate: (item: LX.UserApi.UserApiInfo) => void
+  onUpdate: (item: LX.UserApi.UserApiInfo) => Promise<void>
   onSaveUrl: (item: LX.UserApi.UserApiInfo, url: string) => void
 }) => {
   const theme = useTheme()
@@ -36,6 +36,16 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
   // 不用弹窗：这个列表本身已经在 Modal 里，再套一层弹层在 iOS 上不可靠
   const [binding, setBinding] = useState(false)
   const [bindUrl, setBindUrl] = useState('')
+  const [updating, setUpdating] = useState(false)
+  const handleUpdate = async() => {
+    if (updating) return
+    setUpdating(true)
+    try {
+      await onUpdate(item)
+    } finally {
+      setUpdating(false)
+    }
+  }
   const confirmBind = () => {
     const url = bindUrl.trim()
     if (!url) return
@@ -106,8 +116,12 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
         {
           canUpdate
             ? (
-                <TouchableOpacity style={styles.btn} onPress={() => { onUpdate(item) }}>
-                  <Icon name="available_updates" color={theme['c-button-font']} />
+                <TouchableOpacity style={styles.btn} onPress={handleUpdate} disabled={updating}>
+                  {
+                    updating
+                      ? <ActivityIndicator size="small" color={theme['c-button-font']} />
+                      : <Icon name="available_updates" color={theme['c-button-font']} />
+                  }
                 </TouchableOpacity>
               )
             : null
@@ -157,9 +171,7 @@ export default () => {
   const handleChangeAutoUpdate = useCallback((id: string, enabled: boolean) => {
     void setUserApiAutoUpdate(id, enabled)
   }, [])
-  const handleUpdate = useCallback((item: LX.UserApi.UserApiInfo) => {
-    void handleManualUpdate(item)
-  }, [])
+  const handleUpdate = useCallback(async(item: LX.UserApi.UserApiInfo) => { await handleManualUpdate(item) }, [])
   const handleSaveUrl = useCallback((item: LX.UserApi.UserApiInfo, url: string) => {
     void saveSourceUrl(item, url).catch((error: any) => {
       toast(global.i18n.t('user_api_bind_url_invalid'))

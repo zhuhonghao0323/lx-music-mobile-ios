@@ -36,7 +36,8 @@ export const handleManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<v
       toast(global.i18n.t('user_api_update_manual_skipped'))
       break
     default:
-      toast(global.i18n.t('user_api_update_manual_failed'))
+      // 带上具体原因，否则用户只能看到「更新失败」，无法判断是网络还是脚本问题
+      toast(`${global.i18n.t('user_api_update_manual_failed')}${result.error ? `：${result.error}` : ''}`, 'long')
       break
   }
 }

@@ -559,8 +559,21 @@ const matchInfo = (scriptInfo: string) => {
  */
 export const parseUserApiScriptInfo = (script: string): Record<keyof typeof INFO_NAMES, string> | null => {
   const result = /^\/\*[\S|\s]+?\*\//.exec(script)
-  if (!result) return null
-  return matchInfo(result[0])
+  if (result) return matchInfo(result[0])
+
+  // 兜底：脚本头部不是标准块注释时（比如用 // 行注释），
+  // 从文件前 4KB 里宽松提取 @xxx 字段，避免因为格式差异直接判定「不支持更新」
+  const head = script.slice(0, 4096)
+  const infos: Partial<Record<keyof typeof INFO_NAMES, string>> = {}
+  const rxp = /@(\w+)[ \t]+([^\r\n*]+)/g
+  let matched: RegExpExecArray | null
+  while ((matched = rxp.exec(head)) != null) {
+    const key = matched[1] as keyof typeof INFO_NAMES
+    if (INFO_NAMES[key] == null) continue
+    if (infos[key]) continue
+    infos[key] = matched[2].trim()
+  }
+  return Object.keys(infos).length ? infos as Record<keyof typeof INFO_NAMES, string> : null
 }
 export const addUserApi = async(script: string, sourceUrl?: string): Promise<LX.UserApi.UserApiInfo> => {
   const result = /^\/\*[\S|\s]+?\*\//.exec(script)

@@ -53,9 +53,19 @@ const isComparableVersion = (version?: string): version is string => {
 }
 
 const fetchRemoteScript = async(url: string): Promise<string> => {
-  const resp = await httpFetch(url).promise
+  // 必须显式覆盖 Accept。
+  // 项目的 request 层默认带 Accept: application/json，
+  // 而音源分发服务器（比如 source.xxx.cn/api/script/lx?key=...）
+  // 会按 Accept 决定返回内容：给 application/json 时可能返回 JSON 错误体，
+  // 拿到的东西不是 JS 脚本，解析不出 @version，最后被静默判成「跳过」——
+  // 表现就是「点了更新没反应、版本一直不涨」。
+  const resp = await httpFetch(url, {
+    method: 'get',
+    headers: { Accept: 'text/javascript,application/javascript,*/*' },
+  }).promise
   const body = resp.body
   if (typeof body != 'string') throw new Error('invalid response body')
+  if (!body.trim()) throw new Error('empty response')
   if (body.length > MAX_SCRIPT_SIZE) throw new Error('script too large')
   return body
 }
