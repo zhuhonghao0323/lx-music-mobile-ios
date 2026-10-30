@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import Text from '@/components/common/Text'
 import { View, TouchableOpacity, ScrollView } from 'react-native'
-import { confirmDialog, createStyle } from '@/utils/tools'
+import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
@@ -161,7 +161,10 @@ export default () => {
     void handleManualUpdate(item)
   }, [])
   const handleSaveUrl = useCallback((item: LX.UserApi.UserApiInfo, url: string) => {
-    void saveSourceUrl(item, url)
+    void saveSourceUrl(item, url).catch((error: any) => {
+      toast(global.i18n.t('user_api_bind_url_invalid'))
+      console.log('saveSourceUrl failed', error)
+    })
   }, [])
 
   return (

@@ -133,6 +133,13 @@ export const updateCurrentTrackMetadata = async(metadata: {
   elapsedTime?: number
   playbackRate?: number
 }) => {
+  // 「与其他应用同时播放」模式下不写任何系统媒体信息。
+  //
+  // 注意：光把 setupPlayer 的 autoUpdateMetadata 设成 false 是不够的，
+  // updateMetadataForTrack 是手动写 MPNowPlayingInfoCenter，
+  // 不拦住它，灵动岛/锁屏/控制中心照样会出播放卡片。
+  if (Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']) return
+
   const currentTrackIndex = await TrackPlayer.getCurrentTrack().catch(() => null)
   if (currentTrackIndex != null && currentTrackIndex > -1) {
     await TrackPlayer.updateMetadataForTrack(currentTrackIndex, metadata).catch(() => {})

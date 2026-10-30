@@ -41,10 +41,15 @@ export const handleManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<v
   }
 }
 
-/** 该音源是否支持更新：必须来自 URL 导入，且本地版本号是可比较的点分数字 */
+/**
+ * 该音源是否支持更新：只要绑定了来源地址就显示更新按钮。
+ *
+ * 版本号是否合法交给点击时判断——如果本地版本不合法，
+ * checkUserApiUpdate 会返回 skipped，UI 提示「该音源不支持更新」。
+ * 这样用户总能看见按钮，不会因为版本格式问题以为功能没生效。
+ */
 export const canUpdateUserApi = (info: LX.UserApi.UserApiInfo): boolean => {
-  const version = (info.version ?? '').trim()
-  return !!info.sourceUrl && /^\d+(\.\d+){0,3}$/.test(version)
+  return !!info.sourceUrl
 }
 
 /**
@@ -68,11 +73,16 @@ export const saveSourceUrl = async(info: LX.UserApi.UserApiInfo, input: string):
     autoUpdate: info.autoUpdate !== false,
     lastCheckTime: 0,
   }
-  const saved = await updateUserApiInfo(info.id, next)
-  // 即使持久化没命中（内存列表里找不到这条），也要先更新 store，
-  // 保证界面上的更新按钮能立刻出现；下次冷启动会从存储重新读。
+  // 先更新 store：界面必须立刻出现更新按钮，不能等持久化结果
   action.updateUserApi(next)
-  if (!saved) log.warn('[userApi] 绑定地址未能写入存储，仅更新了内存状态')
+
+  try {
+    const saved = await updateUserApiInfo(info.id, next)
+    if (!saved) log.warn('[userApi] 绑定地址未能写入存储，仅更新了内存状态')
+  } catch (error: any) {
+    log.warn(`[userApi] 绑定地址持久化失败: ${error?.message ?? ''}`)
+  }
+
   // 绑定后立刻检查一次，用户不用再去找更新按钮
   void handleManualUpdate(next)
   return true

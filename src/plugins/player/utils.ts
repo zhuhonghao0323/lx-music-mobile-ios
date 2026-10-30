@@ -454,21 +454,24 @@ export const updateOptions = async(options = defaultUpdateOptions) => {
  */
 export const applyAudioMix = async(enable: boolean) => {
   if (Platform.OS !== 'ios') return
-  const options = enable
-    ? {
-        // 开启混音时放弃所有系统媒体控制能力
-        capabilities: [] as Capability[],
-        iosCategory: IOSCategory.Playback,
-        iosCategoryOptions: [IOSCategoryOptions.MixWithOthers],
-      }
-    : {
-        ...defaultUpdateOptions,
-        iosCategory: IOSCategory.Playback,
-        iosCategoryOptions: [] as IOSCategoryOptions[],
-      }
+
+  const options = {
+    // capabilities 保持默认，不要清空：
+    // 清空会让 SwiftAudio 重置远程控制注册，实测会连带影响后台播放状态。
+    ...defaultUpdateOptions,
+    iosCategory: IOSCategory.Playback,
+    iosCategoryOptions: enable ? [IOSCategoryOptions.MixWithOthers] : ([] as IOSCategoryOptions[]),
+  }
   // iosCategory/iosCategoryOptions 属于 PlayerOptions，不在 MetadataOptions 类型里，
   // 但原生侧的 updateOptions 已经补上了对这两个字段的处理
   await (TrackPlayer.updateOptions as unknown as (o: Record<string, unknown>) => Promise<void>)(options)
+
+  if (enable) {
+    // 主动清掉已经在锁屏/灵动岛上的媒体卡片。
+    // 光靠 updateCurrentTrackMetadata 里提前 return 只能阻止「后续写入」，
+    // 切换前已经写进去的内容必须清一次。
+    await TrackPlayer.clearNowPlayingMetadata().catch(() => {})
+  }
 }
 
 // export const setMaxCache = async size => {
