@@ -7,7 +7,7 @@ import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { useSettingValue } from '@/store/setting/hook'
 import { removeUserApi, setUserApiAllowShowUpdateAlert, setUserApiAutoUpdate } from '@/core/userApi'
-import { canUpdateUserApi, handleManualUpdate } from './updateAction'
+import { bindSourceUrl, canUpdateUserApi, handleManualUpdate } from './updateAction'
 import { BorderRadius } from '@/theme'
 import CheckBox from '@/components/common/CheckBox'
 import { Icon } from '@/components/common/Icon'
@@ -18,13 +18,14 @@ import { setApiSource } from '@/core/apiSource'
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate }: {
+const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate, onBindUrl }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
   onChangeAutoUpdate: (id: string, enabled: boolean) => void
   onUpdate: (item: LX.UserApi.UserApiInfo) => void
+  onBindUrl: (item: LX.UserApi.UserApiInfo) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
@@ -65,7 +66,12 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
         {
           canUpdate
             ? <CheckBox check={item.autoUpdate !== false} label={t('user_api_auto_update')} onChange={changeAutoUpdate} size={0.86} />
-            : null
+            : (
+                // 存量音源没有记录来源地址，给个入口手动补绑一次
+                <TouchableOpacity style={styles.bindBtn} onPress={() => { onBindUrl(item) }}>
+                  <Text size={12} color={theme['c-primary']}>{t('user_api_bind_url_btn')}</Text>
+                </TouchableOpacity>
+              )
         }
       </View>
       <View style={styles.listItemRight}>
@@ -126,6 +132,9 @@ export default () => {
   const handleUpdate = useCallback((item: LX.UserApi.UserApiInfo) => {
     void handleManualUpdate(item)
   }, [])
+  const handleBindUrl = useCallback((item: LX.UserApi.UserApiInfo) => {
+    bindSourceUrl(item)
+  }, [])
 
   return (
     <ScrollView style={styles.scrollView} keyboardShouldPersistTaps={'always'}>
@@ -142,6 +151,7 @@ export default () => {
                 onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
                 onChangeAutoUpdate={handleChangeAutoUpdate}
                 onUpdate={handleUpdate}
+                onBindUrl={handleBindUrl}
               />
               )
             })
@@ -184,6 +194,11 @@ const styles = createStyle({
   btn: {
     padding: 10,
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  bindBtn: {
+    paddingTop: 4,
+    paddingBottom: 2,
+    alignSelf: 'flex-start',
   },
   tipText: {
     textAlign: 'center',

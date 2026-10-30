@@ -598,5 +598,10 @@
   "user_api_update_manual_checking": "檢查更新中...",
   "user_api_update_user_modified_title": "該音源已被手動修改",
   "user_api_update_user_modified_message": "更新會覆蓋你對腳本的手動修改，是否繼續？",
-  "user_api_update_btn_continue": "繼續更新"
+  "user_api_update_btn_continue": "繼續更新",
+  "user_api_bind_url_btn": "綁定更新地址",
+  "user_api_bind_url_title": "綁定更新地址",
+  "user_api_bind_url_message": "填入該音源的線上腳本地址（.js），用於檢查新版本。\n舊版本匯入的音源沒有記錄來源地址，綁定一次即可。",
+  "user_api_bind_url_invalid": "請輸入有效的 http(s) 地址",
+  "user_api_bind_url_success": "已綁定更新地址"
 }

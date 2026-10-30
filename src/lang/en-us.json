@@ -598,5 +598,10 @@
   "user_api_update_manual_checking": "Checking for updates...",
   "user_api_update_user_modified_title": "This script was modified manually",
   "user_api_update_user_modified_message": "Updating will overwrite your manual changes. Continue?",
-  "user_api_update_btn_continue": "Continue"
+  "user_api_update_btn_continue": "Continue",
+  "user_api_bind_url_btn": "Bind update URL",
+  "user_api_bind_url_title": "Bind update URL",
+  "user_api_bind_url_message": "Enter the online script URL (.js) of this source to check for updates.\nSources imported by older versions have no recorded URL, bind it once.",
+  "user_api_bind_url_invalid": "Please enter a valid http(s) URL",
+  "user_api_bind_url_success": "Update URL bound"
 }
