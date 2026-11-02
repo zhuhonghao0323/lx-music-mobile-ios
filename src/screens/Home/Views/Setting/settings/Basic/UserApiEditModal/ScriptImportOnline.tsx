@@ -3,7 +3,7 @@ import ConfirmAlert, { type ConfirmAlertType } from '@/components/common/Confirm
 import Text from '@/components/common/Text'
 import { View } from 'react-native'
 import Input, { type InputType } from '@/components/common/Input'
-import { createStyle, toast } from '@/utils/tools'
+import { createStyle, tipDialog } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { httpFetch } from '@/utils/request'
@@ -91,13 +91,13 @@ export default forwardRef<ScriptImportOnlineType, {}>((props, ref) => {
     try {
       script = await httpFetch(url).promise.then(resp => resp.body) as string
     } catch (err: any) {
-      toast(t('user_api_import_failed_tip', { message: err.message }), 'long')
+      void tipDialog({ message: t('user_api_import_failed_tip', { message: err.message }) })
       return
     } finally {
       setBtn({ disabled: false, text: t('user_api_btn_import_online_input_confirm') })
     }
     if (script.length > 9_000_000) {
-      toast(t('user_api_import_failed_tip', { message: 'Too large script' }), 'long')
+      void tipDialog({ message: t('user_api_import_failed_tip', { message: 'Too large script' }) })
       return
     }
     void handleImportScript(script, url)

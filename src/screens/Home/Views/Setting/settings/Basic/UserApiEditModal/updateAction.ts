@@ -2,7 +2,25 @@ import { checkUserApiUpdate } from '@/core/userApiUpdater'
 import { updateUserApiInfo } from '@/utils/data'
 import { action } from '@/store/userApi'
 import { log } from '@/utils/log'
-import { confirmDialog, toast } from '@/utils/tools'
+import { confirmDialog, tipDialog } from '@/utils/tools'
+
+/**
+ * 统一的提示入口。
+ *
+ * 注意：不能用项目自带的 `toast`。它的实现是
+ *
+ *   export const toast = (message, ...) => {
+ *     if (!isAndroid) { console.log(...); return }
+ *     ...
+ *   }
+ *
+ * 在 iOS 上直接 return，只往控制台打一行日志，界面上什么都不显示。
+ * 之前这里全用 toast，导致「点更新按钮完全没有反馈」。
+ * 改用 tipDialog（内部是 Alert.alert），iOS 上能真正弹出来。
+ */
+const showTip = async(message: string): Promise<void> => {
+  await tipDialog({ message })
+}
 
 /**
  * 手动触发一次音源更新检查（点击更新图标 / 弹窗内的更新按钮）。
@@ -10,19 +28,18 @@ import { confirmDialog, toast } from '@/utils/tools'
  */
 export const handleManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<void> => {
   // 整个流程包一层 try/catch：
-  // 之前只要中间任何一步抛错，调用方是 void 调用，异常会被静默吞掉，
-  // 表现就是「点了按钮完全没反应、也没有任何提示」。
+  // 调用方是 void 调用，异常不接住就会被静默吞掉，表现成「点了没反应」。
   try {
     await runManualUpdate(info)
   } catch (error: any) {
     log.error(error?.stack ?? String(error))
-    toast(`${global.i18n.t('user_api_update_manual_failed')}：${error?.message ?? 'unknown'}`, 'long')
+    await showTip(`${global.i18n.t('user_api_update_manual_failed')}：${error?.message ?? 'unknown'}`)
   }
 }
 
 const runManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<void> => {
   if (!info.sourceUrl) {
-    toast(global.i18n.t('user_api_bind_url_btn'))
+    await showTip(global.i18n.t('user_api_bind_url_btn'))
     return
   }
 
@@ -37,22 +54,23 @@ const runManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<void> => {
     if (!confirmed) return
   }
 
-  toast(global.i18n.t('user_api_update_manual_checking'))
+  // 这里不再弹「检查更新中」：图标已经转圈，再弹一个必须手动关掉的窗反而打断操作。
+  // 只在整个流程结束后给一次结果。
   const result = await checkUserApiUpdate(info, { force: true })
 
   switch (result.status) {
     case 'updated':
-      toast(global.i18n.t('user_api_update_manual_success', { version: result.toVersion ?? '' }))
+      await showTip(global.i18n.t('user_api_update_manual_success', { version: result.toVersion ?? '' }))
       break
     case 'latest':
-      toast(global.i18n.t('user_api_update_manual_latest'))
+      await showTip(global.i18n.t('user_api_update_manual_latest'))
       break
     case 'skipped':
-      toast(global.i18n.t('user_api_update_manual_skipped'))
+      await showTip(global.i18n.t('user_api_update_manual_skipped'))
       break
     default:
       // 带上具体原因，否则用户只能看到「更新失败」，无法判断是网络还是脚本问题
-      toast(`${global.i18n.t('user_api_update_manual_failed')}${result.error ? `：${result.error}` : ''}`, 'long')
+      await showTip(`${global.i18n.t('user_api_update_manual_failed')}${result.error ? `：${result.error}` : ''}`)
       break
   }
 }
@@ -80,7 +98,7 @@ export const canUpdateUserApi = (info: LX.UserApi.UserApiInfo): boolean => {
 export const saveSourceUrl = async(info: LX.UserApi.UserApiInfo, input: string): Promise<boolean> => {
   const url = input.trim()
   if (!/^https?:\/\//.test(url)) {
-    toast(global.i18n.t('user_api_bind_url_invalid'))
+    await showTip(global.i18n.t('user_api_bind_url_invalid'))
     return false
   }
   const next: LX.UserApi.UserApiInfo = {
