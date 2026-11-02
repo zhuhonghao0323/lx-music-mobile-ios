@@ -31,7 +31,6 @@ export default forwardRef<ListImportExportType, {}>((props, ref) => {
   const choosePathRef = useRef<ChoosePathType>(null)
   const selectInfoRef = useRef<SelectInfo>((initSelectInfo as SelectInfo))
   const pendingShowRef = useRef<SelectInfo['action'] | null>(null)
-  console.log('render import export')
 
   useEffect(() => {
     if (!visible || !pendingShowRef.current || !choosePathRef.current) return

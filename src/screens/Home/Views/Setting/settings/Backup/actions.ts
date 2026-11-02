@@ -10,15 +10,12 @@ import { shareFile } from '@/utils/nativeModules/utils'
 
 
 const getAllLists = async() => {
-  const lists = []
-  lists.push(await getListMusics(listState.defaultList.id).then(musics => ({ ...listState.defaultList, list: musics })))
-  lists.push(await getListMusics(listState.loveList.id).then(musics => ({ ...listState.loveList, list: musics })))
-
-  for await (const list of listState.userList) {
-    lists.push(await getListMusics(list.id).then(musics => ({ ...list, list: musics })))
-  }
-
-  return lists
+  // 并行读取所有列表。
+  // 原来是串行 await（for await），列表一多就是几十次串行异步往返，
+  // 导出时表现为卡十几秒。这里一次性发出去，整体耗时取决于最慢的那个。
+  const sources = [listState.defaultList, listState.loveList, ...listState.userList]
+  const musicsList = await Promise.all(sources.map(async(list) => getListMusics(list.id)))
+  return sources.map((list, index) => ({ ...list, list: musicsList[index] }))
 }
 const importOldListData = async(lists: any[]) => {
   const allLists = await getAllLists()
@@ -176,7 +173,6 @@ const importPlayList = async(path: string) => {
 }
 
 export const handleImportList = (path: string) => {
-  console.log(path)
   toast(global.i18n.t('setting_backup_part_import_list_tip_unzip'))
   void importPlayList(path).then((skipTip) => {
     if (skipTip) return
@@ -189,10 +185,13 @@ export const handleImportList = (path: string) => {
 
 
 const exportAllList = async(path: string) => {
-  const data = JSON.parse(JSON.stringify({
+  // 去掉原来的 JSON.parse(JSON.stringify(...))：
+  // getAllLists 返回的对象本来就可以直接序列化，
+  // 这层深拷贝对大歌单是纯同步阻塞，导出卡顿的主要来源之一。
+  const data = {
     type: 'playList_v2',
     data: await getAllLists(),
-  }))
+  }
 
   try {
     await handleSaveFile(path + '/lx_list.lxmc', data)

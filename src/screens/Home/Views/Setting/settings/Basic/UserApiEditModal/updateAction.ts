@@ -9,7 +9,22 @@ import { confirmDialog, toast } from '@/utils/tools'
  * 与后台自动更新的区别：忽略检查间隔，且遇到 userModified 时用二次确认代替直接跳过。
  */
 export const handleManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<void> => {
-  if (!info.sourceUrl) return
+  // 整个流程包一层 try/catch：
+  // 之前只要中间任何一步抛错，调用方是 void 调用，异常会被静默吞掉，
+  // 表现就是「点了按钮完全没反应、也没有任何提示」。
+  try {
+    await runManualUpdate(info)
+  } catch (error: any) {
+    log.error(error?.stack ?? String(error))
+    toast(`${global.i18n.t('user_api_update_manual_failed')}：${error?.message ?? 'unknown'}`, 'long')
+  }
+}
+
+const runManualUpdate = async(info: LX.UserApi.UserApiInfo): Promise<void> => {
+  if (!info.sourceUrl) {
+    toast(global.i18n.t('user_api_bind_url_btn'))
+    return
+  }
 
   // 用户手动改过脚本 → 覆盖前必须确认
   if (info.userModified) {

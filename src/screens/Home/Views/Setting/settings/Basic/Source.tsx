@@ -58,7 +58,7 @@ const Item = ({ id, name, desc, statusLabel, change, onUpdate }: {
       {
         onUpdate
           ? (
-              <TouchableOpacity style={styles.updateBtn} onPress={handleUpdate} disabled={updating}>
+              <TouchableOpacity style={styles.updateBtn} onPress={handleUpdate} disabled={updating} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 {
                   updating
                     ? <ActivityIndicator size="small" color={theme['c-primary']} />
@@ -214,9 +214,11 @@ const styles = createStyle({
     flex: 1,
   },
   updateBtn: {
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingRight: 8,
     paddingLeft: 2,
+    minWidth: 32,
+    alignItems: 'center',
   },
   sourceLabel: {
 

@@ -40,12 +40,20 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
     handleAudioFocus: isHandleAudioFocus,
     audioOffload: isEnableAudioOffload,
     autoUpdateMetadata: false,
-    // iOS 音频会话：只有 setupPlayer 会读取这几个字段，
-    // updateOptions 不处理音频会话（见 RNTrackPlayer.swift 的 setup 实现）。
-    // 因此「与其他应用同时播放」切换时走的是 destroy + 重新 setup（见 reloadConfig）。
-    // 关闭状态下不传，保持 RNTP 默认的 playback（无 mixWithOthers）。
-    ...(Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']
-      ? { iosCategory: IOSCategory.Playback, iosCategoryOptions: [IOSCategoryOptions.MixWithOthers] }
+    // iOS 音频会话：只有 setupPlayer 会读取这几个字段。
+    //
+    // 无论开关状态都显式指定 playback：
+    // playback 会忽略侧边静音开关（外放时静音键拨下去也有声），
+    // ambient / soloAmbient 才会被静音键掐掉。
+    // 之前关闭状态下不传，依赖 RNTP 的默认值，实测外放静音时没声音，
+    // 所以这里改成明确指定，不留给默认值。
+    ...(Platform.OS == 'ios'
+      ? {
+          iosCategory: IOSCategory.Playback,
+          iosCategoryOptions: settingState.setting['player.isPlayWithOtherApps']
+            ? [IOSCategoryOptions.MixWithOthers]
+            : ([] as IOSCategoryOptions[]),
+        }
       : {}),
   })
   global.lx.playerStatus.isInitialized = true
