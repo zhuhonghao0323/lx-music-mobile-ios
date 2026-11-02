@@ -40,16 +40,21 @@ const MAX_SCRIPT_SIZE = 9_000_000
 const INIT_TIMEOUT = 15_000
 
 /**
- * 版本号是否可用于比较。
+ * 把版本号归一化成纯数字点分格式，无法归一化时返回 null。
  *
- * 只接受纯数字点分格式（如 8.9.1 / 1.2.3.4），这样 compareVer 的比较结果才可靠。
- * 排除空串、`beta`、`1.0.0-beta` 这类预发布标记——
- * 项目自带的 compareVer 会把非数字字符换算成负数参与比较，
- * 对预发布版本会得出错误结论，不如直接判定「不支持更新」。
+ * 音源脚本头部常见写法是 `@version v8.9.2`（带 v 前缀），
+ * 也存在 `8.9.2` 这种。之前直接拿 `/^\d+(\.\d+){0,3}$/` 校验，
+ * 带 v 的一律判成「版本不合法」，结果点更新永远返回 skipped，
+ * 弹的是「该音源不支持更新」而不是「已是最新版本」。
+ *
+ * 这里统一剥掉 v/V 前缀再做校验，比较时用归一化后的值。
+ * 预发布标记（1.0.0-beta）仍然判为不支持——
+ * 项目自带的 compareVer 会把非数字字符换算成负数参与比较，结果不可靠。
  */
-const isComparableVersion = (version?: string): version is string => {
-  if (!version) return false
-  return /^\d+(\.\d+){0,3}$/.test(version.trim())
+const normalizeVersion = (version?: string): string | null => {
+  if (!version) return null
+  const normalized = version.trim().replace(/^[vV]/, '')
+  return /^\d+(\.\d+){0,3}$/.test(normalized) ? normalized : null
 }
 
 const fetchRemoteScript = async(url: string): Promise<string> => {
@@ -154,8 +159,9 @@ export const checkUserApiUpdate = async(
   if (!info.sourceUrl) return { status: 'skipped' }
   // 用户手动改过脚本，自动更新不静默覆盖（手动触发时允许，由调用方二次确认）
   if (info.userModified && !options.force) return { status: 'skipped' }
-  // 本地版本不合法 → 无法判断，跳过
-  if (!isComparableVersion(info.version)) return { status: 'skipped' }
+  // 本地版本归一化失败 → 无法判断，跳过
+  const localVersion = normalizeVersion(info.version)
+  if (!localVersion) return { status: 'skipped' }
 
   let script: string
   try {
@@ -166,10 +172,11 @@ export const checkUserApiUpdate = async(
 
   const parsed = parseUserApiScriptInfo(script)
   // 远端脚本没有头部信息或没有版本号 → 不具备更新条件
-  if (!parsed || !isComparableVersion(parsed.version)) return { status: 'skipped' }
+  const remoteVersion = normalizeVersion(parsed?.version)
+  if (!parsed || !remoteVersion) return { status: 'skipped' }
 
   // compareVer(本地, 远端) === -1 表示本地更低，即远端有更新
-  if (compareVer(info.version, parsed.version) !== -1) {
+  if (compareVer(localVersion, remoteVersion) !== -1) {
     // 顺手记录检查时间，供间隔轮询使用
     const lastCheckTime = Date.now()
     await updateUserApiInfo(info.id, { lastCheckTime }).catch(() => {})
