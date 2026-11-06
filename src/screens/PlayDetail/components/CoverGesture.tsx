@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, PanResponder, StyleSheet, View, type GestureResponderEvent, type PanResponderGestureState } from 'react-native'
 import Text from '@/components/common/Text'
 import { FAVORITE_COLOR } from './FavoriteIcon'
+import { triggerFavoriteDockAnimation } from './FavoriteBtn'
 import { addToFavorite, getPlayMusicInfo, removeFromFavorite } from '@/core/favorite'
 import { playNext, playPrev } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
@@ -103,74 +104,70 @@ export default ({ children, width, height }: {
     tipTimer.current = setTimeout(() => { setResultTip(null) }, 1400)
   }, [])
 
+  /** 调用播放页的 Dock 动画（封面↔心形），失败时静默忽略 */
+  const triggerDockAnimation = useCallback((direction: 'add' | 'remove') => {
+    void triggerFavoriteDockAnimation(direction)
+  }, [])
+
   // ---------- 收藏动画 ----------
-  /** 加入：封面缩小飞入心形，心形弹一下 */
+  /** 加入收藏：数据立即生效，同时把封面交给 Dock 动画收进左下角心形 */
   const animateAddToHeart = useCallback(() => {
     const musicInfo = getPlayMusicInfo()
     busyRef.current = true
+    // 封面先柔和淡出，飞行动画由 FavoriteDockAnimation 接管（避免两套动画打架）
     Animated.parallel([
-      Animated.timing(pan, {
-        toValue: { x: 0, y: height * 0.62 },
-        duration: 340,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(fade, { toValue: 0.05, duration: 340, easing: Easing.in(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(lift, { toValue: 0.4, duration: 340, useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(lift, { toValue: 0.2, duration: 220, useNativeDriver: false }),
     ]).start(() => {
-      if (musicInfo) void addToFavorite(musicInfo).then(() => { showResultTip(t('favorite_added')) })
-      // 心形先弹一下，同时把封面从「已飞入」状态柔和地淡回原位
-      heartScale.setValue(1.35)
-      Animated.spring(heartScale, { toValue: 1, friction: 3, tension: 180, useNativeDriver: false }).start()
       pan.setValue({ x: 0, y: 0 })
       lift.setValue(0)
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-        Animated.timing(heartScale, { toValue: 0, delay: 220, duration: 200, useNativeDriver: false }),
-        Animated.timing(trashScale, { toValue: 0, duration: 200, useNativeDriver: false }),
-      ]).start(() => {
-        setModeBoth('idle')
-        setFavHint(null)
-        favHintRef.current = null
+      heartScale.setValue(0)
+      trashScale.setValue(0)
+      setModeBoth('idle')
+      setFavHint(null)
+      favHintRef.current = null
+      if (musicInfo) {
+        void addToFavorite(musicInfo).then(() => {
+          showResultTip(t('favorite_added'))
+          triggerDockAnimation('add')
+        })
+      } else {
+        triggerDockAnimation('add')
+      }
+      Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(() => {
         busyRef.current = false
       })
     })
-  }, [pan, fade, lift, heartScale, trashScale, height, showResultTip, t, setModeBoth])
+  }, [pan, fade, lift, heartScale, trashScale, showResultTip, t, setModeBoth, triggerDockAnimation])
 
-  /** 取消：封面缩小、旋转着丢进右上角垃圾桶 */
+  /** 取消收藏：同样交给 Dock 动画反向播放（从心形里抽出封面） */
   const animateThrowToTrash = useCallback(() => {
     const musicInfo = getPlayMusicInfo()
     busyRef.current = true
-    const targetX = width * 0.46
-    const targetY = -height * 0.62
     Animated.parallel([
-      Animated.timing(pan, {
-        toValue: { x: targetX, y: targetY },
-        duration: 420,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(fade, { toValue: 0.05, duration: 420, easing: Easing.in(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(lift, { toValue: 0.2, duration: 420, useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(lift, { toValue: 0.2, duration: 220, useNativeDriver: false }),
     ]).start(() => {
-      if (musicInfo) void removeFromFavorite(musicInfo).then(() => { showResultTip(t('favorite_removed')) })
-      // 垃圾桶接住后弹一下，封面再柔和淡回原位
-      trashScale.setValue(1.4)
-      Animated.spring(trashScale, { toValue: 1, friction: 3, tension: 180, useNativeDriver: false }).start()
       pan.setValue({ x: 0, y: 0 })
       lift.setValue(0)
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-        Animated.timing(trashScale, { toValue: 0, delay: 220, duration: 200, useNativeDriver: false }),
-        Animated.timing(heartScale, { toValue: 0, duration: 200, useNativeDriver: false }),
-      ]).start(() => {
-        setModeBoth('idle')
-        setFavHint(null)
-        favHintRef.current = null
+      heartScale.setValue(0)
+      trashScale.setValue(0)
+      setModeBoth('idle')
+      setFavHint(null)
+      favHintRef.current = null
+      if (musicInfo) {
+        void removeFromFavorite(musicInfo).then(() => {
+          showResultTip(t('favorite_removed'))
+          triggerDockAnimation('remove')
+        })
+      } else {
+        triggerDockAnimation('remove')
+      }
+      Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(() => {
         busyRef.current = false
       })
     })
-  }, [pan, fade, lift, heartScale, trashScale, width, height, showResultTip, t, setModeBoth])
+  }, [pan, fade, lift, heartScale, trashScale, showResultTip, t, setModeBoth, triggerDockAnimation])
 
   // ---------- 普通切歌 ----------
   const runSwipe = useCallback((action: Exclude<SwipeAction, null>) => {
@@ -334,7 +331,7 @@ export default ({ children, width, height }: {
         {children}
       </Animated.View>
 
-      {/* 收藏模式浮层：底部心形（加入目标）、右上垃圾桶（取消目标）、两个选项标签 */}
+      {/* 收藏模式浮层：下方心形=加入目标（收进心形），上方=取消目标（从心形抽出） */}
       {
         mode == 'favorite'
           ? <>
@@ -348,7 +345,7 @@ export default ({ children, width, height }: {
                 }]}
               >
                 <View style={styles.iconCircle}>
-                  <Text style={styles.glyph}>🗑</Text>
+                  <Text style={styles.glyph}>♡</Text>
                 </View>
                 <Text style={styles.optionLabel}>{t('favorite_option_remove')}</Text>
               </Animated.View>

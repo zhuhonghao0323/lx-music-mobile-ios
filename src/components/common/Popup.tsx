@@ -9,6 +9,7 @@ import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useGlass } from '@/theme/glass'
+import GlassView from './GlassView'
 
 const styles = createStyle({
   centeredView: {
@@ -171,34 +172,31 @@ export default forwardRef<PopupType, PopupProps>(({
   }, [position, statusBarHeight])
 
   const panelStyle = useMemo(() => StyleSheet.compose(
-    StyleSheet.compose(
-      { ...styles.modalView, ...modalViewStyle, backgroundColor: glass.isGlass ? undefined : theme['c-content-background'] },
-      glass.isGlass
-        ? {
-            borderRadius: 24,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            borderBottomLeftRadius: position == 'top' ? 24 : 0,
-            borderBottomRightRadius: position == 'top' ? 24 : 0,
-            margin: position == 'bottom' ? 8 : 0,
-          }
-        : {},
-    ),
-    glass.panel(true),
+    {
+      ...styles.modalView,
+      ...modalViewStyle,
+      backgroundColor: glass.isGlass ? undefined : theme['c-content-background'],
+      borderRadius: glass.isGlass ? 24 : undefined,
+      borderTopLeftRadius: glass.isGlass ? 24 : undefined,
+      borderTopRightRadius: glass.isGlass ? 24 : undefined,
+      borderBottomLeftRadius: glass.isGlass ? (position == 'top' ? 24 : 0) : undefined,
+      borderBottomRightRadius: glass.isGlass ? (position == 'top' ? 24 : 0) : undefined,
+      margin: glass.isGlass && position == 'bottom' ? 8 : undefined,
+    },
+    glass.panel(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [modalViewStyle, theme, position, glass.isGlass])
 
   return (
     <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor={glass.scrim() ?? 'rgba(50,50,50,.2)'} ref={modalRef}>
       <View style={{ ...styles.centeredView, ...centeredViewStyle, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={panelStyle} onStartShouldSetResponder={() => true}>
-          {glass.isGlass ? <View pointerEvents="none" style={glass.highlight()} /> : null}
+        <GlassView material="regular" radius={glass.isGlass ? 24 : 2} style={panelStyle} onStartShouldSetResponder={() => true}>
           <View style={StyleSheet.compose(styles.header, glass.isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {})}>
             <Text size={glass.isGlass ? 15 : 13} color={glass.textColor()} style={styles.title} numberOfLines={1}>{title}</Text>
             {closeBtnComponent}
           </View>
           {children}
-        </View>
+        </GlassView>
       </View>
     </Modal>
   )

@@ -10,8 +10,9 @@ export default () => {
   const theme = useTheme()
   return (
     <FavoriteBtn>
-      {({ favorited, onPress, onLongPress }) => (
+      {({ favorited, onPress, onLongPress, setAnchorRef }) => (
         <TouchableOpacity
+          ref={setAnchorRef as unknown as React.LegacyRef<TouchableOpacity>}
           style={{ ...styles.cotrolBtn, width: BTN_WIDTH, height: BTN_WIDTH }}
           activeOpacity={0.5}
           onPress={onPress}

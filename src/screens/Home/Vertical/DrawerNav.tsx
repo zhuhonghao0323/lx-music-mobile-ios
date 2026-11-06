@@ -13,6 +13,7 @@ import { exitApp, setNavActiveId } from '@/core/common'
 import Text from '@/components/common/Text'
 import { useSettingValue } from '@/store/setting/hook'
 import { useIsGlass } from '@/theme/glass'
+import GlassView from '@/components/common/GlassView'
 
 const styles = createStyle({
   container: {
@@ -109,6 +110,7 @@ const MenuItem = ({ id, icon, onPress }: {
 
 export default memo(() => {
   const theme = useTheme()
+  const isGlass = useIsGlass()
   // console.log('render drawer nav')
   const showBackBtn = useSettingValue('common.showBackBtn')
   const showExitBtn = useSettingValue('common.showExitBtn')
@@ -135,7 +137,7 @@ export default memo(() => {
 
 
   return (
-    <View style={{ ...styles.container, backgroundColor: theme['c-content-background'] }}>
+    <GlassView material="regular" radius={0} highlight={false} border={false} shadow={false} style={{ ...styles.container, ...(isGlass ? {} : { backgroundColor: theme['c-content-background'] }) }}>
       <Header />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>
@@ -149,7 +151,7 @@ export default memo(() => {
       {
         showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
       }
-    </View>
+    </GlassView>
   )
 })
 

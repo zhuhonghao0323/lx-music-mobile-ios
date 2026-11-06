@@ -13,6 +13,7 @@ import { HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
 import { useIsGlass } from '@/theme/glass'
+import GlassView from '@/components/common/GlassView'
 
 const headerComponents: Partial<Record<CommonState['navActiveId'], React.ReactNode>> = {
   nav_search: <SearchTypeSelector />,
@@ -27,7 +28,6 @@ const useHeaderStyle = () => {
     height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
     paddingTop: statusBarHeight,
   }, isGlass ? {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255, 255, 255, 0.16)',
   } : {})
@@ -47,16 +47,12 @@ const LeftHeader = () => {
   const headerStyle = useHeaderStyle()
 
   return (
-    <View style={headerStyle(statusBarHeight)}>
+    <GlassView material="ultraThin" radius={0} highlight={false} border={false} shadow={false} style={headerStyle(statusBarHeight)}>
       <View style={styles.left}>
         <Text style={styles.leftTitle} size={18}>{t(id)}</Text>
       </View>
       {headerComponents[id] ?? null}
-
-      {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
-        <Icon style={{ ...styles.btnText, color: theme['c-font'] }} name="setting" size={styles.btnText.fontSize} />
-      </TouchableOpacity> */}
-    </View>
+    </GlassView>
   )
 }
 
@@ -74,15 +70,12 @@ const RightHeader = () => {
   const headerStyle = useHeaderStyle()
 
   return (
-    <View style={headerStyle(statusBarHeight)}>
+    <GlassView material="ultraThin" radius={0} highlight={false} border={false} shadow={false} style={headerStyle(statusBarHeight)}>
       <View style={styles.left}>
         <Text style={styles.rightTitle} size={18}>{t(id)}</Text>
       </View>
       {headerComponents[id] ?? null}
-      {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
-        <Icon style={{ ...styles.btnText, color: theme['c-font'] }} name="setting" size={styles.btnText.fontSize} />
-      </TouchableOpacity> */}
-    </View>
+    </GlassView>
   )
 }
 

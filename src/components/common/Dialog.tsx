@@ -9,6 +9,7 @@ import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { useGlass } from '@/theme/glass'
+import GlassView from './GlassView'
 
 const HEADER_HEIGHT = 20
 const styles = createStyle({
@@ -86,45 +87,37 @@ export default forwardRef<DialogType, DialogProps>(({
   const closeBtnComponent = useMemo(() => {
     return closeBtn
       ? <TouchableHighlight style={{ ...styles.closeBtn, width: scaleSizeH(HEADER_HEIGHT) }} underlayColor={glass.isGlass ? 'rgba(255,255,255,0.22)' : theme['c-primary-dark-200-alpha-600']} onPress={() => modalRef.current?.setVisible(false)}>
-          <Icon name="close" color={glass.isGlass ? '#f4f8ff' : theme['c-primary-dark-500-alpha-500']} size={10} />
+          <Icon name="close" color={glass.textColor() ?? theme['c-primary-dark-500-alpha-500']} size={10} />
         </TouchableHighlight>
       : null
-  }, [closeBtn, theme, glass.isGlass])
+  }, [closeBtn, theme, glass])
 
-  const panelStyle = useMemo(() => StyleSheet.compose(
-    {
-      ...styles.modalView,
-      height,
-      backgroundColor: glass.isGlass ? undefined : theme['c-content-background'],
-      borderRadius: glass.isGlass ? 24 : 4,
-    },
-    glass.panel(true),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [height, theme, glass.isGlass])
+  const panelStyle = useMemo(() => {
+    const base = { ...styles.modalView, height, borderRadius: glass.isGlass ? 24 : 4 }
+    if (glass.isGlass) return StyleSheet.compose(base, glass.panel())
+    return StyleSheet.compose(base, { backgroundColor: theme['c-content-background'] })
+  }, [height, theme, glass])
 
-  const headerStyle = useMemo(() => StyleSheet.compose(
-    {
-      ...styles.header,
-      backgroundColor: glass.isGlass ? 'rgba(255,255,255,0.10)' : theme['c-primary-light-100-alpha-100'],
-      borderTopLeftRadius: glass.isGlass ? 24 : 4,
-      borderTopRightRadius: glass.isGlass ? 24 : 4,
-      height: glass.isGlass ? scaleSizeH(38) : HEADER_HEIGHT,
-    },
-    glass.isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' } : {},
+  const headerStyle = useMemo(() => ({
+    ...styles.header,
+    backgroundColor: glass.isGlass ? 'rgba(255,255,255,0.06)' : theme['c-primary-light-100-alpha-100'],
+    borderTopLeftRadius: glass.isGlass ? 24 : 4,
+    borderTopRightRadius: glass.isGlass ? 24 : 4,
+    height: glass.isGlass ? scaleSizeH(38) : HEADER_HEIGHT,
+    ...(glass.isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {}),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [theme, glass.isGlass])
+  }), [theme, glass.isGlass])
 
   return (
     <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor={glass.scrim() ?? 'rgba(50,50,50,.3)'} ref={modalRef}>
       <View style={{ ...styles.centeredView, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={panelStyle} onStartShouldSetResponder={() => true}>
-          {glass.isGlass ? <View pointerEvents="none" style={glass.highlight()} /> : null}
+        <GlassView material="regular" radius={glass.isGlass ? 24 : 4} style={panelStyle} onStartShouldSetResponder={() => true}>
           <View style={headerStyle}>
             <Text style={styles.title} size={glass.isGlass ? 15 : 13} color={glass.textColor() ?? theme['c-primary-light-1000']} numberOfLines={1}>{title}</Text>
             {closeBtnComponent}
           </View>
           {children}
-        </View>
+        </GlassView>
       </View>
     </Modal>
   )

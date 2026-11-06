@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { View, type View as ViewType } from 'react-native'
 // import { useLayout } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
 import { usePlayerMusicInfo } from '@/store/player/hook'
@@ -9,6 +9,7 @@ import { useNavigationComponentDidAppear } from '@/navigation'
 import { HEADER_HEIGHT } from './components/Header'
 import Image from '@/components/common/Image'
 import CoverGesture from '@/screens/PlayDetail/components/CoverGesture'
+import { registerCoverSource, clearCoverSource } from '@/screens/PlayDetail/components/FavoriteBtn'
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 import { useIsGlass } from '@/theme/glass'
@@ -19,12 +20,28 @@ export default ({ componentId }: { componentId: string }) => {
   const { width: winWidth, height: winHeight } = useWindowSize()
   const statusBarHeight = useStatusbarHeight()
   const isGlass = useIsGlass()
+  const containerRef = useRef<ViewType>(null)
+  const picRef = useRef<string | null>(musicInfo.pic ?? null)
 
   const [animated, setAnimated] = useState(!!commonState.componentIds.playDetail)
   const [pic, setPic] = useState(musicInfo.pic)
   useEffect(() => {
     if (animated) setPic(musicInfo.pic)
+    picRef.current = musicInfo.pic ?? null
   }, [musicInfo.pic, animated])
+
+  // 把封面位置与图片注册给收藏动画，用运行时测量避免机型差异
+  useEffect(() => {
+    registerCoverSource(
+      (cb) => {
+        const node = containerRef.current
+        if (!node) { cb(null); return }
+        node.measureInWindow((x, y, width, height) => { cb({ x, y, width, height }) })
+      },
+      () => picRef.current,
+    )
+    return () => { clearCoverSource() }
+  }, [])
 
   useNavigationComponentDidAppear(componentId, () => {
     setAnimated(true)
@@ -51,7 +68,7 @@ export default ({ componentId }: { componentId: string }) => {
 
   return (
     <View style={styles.container}>
-      <View style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
+      <View ref={containerRef} collapsable={false} style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
         <CoverGesture width={style.width} height={style.height}>
           <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={style} />
         </CoverGesture>

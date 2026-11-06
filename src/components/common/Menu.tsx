@@ -9,6 +9,7 @@ import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
 import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
 import { useGlass } from '@/theme/glass'
+import GlassView from './GlassView'
 
 const menuItemHeight = scaleSizeH(40)
 const menuItemWidth = scaleSizeW(100)
@@ -137,7 +138,7 @@ const Menu = ({
       backgroundColor: glass.isGlass ? undefined : theme['c-content-background'],
       borderRadius: glass.isGlass ? 18 : 2,
     },
-    glass.panel(true),
+    glass.panel(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [menuStyle, theme, glass.isGlass])
 
@@ -146,8 +147,7 @@ const Menu = ({
   const activeColor = glass.tint() ?? theme['c-primary-font-active']
 
   return (
-    <View style={containerStyle} onStartShouldSetResponder={() => true}>
-      {glass.isGlass ? <View pointerEvents="none" style={glass.highlight()} /> : null}
+    <GlassView material="regular" radius={glass.isGlass ? 18 : 2} style={containerStyle} onStartShouldSetResponder={() => true}>
       <Animated.ScrollView keyboardShouldPersistTaps={'always'}>
         {
           menus.map((menu, index) => (
@@ -183,7 +183,7 @@ const Menu = ({
           ))
         }
       </Animated.ScrollView>
-    </View>
+    </GlassView>
   )
 }
 

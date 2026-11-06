@@ -11,6 +11,7 @@ import { exitApp, setNavActiveId } from '@/core/common'
 import { BorderWidths } from '@/theme'
 import { useSettingValue } from '@/store/setting/hook'
 import { useIsGlass } from '@/theme/glass'
+import GlassView from '@/components/common/GlassView'
 
 const NAV_WIDTH = 68
 
@@ -138,7 +139,14 @@ export default memo(() => {
   }
 
   return (
-    <View style={{ ...styles.container, borderRightColor: theme['c-border-background'], ...(isGlass ? { backgroundColor: 'rgba(255,255,255,0.07)', borderRightColor: 'rgba(255,255,255,0.16)' } : {}) }}>
+    <GlassView
+      material="regular"
+      radius={0}
+      highlight={false}
+      border={false}
+      shadow={false}
+      style={{ ...styles.container, borderRightColor: isGlass ? 'rgba(255,255,255,0.16)' : theme['c-border-background'] }}
+    >
       <Header />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>
@@ -151,7 +159,7 @@ export default memo(() => {
       {
         showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
       }
-    </View>
+    </GlassView>
   )
 })
 
