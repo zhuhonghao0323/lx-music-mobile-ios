@@ -6,46 +6,38 @@ import { addToFavorite, getPlayMusicInfo, removeFromFavorite } from '@/core/favo
 import { playNext, playPrev } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { useI18n } from '@/lang'
+import { scaleSizeW } from '@/utils/pixelRatio'
 
-/** 触发手势的最小滑动距离 */
-const SWIPE_THRESHOLD = 55
-/** 判定「竖直 / 水平 / 对角线」的轴比 */
-const AXIS_RATIO = 1.4
+/** 轻滑触发切歌的最小距离 */
+const SWIPE_THRESHOLD = 42
+/** 轻滑判定为「竖直」的轴比（斜向一律不处理） */
+const AXIS_RATIO = 1.6
+/** 进入收藏模式所需的长按时长 */
+const LONG_PRESS_DELAY = 1000
+/** 收藏模式内拖动的触发距离 */
+const FAVORITE_DRAG_THRESHOLD = 70
 
-type SwipeAction = 'next' | 'prev' | 'favorite' | 'unfavorite' | null
+type SwipeAction = 'next' | 'prev' | null
+type Mode = 'idle' | 'swipe' | 'favorite'
 
 /**
- * 按滑动方向把手势分成四类：
- * - 上划 ↑      → 下一曲
- * - 下滑 ↓      → 上一曲
- * - 右上 ↗      → 加入我的收藏
- * - 左下 ↙      → 取消我的收藏
- * 其余方向（纯水平等）不处理，交还给 PagerView 翻页。
+ * 判定普通模式的轻滑：只有足够「竖直」的上划/下滑才切歌，斜上/斜下不处理。
  */
-const classify = (dx: number, dy: number): SwipeAction => {
+const classifySwipe = (dx: number, dy: number): SwipeAction => {
   const ax = Math.abs(dx)
   const ay = Math.abs(dy)
   if (Math.max(ax, ay) < SWIPE_THRESHOLD) return null
-  if (ay > ax * AXIS_RATIO) return dy < 0 ? 'next' : 'prev'
-  if (ax > ay * AXIS_RATIO) return null
-  if (dx > 0 && dy < 0) return 'favorite'
-  if (dx < 0 && dy > 0) return 'unfavorite'
-  return null
-}
-
-const actionLabel = (action: SwipeAction, t: (key: any) => string): string | null => {
-  switch (action) {
-    case 'next': return `↑  ${t('player_cover_swipe_next')}`
-    case 'prev': return `↓  ${t('player_cover_swipe_prev')}`
-    case 'favorite': return `♥  ${t('favorite_added')}`
-    case 'unfavorite': return `♡  ${t('favorite_removed')}`
-    default: return null
-  }
+  if (ay <= ax * AXIS_RATIO) return null // 斜向或横向：不处理，交还 PagerView
+  return dy < 0 ? 'next' : 'prev'
 }
 
 /**
- * 封面拖动手势容器：
- * 跟手平移 + 松手飞出/回弹动画，附带方向提示与结果提示。
+ * 播放界面封面手势容器：
+ * - 普通模式：轻滑上=下一曲、轻滑下=上一曲，斜向无动作
+ * - 长按 1 秒：封面 3D 悬浮进入「收藏模式」，显示加入/取消两个选项及右上角垃圾桶
+ *     · 此模式下上一曲/下一曲不可用
+ *     · 向下拖 = 加入我的收藏（封面飞入心形）
+ *     · 向上拖 = 取消收藏（封面丢入垃圾桶）
  */
 export default ({ children, width, height }: {
   children: React.ReactNode
@@ -55,49 +47,147 @@ export default ({ children, width, height }: {
   const t = useI18n()
   const pan = useRef(new Animated.ValueXY()).current
   const fade = useRef(new Animated.Value(1)).current
-  const tipOpacity = useRef(new Animated.Value(0)).current
-  const [hint, setHint] = useState<string | null>(null)
-  const [tip, setTip] = useState<string | null>(null)
-  const hintRef = useRef<string | null>(null)
+  const lift = useRef(new Animated.Value(0)).current // 0 常态 / 1 悬浮
+  const heartScale = useRef(new Animated.Value(0)).current
+  const trashScale = useRef(new Animated.Value(0)).current
+  const [mode, setMode] = useState<Mode>('idle')
+  const [favHint, setFavHint] = useState<string | null>(null)
+  const [resultTip, setResultTip] = useState<string | null>(null)
+
+  const modeRef = useRef<Mode>('idle')
   const busyRef = useRef(false)
-  const tipAnimRef = useRef<Animated.CompositeAnimation | null>(null)
-  const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startPoint = useRef({ x: 0, y: 0 })
+  const dragHandledRef = useRef(false)
+  const favHintRef = useRef<string | null>(null)
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showTip = useCallback((text: string) => {
-    tipAnimRef.current?.stop()
-    if (tipTimerRef.current) clearTimeout(tipTimerRef.current)
-    setTip(text)
-    tipOpacity.setValue(1)
-    tipAnimRef.current = Animated.timing(tipOpacity, {
-      toValue: 0,
-      delay: 900,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    })
-    tipAnimRef.current.start(() => {
-      setTip(null)
-      tipAnimRef.current = null
-    })
-  }, [tipOpacity])
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }, [])
 
-  const runAction = useCallback((action: Exclude<SwipeAction, null>) => {
+  const setModeBoth = useCallback((m: Mode) => {
+    modeRef.current = m
+    setMode(m)
+  }, [])
+
+  // ---------- 收藏模式 3D 悬浮 ----------
+  const enterFavoriteMode = useCallback(() => {
+    if (busyRef.current || modeRef.current == 'favorite') return
+    setModeBoth('favorite')
+    pan.setValue({ x: 0, y: 0 })
+    Animated.parallel([
+      Animated.spring(lift, { toValue: 1, friction: 6, tension: 90, useNativeDriver: false }),
+      Animated.spring(heartScale, { toValue: 1, friction: 5, tension: 110, useNativeDriver: false }),
+      Animated.spring(trashScale, { toValue: 1, friction: 5, tension: 110, useNativeDriver: false }),
+    ]).start()
+  }, [lift, heartScale, trashScale, pan, setModeBoth])
+
+  const exitFavoriteMode = useCallback((run?: () => void) => {
+    Animated.parallel([
+      Animated.timing(lift, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(heartScale, { toValue: 0, duration: 200, useNativeDriver: false }),
+      Animated.timing(trashScale, { toValue: 0, duration: 200, useNativeDriver: false }),
+      Animated.timing(pan, { toValue: { x: 0, y: 0 }, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+    ]).start(() => {
+      setModeBoth('idle')
+      setFavHint(null)
+      favHintRef.current = null
+      run?.()
+    })
+  }, [lift, heartScale, trashScale, pan, setModeBoth])
+
+  const showResultTip = useCallback((text: string) => {
+    if (tipTimer.current) clearTimeout(tipTimer.current)
+    setResultTip(text)
+    tipTimer.current = setTimeout(() => { setResultTip(null) }, 1400)
+  }, [])
+
+  // ---------- 收藏动画 ----------
+  /** 加入：封面缩小飞入心形，心形弹一下 */
+  const animateAddToHeart = useCallback(() => {
     const musicInfo = getPlayMusicInfo()
-    switch (action) {
-      case 'next':
-        void playNext()
-        break
-      case 'prev':
-        void playPrev()
-        break
-      case 'favorite':
-        if (musicInfo) void addToFavorite(musicInfo).then(() => { showTip(t('favorite_added')) })
-        break
-      case 'unfavorite':
-        if (musicInfo) void removeFromFavorite(musicInfo).then(() => { showTip(t('favorite_removed')) })
-        break
-    }
-  }, [showTip, t])
+    busyRef.current = true
+    Animated.parallel([
+      Animated.timing(pan, {
+        toValue: { x: 0, y: height * 0.62 },
+        duration: 340,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(fade, { toValue: 0.05, duration: 340, easing: Easing.in(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(lift, { toValue: 0.4, duration: 340, useNativeDriver: false }),
+    ]).start(() => {
+      if (musicInfo) void addToFavorite(musicInfo).then(() => { showResultTip(t('favorite_added')) })
+      // 心形先弹一下，同时把封面从「已飞入」状态柔和地淡回原位
+      heartScale.setValue(1.35)
+      Animated.spring(heartScale, { toValue: 1, friction: 3, tension: 180, useNativeDriver: false }).start()
+      pan.setValue({ x: 0, y: 0 })
+      lift.setValue(0)
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+        Animated.timing(heartScale, { toValue: 0, delay: 220, duration: 200, useNativeDriver: false }),
+        Animated.timing(trashScale, { toValue: 0, duration: 200, useNativeDriver: false }),
+      ]).start(() => {
+        setModeBoth('idle')
+        setFavHint(null)
+        favHintRef.current = null
+        busyRef.current = false
+      })
+    })
+  }, [pan, fade, lift, heartScale, trashScale, height, showResultTip, t, setModeBoth])
+
+  /** 取消：封面缩小、旋转着丢进右上角垃圾桶 */
+  const animateThrowToTrash = useCallback(() => {
+    const musicInfo = getPlayMusicInfo()
+    busyRef.current = true
+    const targetX = width * 0.46
+    const targetY = -height * 0.62
+    Animated.parallel([
+      Animated.timing(pan, {
+        toValue: { x: targetX, y: targetY },
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(fade, { toValue: 0.05, duration: 420, easing: Easing.in(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(lift, { toValue: 0.2, duration: 420, useNativeDriver: false }),
+    ]).start(() => {
+      if (musicInfo) void removeFromFavorite(musicInfo).then(() => { showResultTip(t('favorite_removed')) })
+      // 垃圾桶接住后弹一下，封面再柔和淡回原位
+      trashScale.setValue(1.4)
+      Animated.spring(trashScale, { toValue: 1, friction: 3, tension: 180, useNativeDriver: false }).start()
+      pan.setValue({ x: 0, y: 0 })
+      lift.setValue(0)
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+        Animated.timing(trashScale, { toValue: 0, delay: 220, duration: 200, useNativeDriver: false }),
+        Animated.timing(heartScale, { toValue: 0, duration: 200, useNativeDriver: false }),
+      ]).start(() => {
+        setModeBoth('idle')
+        setFavHint(null)
+        favHintRef.current = null
+        busyRef.current = false
+      })
+    })
+  }, [pan, fade, lift, heartScale, trashScale, width, height, showResultTip, t, setModeBoth])
+
+  // ---------- 普通切歌 ----------
+  const runSwipe = useCallback((action: Exclude<SwipeAction, null>) => {
+    busyRef.current = true
+    const flyY = action == 'next' ? -height * 0.85 : height * 0.85
+    Animated.parallel([
+      Animated.timing(pan, { toValue: { x: 0, y: flyY }, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: false }),
+    ]).start(() => {
+      if (action == 'next') void playNext()
+      else void playPrev()
+      pan.setValue({ x: 0, y: 0 })
+      Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(() => {
+        busyRef.current = false
+      })
+    })
+  }, [pan, fade, height])
 
   const snapBack = useCallback(() => {
     Animated.parallel([
@@ -106,59 +196,51 @@ export default ({ children, width, height }: {
     ]).start()
   }, [pan])
 
+  // ---------- PanResponder ----------
   const onPanResponderRelease = useCallback((_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-    setHint(null)
-    hintRef.current = null
-    const action = classify(gs.dx, gs.dy)
-    if (!action || busyRef.current) {
-      snapBack()
-      return
-    }
-    busyRef.current = true
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
     markTimeoutExitInteraction()
 
-    // 朝滑动方向飞出并淡出
-    const flyX = Math.abs(gs.dx) > Math.abs(gs.dy) * 0.4 ? Math.sign(gs.dx) * width * 0.9 : gs.dx * 2.5
-    const flyY = Math.sign(gs.dy) * Math.max(height * 0.7, Math.abs(gs.dy) * 2.5)
-    Animated.parallel([
-      Animated.timing(pan, {
-        toValue: { x: flyX, y: flyY },
-        duration: 190,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(fade, { toValue: 0, duration: 190, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-    ]).start(() => {
-      runAction(action)
-      pan.setValue({ x: 0, y: 0 })
-      fade.setValue(0)
-      // 新封面淡入
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start(() => {
-        busyRef.current = false
-      })
-    })
+    if (modeRef.current == 'favorite') {
+      // 收藏模式：向下=加入，向上=取消；不切歌
+      const dy = gs.dy
+      if (Math.abs(dy) < FAVORITE_DRAG_THRESHOLD) {
+        dragHandledRef.current = true
+        exitFavoriteMode()
+        return
+      }
+      setFavHint(null); favHintRef.current = null
+      dragHandledRef.current = true
+      if (dy > 0) animateAddToHeart()
+      else animateThrowToTrash()
+      return
+    }
+
+    // 普通模式
+    setModeBoth('idle')
+    const action = classifySwipe(gs.dx, gs.dy)
+    if (!action || busyRef.current) { snapBack(); return }
+    runSwipe(action)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, pan, fade, runAction, snapBack])
+  }, [exitFavoriteMode, animateAddToHeart, animateThrowToTrash, runSwipe, snapBack, setModeBoth])
 
   const panResponder = useMemo(() => PanResponder.create({
+    // 不在按下瞬间抢占，横向滑动仍交给 PagerView 翻页
     onStartShouldSetPanResponder: () => false,
-    // 仅纵向分量足够明显时接管，纯横向滑动留给 PagerView 翻页
     onMoveShouldSetPanResponder: (_e, gs) => {
       if (busyRef.current) return false
       const ax = Math.abs(gs.dx)
       const ay = Math.abs(gs.dy)
-      return ay > 6 && ay >= ax * 0.7
+      // 收藏模式任意方向都可拖；普通模式仅纵向抢占
+      return modeRef.current == 'favorite' ? true : ay > 4 && ay >= ax * 0.7
     },
     onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: () => {
+    onPanResponderGrant: (e: GestureResponderEvent) => {
       markTimeoutExitInteraction()
       pan.stopAnimation()
       pan.setValue({ x: 0, y: 0 })
+      startPoint.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }
+      dragHandledRef.current = false
     },
     onPanResponderMove: Animated.event(
       [null, { dx: pan.x, dy: pan.y }],
@@ -166,49 +248,133 @@ export default ({ children, width, height }: {
         useNativeDriver: false,
         listener: (...args: any[]) => {
           const gs = args[1] as PanResponderGestureState
-          const label = actionLabel(classify(gs.dx, gs.dy), t)
-          if (label != hintRef.current) {
-            hintRef.current = label
-            setHint(label)
-          }
+          if (modeRef.current != 'favorite') return
+          const label = gs.dy > FAVORITE_DRAG_THRESHOLD * 0.5
+            ? `↓  ${t('favorite_added')}`
+            : gs.dy < -FAVORITE_DRAG_THRESHOLD * 0.5
+              ? `↑  ${t('favorite_removed')}`
+              : t('player_cover_favorite_mode_hint')
+          if (label != favHintRef.current) { favHintRef.current = label; setFavHint(label) }
         },
       },
     ),
     onPanResponderRelease,
     onPanResponderTerminate: () => {
-      setHint(null)
-      hintRef.current = null
-      snapBack()
+      cancelLongPress()
+      if (modeRef.current == 'favorite') exitFavoriteMode()
+      else { setModeBoth('idle'); snapBack() }
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [pan, onPanResponderRelease, snapBack, t])
+  }), [pan, onPanResponderRelease, exitFavoriteMode, snapBack, cancelLongPress, t, setModeBoth])
+
+  // 长按检测用 touch 事件，避免与 PagerView 的横向翻页抢占 responder
+  const onTouchStart = useCallback((e: GestureResponderEvent) => {
+    if (busyRef.current || modeRef.current == 'favorite') return
+    const { pageX, pageY } = e.nativeEvent
+    startPoint.current = { x: pageX, y: pageY }
+    cancelLongPress()
+    longPressTimer.current = setTimeout(() => { enterFavoriteMode() }, LONG_PRESS_DELAY)
+  }, [enterFavoriteMode, cancelLongPress])
+
+  const onTouchMove = useCallback((e: GestureResponderEvent) => {
+    if (!longPressTimer.current) return
+    const { pageX, pageY } = e.nativeEvent
+    if (Math.abs(pageX - startPoint.current.x) > 10 || Math.abs(pageY - startPoint.current.y) > 10) cancelLongPress()
+  }, [cancelLongPress])
+
+  const onTouchEnd = useCallback(() => {
+    cancelLongPress()
+    if (modeRef.current == 'favorite' && !dragHandledRef.current) {
+      // 长按后直接抬手、没有拖动：退出收藏模式
+      exitFavoriteMode()
+    }
+  }, [cancelLongPress, exitFavoriteMode])
+
+  // 3D 悬浮变换：抬升 + 轻微透视
+  const coverTransform = [
+    ...pan.getTranslateTransform(),
+    {
+      scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }),
+    },
+    {
+      rotateX: lift.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '8deg'] }),
+    },
+  ]
+  const coverShadow = lift.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.42],
+  })
 
   return (
     <View style={styles.container} collapsable={false}>
+      {/* 悬浮阴影层 */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.shadow, {
+          width: width * 0.9,
+          height: height * 0.16,
+          bottom: -height * 0.02,
+          opacity: coverShadow,
+        }]}
+      />
       <Animated.View
         {...panResponder.panHandlers}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
         style={[
           styles.gesture,
           {
             opacity: fade,
-            transform: pan.getTranslateTransform(),
+            transform: coverTransform,
           },
         ]}
       >
         {children}
       </Animated.View>
+
+      {/* 收藏模式浮层：底部心形（加入目标）、右上垃圾桶（取消目标）、两个选项标签 */}
       {
-        hint
-          ? <View style={styles.hint} pointerEvents="none">
-              <Text size={14} color="#ffffff">{hint}</Text>
-            </View>
+        mode == 'favorite'
+          ? <>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.trash, {
+                  opacity: trashScale,
+                  transform: [
+                    { scale: trashScale.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
+                  ],
+                }]}
+              >
+                <View style={styles.iconCircle}>
+                  <Text style={styles.glyph}>🗑</Text>
+                </View>
+                <Text style={styles.optionLabel}>{t('favorite_option_remove')}</Text>
+              </Animated.View>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.heart, {
+                  opacity: heartScale,
+                  transform: [
+                    { scale: heartScale.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
+                  ],
+                }]}
+              >
+                <Text style={[styles.heartGlyph, { fontSize: scaleSizeW(46), color: FAVORITE_COLOR }]}>♥</Text>
+                <Text style={styles.optionLabel}>{t('favorite_option_add')}</Text>
+              </Animated.View>
+            </>
           : null
       }
       {
-        tip
-          ? <Animated.View style={[styles.tip, { opacity: tipOpacity }]} pointerEvents="none">
-              <Text size={14} color={FAVORITE_COLOR}>{tip}</Text>
-            </Animated.View>
+        favHint
+          ? <View style={styles.hint} pointerEvents="none"><Text size={13} color="#ffffff">{favHint}</Text></View>
+          : null
+      }
+      {
+        resultTip
+          ? <View style={styles.hint} pointerEvents="none"><Text size={13} color={FAVORITE_COLOR}>{resultTip}</Text></View>
           : null
       }
     </View>
@@ -216,25 +382,31 @@ export default ({ children, width, height }: {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { justifyContent: 'center', alignItems: 'center' },
+  gesture: { justifyContent: 'center', alignItems: 'center' },
+  shadow: {
+    position: 'absolute',
+    borderRadius: 100,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  iconCircle: {
+    width: scaleSizeW(52),
+    height: scaleSizeW(52),
+    borderRadius: scaleSizeW(26),
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gesture: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  glyph: { fontSize: scaleSizeW(24) },
+  trash: { position: 'absolute', top: -scaleSizeW(18), right: -scaleSizeW(8), alignItems: 'center' },
+  heart: { position: 'absolute', bottom: -scaleSizeW(70), alignItems: 'center' },
+  heartGlyph: { fontWeight: 'bold', textAlign: 'center' },
+  optionLabel: { marginTop: 3, color: 'rgba(255,255,255,0.92)', fontSize: scaleSizeW(11) },
   hint: {
     position: 'absolute',
     top: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
-  },
-  tip: {
-    position: 'absolute',
-    bottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,

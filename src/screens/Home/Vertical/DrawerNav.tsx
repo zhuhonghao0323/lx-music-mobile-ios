@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View, StyleSheet } from 'react-native'
 import { useI18n } from '@/lang'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
@@ -12,6 +12,7 @@ import type { InitState } from '@/store/common/state'
 import { exitApp, setNavActiveId } from '@/core/common'
 import Text from '@/components/common/Text'
 import { useSettingValue } from '@/store/setting/hook'
+import { useIsGlass } from '@/theme/glass'
 
 const styles = createStyle({
   container: {
@@ -59,12 +60,13 @@ const styles = createStyle({
 
 const Header = () => {
   const theme = useTheme()
+  const isGlass = useIsGlass()
   const statusBarHeight = useStatusbarHeight()
   return (
-    <View style={{ paddingTop: statusBarHeight, backgroundColor: theme['c-primary-light-700-alpha-500'] }}>
+    <View style={{ paddingTop: statusBarHeight, backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-700-alpha-500'], ...(isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' } : {}) }}>
       <View style={styles.header}>
-        <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={28} />
-        <Text style={styles.headerText} size={28} color={theme['c-primary-dark-100-alpha-300']}>LX Music</Text>
+        <Icon name="logo" color={isGlass ? '#f4f8ff' : theme['c-primary-dark-100-alpha-300']} size={28} />
+        <Text style={styles.headerText} size={28} color={isGlass ? '#f4f8ff' : theme['c-primary-dark-100-alpha-300']}>LX Music</Text>
       </View>
     </View>
   )
@@ -80,19 +82,28 @@ const MenuItem = ({ id, icon, onPress }: {
   const t = useI18n()
   const activeId = useNavActiveId()
   const theme = useTheme()
+  const isGlass = useIsGlass()
+  const activeStyle = isGlass ? {
+    marginHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(120, 190, 255, 0.24)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  } : {}
+  const normalStyle = isGlass ? { marginHorizontal: 12, borderRadius: 14 } : {}
 
   return activeId == id
-    ? <View style={styles.menuItem}>
+    ? <View style={StyleSheet.compose(styles.menuItem, activeStyle)}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
+          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-primary-font-active']} />
         </View>
-        <Text style={styles.text} color={theme['c-primary-font']}>{t(id)}</Text>
+        <Text style={styles.text} color={isGlass ? '#ffffff' : theme['c-primary-font']}>{t(id)}</Text>
       </View>
-    : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
+    : <TouchableOpacity style={StyleSheet.compose(styles.menuItem, normalStyle)} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-font-label']} />
+          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-font-label']} />
         </View>
-        <Text style={styles.text}>{t(id)}</Text>
+        <Text style={styles.text} color={isGlass ? '#f4f8ff' : undefined}>{t(id)}</Text>
       </TouchableOpacity>
 }
 

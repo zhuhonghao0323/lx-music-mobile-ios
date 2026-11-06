@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, StyleSheet } from 'react-native'
 
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
@@ -8,6 +8,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
 import { useStatusbarHeight } from '@/store/common/hook'
+import { useGlass } from '@/theme/glass'
 
 const styles = createStyle({
   centeredView: {
@@ -71,6 +72,7 @@ export default forwardRef<PopupType, PopupProps>(({
   children,
 }: PopupProps, ref) => {
   const theme = useTheme()
+  const glass = useGlass()
   const { keyboardShown, keyboardHeight } = useKeyboard()
   const statusBarHeight = useStatusbarHeight()
 
@@ -84,9 +86,9 @@ export default forwardRef<PopupType, PopupProps>(({
 
   const closeBtnComponent = useMemo(() => closeBtn
     ? <TouchableOpacity style={styles.closeBtn} onPress={() => modalRef.current?.setVisible(false)}>
-        <Icon name="close" style={{ color: theme['c-font-label'] }} size={12} />
+        <Icon name="close" style={{ color: glass.textColor() ?? theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
-    : null, [closeBtn, theme])
+    : null, [closeBtn, theme, glass])
 
   const [centeredViewStyle, modalViewStyle] = useMemo(() => {
     switch (position) {
@@ -168,12 +170,31 @@ export default forwardRef<PopupType, PopupProps>(({
     }
   }, [position, statusBarHeight])
 
+  const panelStyle = useMemo(() => StyleSheet.compose(
+    StyleSheet.compose(
+      { ...styles.modalView, ...modalViewStyle, backgroundColor: glass.isGlass ? undefined : theme['c-content-background'] },
+      glass.isGlass
+        ? {
+            borderRadius: 24,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            borderBottomLeftRadius: position == 'top' ? 24 : 0,
+            borderBottomRightRadius: position == 'top' ? 24 : 0,
+            margin: position == 'bottom' ? 8 : 0,
+          }
+        : {},
+    ),
+    glass.panel(true),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [modalViewStyle, theme, position, glass.isGlass])
+
   return (
-    <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.2)" ref={modalRef}>
+    <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor={glass.scrim() ?? 'rgba(50,50,50,.2)'} ref={modalRef}>
       <View style={{ ...styles.centeredView, ...centeredViewStyle, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={{ ...styles.modalView, ...modalViewStyle, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
-          <View style={styles.header}>
-            <Text size={13} style={styles.title} numberOfLines={1}>{title}</Text>
+        <View style={panelStyle} onStartShouldSetResponder={() => true}>
+          {glass.isGlass ? <View pointerEvents="none" style={glass.highlight()} /> : null}
+          <View style={StyleSheet.compose(styles.header, glass.isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {})}>
+            <Text size={glass.isGlass ? 15 : 13} color={glass.textColor()} style={styles.title} numberOfLines={1}>{title}</Text>
             {closeBtnComponent}
           </View>
           {children}

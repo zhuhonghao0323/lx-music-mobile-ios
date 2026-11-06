@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View, StyleSheet } from 'react-native'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
 import { Icon } from '@/components/common/Icon'
@@ -10,6 +10,7 @@ import type { InitState } from '@/store/common/state'
 import { exitApp, setNavActiveId } from '@/core/common'
 import { BorderWidths } from '@/theme'
 import { useSettingValue } from '@/store/setting/hook'
+import { useIsGlass } from '@/theme/glass'
 
 const NAV_WIDTH = 68
 
@@ -86,24 +87,32 @@ const MenuItem = ({ id, icon, onPress }: {
   // const t = useI18n()
   const activeId = useNavActiveId()
   const theme = useTheme()
+  const isGlass = useIsGlass()
+  const activeStyle = isGlass ? {
+    marginHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(120, 190, 255, 0.24)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  } : {}
+  const normalStyle = isGlass ? { marginHorizontal: 8, borderRadius: 14 } : {}
 
   return activeId == id
-    ? <View style={styles.menuItem}>
+    ? <View style={StyleSheet.compose(styles.menuItem, activeStyle)}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
+          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-primary-font-active']} />
         </View>
-        {/* <Text style={styles.text} size={14} color={theme['c-primary-font']}>{t(id)}</Text> */}
       </View>
-    : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
+    : <TouchableOpacity style={StyleSheet.compose(styles.menuItem, normalStyle)} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-font-label']} />
+          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-font-label']} />
         </View>
-        {/* <Text style={styles.text} size={14}>{t(id)}</Text> */}
       </TouchableOpacity>
 }
 
 export default memo(() => {
   const theme = useTheme()
+  const isGlass = useIsGlass()
   // console.log('render drawer nav')
   const showBackBtn = useSettingValue('common.showBackBtn')
   const showExitBtn = useSettingValue('common.showExitBtn')
@@ -129,7 +138,7 @@ export default memo(() => {
   }
 
   return (
-    <View style={{ ...styles.container, borderRightColor: theme['c-border-background'] }}>
+    <View style={{ ...styles.container, borderRightColor: theme['c-border-background'], ...(isGlass ? { backgroundColor: 'rgba(255,255,255,0.07)', borderRightColor: 'rgba(255,255,255,0.16)' } : {}) }}>
       <Header />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>

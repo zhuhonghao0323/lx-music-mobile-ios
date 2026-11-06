@@ -17,6 +17,7 @@ import { useSetting } from '@/store/setting/hook'
 import { isSoundEffectActive } from '@/plugins/player/soundEffect'
 import Btn from './Btn'
 import TimeoutExitBtn from './TimeoutExitBtn'
+import { useIsGlass } from '@/theme/glass'
 
 export const HEADER_HEIGHT = scaleSizeH(_HEADER_HEIGHT)
 
@@ -40,6 +41,7 @@ export default memo(() => {
   const statusBarHeight = useStatusbarHeight()
   const theme = useTheme()
   const setting = useSetting()
+  const isGlass = useIsGlass()
 
   const back = () => {
     void pop(commonState.componentIds.playDetail!)
@@ -52,7 +54,7 @@ export default memo(() => {
   }
 
   return (
-    <View style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight }} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
+    <View style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight, ...(isGlass ? { backgroundColor: 'rgba(255,255,255,0.06)', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {}) }} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
       <StatusBar />
       <View style={styles.container}>
         <Btn icon="chevron-left" onPress={back} />

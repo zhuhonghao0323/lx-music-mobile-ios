@@ -12,6 +12,7 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { Icon } from '@/components/common/Icon'
 import ImageBackground from '@/components/common/ImageBackground'
+import { LIQUID_GLASS_ID, useIsGlass } from '@/theme/glass'
 
 const useActive = (id: string) => {
   const activeThemeId = useSettingValue('theme.id')
@@ -29,20 +30,27 @@ const ThemeItem = ({ id, name, color, image, setTheme, showAll }: {
 }) => {
   const theme = useTheme()
   const isActive = useActive(id)
+  const isGlassItem = id == LIQUID_GLASS_ID
 
   return (
     showAll || isActive ? (
       <TouchableOpacity style={{ ...styles.item, width: scaleSizeH(ITEM_HEIGHT) }} activeOpacity={0.5} onPress={() => { setTheme(id) }}>
-        <View style={{ ...styles.colorContent, width: scaleSizeH(COLOR_ITEM_HEIGHT), borderColor: isActive ? color : 'transparent' }}>
+        <View style={{ ...styles.colorContent, width: scaleSizeH(COLOR_ITEM_HEIGHT), borderColor: isActive ? (isGlassItem ? 'rgba(255,255,255,0.9)' : color) : 'transparent' }}>
           {
-            image
-              ? <ImageBackground style={{ ...styles.imageContent, width: scaleSizeH(IMAGE_HEIGHT), backgroundColor: color }}
-                  imageStyle={{ borderRadius: 4 }}
-                  source={image} />
-              : <View style={{ ...styles.imageContent, width: scaleSizeH(IMAGE_HEIGHT), backgroundColor: color }}></View>
-            }
+            isGlassItem
+              ? <View style={{ ...styles.imageContent, width: scaleSizeH(IMAGE_HEIGHT), backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)' }}>
+                  <View style={styles.glassBlobA} />
+                  <View style={styles.glassBlobB} />
+                  <View style={styles.glassBlobC} />
+                </View>
+              : image
+                ? <ImageBackground style={{ ...styles.imageContent, width: scaleSizeH(IMAGE_HEIGHT), backgroundColor: color }}
+                    imageStyle={{ borderRadius: 4 }}
+                    source={image} />
+                : <View style={{ ...styles.imageContent, width: scaleSizeH(IMAGE_HEIGHT), backgroundColor: color }}></View>
+          }
         </View>
-        <Text style={styles.name} size={12} color={isActive ? color : theme['c-font']} numberOfLines={1}>{name}</Text>
+        <Text style={styles.name} size={12} color={isActive ? (isGlassItem ? '#ffffff' : color) : theme['c-font']} numberOfLines={1}>{name}</Text>
       </TouchableOpacity>
     ) : null
   )
@@ -76,6 +84,7 @@ const initInfo: ThemeInfo = { themes: [], userThemes: [], dataPath: '' }
 export default memo(() => {
   const [showAll, setShowAll] = useState(false)
   const t = useI18n()
+  const isGlass = useIsGlass()
   const [themeInfo, setThemeInfo] = useState(initInfo)
   const setThemeId = useCallback((id: string) => {
     requestAnimationFrame(() => {
@@ -89,6 +98,7 @@ export default memo(() => {
 
   return (
     <SubTitle title={t('setting_basic_theme')}>
+      {isGlass ? <Text style={styles.glassDesc} size={11} color="rgba(226, 236, 255, 0.72)">{t('setting_liquid_glass_desc')}</Text> : null}
       <View style={styles.list}>
         {
           themeInfo.themes.map(({ id, config }) => {
@@ -147,8 +157,14 @@ const styles = createStyle({
   imageContent: {
     height: IMAGE_HEIGHT,
     borderRadius: 4,
+    overflow: 'hidden',
+    flexDirection: 'row',
     // elevation: 1,
   },
+  glassBlobA: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(120, 180, 255, 0.9)', top: -4, left: 2 },
+  glassBlobB: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: 'rgba(198, 130, 255, 0.9)', bottom: -3, left: 10 },
+  glassBlobC: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: 'rgba(80, 224, 200, 0.9)', top: 4, right: 3 },
+  glassDesc: { marginTop: -4, marginBottom: 8, marginLeft: -10 },
   name: {
     marginTop: 2,
   },

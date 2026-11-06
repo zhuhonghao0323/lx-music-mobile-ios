@@ -1,5 +1,5 @@
 import { useImperativeHandle, forwardRef, useMemo, useRef, useState, type Ref } from 'react'
-import { View, Animated, TouchableHighlight } from 'react-native'
+import { View, Animated, TouchableHighlight, StyleSheet } from 'react-native'
 import { useWindowSize } from '@/utils/hooks'
 
 import Modal, { type ModalType } from './Modal'
@@ -8,6 +8,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
 import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { useGlass } from '@/theme/glass'
 
 const menuItemHeight = scaleSizeH(40)
 const menuItemWidth = scaleSizeW(100)
@@ -75,6 +76,7 @@ const Menu = ({
   center = false,
 }: Props) => {
   const theme = useTheme()
+  const glass = useGlass()
   const windowSize = useWindowSize()
   // const fadeAnim = useRef(new Animated.Value(0)).current
   // console.log(buttonPosition)
@@ -128,8 +130,24 @@ const Menu = ({
   // console.log(activeId)
   // console.log(menuStyle)
   // console.log(menuItemStyle)
+  const containerStyle = useMemo(() => StyleSheet.compose(
+    {
+      ...styles.menu,
+      ...menuStyle,
+      backgroundColor: glass.isGlass ? undefined : theme['c-content-background'],
+      borderRadius: glass.isGlass ? 18 : 2,
+    },
+    glass.panel(true),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [menuStyle, theme, glass.isGlass])
+
+  const separator = glass.divider()
+  const itemUnderlay = glass.isGlass ? 'rgba(255,255,255,0.22)' : theme['c-primary-background-active']
+  const activeColor = glass.tint() ?? theme['c-primary-font-active']
+
   return (
-    <View style={{ ...styles.menu, ...menuStyle, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
+    <View style={containerStyle} onStartShouldSetResponder={() => true}>
+      {glass.isGlass ? <View pointerEvents="none" style={glass.highlight()} /> : null}
       <Animated.ScrollView keyboardShouldPersistTaps={'always'}>
         {
           menus.map((menu, index) => (
@@ -139,26 +157,26 @@ const Menu = ({
                     key={menu.action}
                     style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height, opacity: 0.4 }}
                   >
-                    <Text style={{ textAlign: center ? 'center' : 'left' }} size={fontSize} numberOfLines={1}>{menu.label}</Text>
+                    <Text style={{ textAlign: center ? 'center' : 'left' }} color={glass.textColor()} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                   </View>
                 )
               : menu.action == activeId
                 ? (
                     <View
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
+                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height, ...(glass.isGlass ? { backgroundColor: 'rgba(120,190,255,0.22)' } : {}) }}
                     >
-                      <Text style={{ textAlign: center ? 'center' : 'left' }} color={theme['c-primary-font-active']} size={fontSize} numberOfLines={1}>{menu.label}</Text>
+                      <Text style={{ textAlign: center ? 'center' : 'left' }} color={activeColor} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                     </View>
                   )
                 : (
                     <TouchableHighlight
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
-                      underlayColor={theme['c-primary-background-active']}
+                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height, borderBottomWidth: separator && index < menus.length - 1 ? StyleSheet.hairlineWidth : 0, borderBottomColor: separator }}
+                      underlayColor={itemUnderlay}
                       onPress={() => { menuPress(menu) }}
                     >
-                      <Text style={{ textAlign: center ? 'center' : 'left' }} size={fontSize} numberOfLines={1}>{menu.label}</Text>
+                      <Text style={{ textAlign: center ? 'center' : 'left' }} color={glass.textColor()} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                     </TouchableHighlight>
                   )
 

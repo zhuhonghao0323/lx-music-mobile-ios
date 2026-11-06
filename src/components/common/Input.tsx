@@ -1,9 +1,10 @@
-import { useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { TextInput, View, TouchableOpacity, StyleSheet, type TextInputProps } from 'react-native'
 import { Icon } from '@/components/common/Icon'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { setSpText } from '@/utils/pixelRatio'
+import { useGlass } from '@/theme/glass'
 
 const styles = createStyle({
   content: {
@@ -61,6 +62,16 @@ export interface InputType {
 export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, clearBtn, style, size = 14, ...props }, ref) => {
   const inputRef = useRef<TextInput>(null)
   const theme = useTheme()
+  const glass = useGlass()
+
+  const inputGlassStyle = useMemo(() => glass.isGlass ? {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    borderRadius: 12,
+    paddingLeft: 10,
+    paddingRight: 8,
+  } : {}, [glass.isGlass])
   // const scaleClearBtn = useRef(new Animated.Value(0)).current
 
   useImperativeHandle(ref, () => ({
@@ -115,9 +126,9 @@ export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, c
         autoCapitalize="none"
         onChangeText={changeText}
         autoComplete="off"
-        style={StyleSheet.compose({ ...styles.input, color: theme['c-font'], fontSize: setSpText(size) }, style)}
-        placeholderTextColor={theme['c-primary-dark-100-alpha-600']}
-        selectionColor={theme['c-primary-light-100-alpha-300']}
+        style={StyleSheet.compose({ ...styles.input, ...inputGlassStyle, color: theme['c-font'], fontSize: setSpText(size) }, style)}
+        placeholderTextColor={glass.isGlass ? 'rgba(226, 236, 255, 0.5)' : theme['c-primary-dark-100-alpha-600']}
+        selectionColor={glass.isGlass ? 'rgba(120, 190, 255, 0.6)' : theme['c-primary-light-100-alpha-300']}
         ref={inputRef} {...props} />
       {/* <View style={styles.clearBtnContent}>
       <Animated.View style={{ ...styles.clearBtnContent, transform: [{ scale: scaleClearBtn }] }}> */}

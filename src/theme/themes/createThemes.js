@@ -295,6 +295,25 @@ const defaultThemes = [
       'c-badge-tertiary': 'var(c-primary-light-100)',
     },
   },
+  {
+    id: 'liquid_glass',
+    name: '液态玻璃',
+    isDark: true,
+    config: {
+      // 冷蓝主色，配合浅色字体（isDark: true 会生成浅色文字）
+      primary: 'rgb(120, 180, 255)',
+      font: 'rgb(238, 244, 255)',
+      'c-app-background': 'rgba(11, 16, 36, 0.55)',
+      'c-main-background': 'rgba(11, 16, 36, 0.42)',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': 'rgba(120, 190, 255, 1)',
+      'c-badge-secondary': 'rgba(198, 130, 255, 1)',
+      'c-badge-tertiary': 'rgba(80, 224, 200, 1)',
+    },
+  },
 ]
 
 const themes = defaultThemes.map(({ config: { primary, font, ...extInfo }, ...themeInfo }) => {

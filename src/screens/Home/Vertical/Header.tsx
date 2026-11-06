@@ -1,4 +1,4 @@
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, StyleSheet } from 'react-native'
 // import Button from '@/components/common/Button'
 // import { navigations } from '@/navigation'
 // import { BorderWidths } from '@/theme'
@@ -14,6 +14,7 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
+import { useIsGlass } from '@/theme/glass'
 
 const headerComponents: Partial<Record<CommonState['navActiveId'], React.ReactNode>> = {
   nav_search: <SearchTypeSelector />,
@@ -21,6 +22,19 @@ const headerComponents: Partial<Record<CommonState['navActiveId'], React.ReactNo
 
 const openMenu = () => {
   global.app_event.changeMenuVisible(true)
+}
+
+const useHeaderStyle = () => {
+  const isGlass = useIsGlass()
+  return (statusBarHeight: number) => StyleSheet.compose({
+    ...styles.container,
+    height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
+    paddingTop: statusBarHeight,
+  }, isGlass ? {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.16)',
+  } : {})
 }
 
 
@@ -35,13 +49,10 @@ const LeftHeader = () => {
   const id = useNavActiveId()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
+  const headerStyle = useHeaderStyle()
 
   return (
-    <View style={{
-      ...styles.container,
-      height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
-      paddingTop: statusBarHeight,
-    }}>
+    <View style={headerStyle(statusBarHeight)}>
       <View style={styles.left}>
         <TouchableOpacity style={styles.btn} onPress={openMenu}>
           <Icon color={theme['c-font']} name="menu" size={18} />
@@ -71,13 +82,10 @@ const RightHeader = () => {
   const t = useI18n()
   const id = useNavActiveId()
   const statusBarHeight = useStatusbarHeight()
+  const headerStyle = useHeaderStyle()
 
   return (
-    <View style={{
-      ...styles.container,
-      height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
-      paddingTop: statusBarHeight,
-    }}>
+    <View style={headerStyle(statusBarHeight)}>
       <View style={styles.left}>
         <View style={styles.titleBtn}>
           <Text style={styles.rightTitle} size={18}>{t(id)}</Text>

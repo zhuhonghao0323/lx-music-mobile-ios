@@ -68,7 +68,7 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     theme.config.extInfo[k] = theme.config.themeColors[v.replace(varColorRxp, '$1') as ColorsKey]
   }
 
-  return {
+  const activeTheme: LX.ActiveTheme = {
     id: theme.id,
     name: theme.name,
     isDark: theme.isDark,
@@ -93,7 +93,50 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     'c-content-background': theme.config.themeColors['c-primary-light-1000'],
     'c-border-background': theme.config.themeColors['c-primary-light-100-alpha-700'],
     'bg-image': bgImg,
-  } as const
+  }
+
+  // 液态玻璃：把全局语义色统一改成半透明玻璃色，
+  // 这样所有引用 c-button-background / c-content-background / c-primary-background …
+  // 的组件都会自动获得一致的玻璃质感，无需逐个改造。
+  if (theme.id == 'liquid_glass') {
+    const surface = 'rgba(255, 255, 255, 0.14)'
+    const surfaceStrong = 'rgba(255, 255, 255, 0.22)'
+    const control = 'rgba(255, 255, 255, 0.16)'
+    const controlActive = 'rgba(255, 255, 255, 0.30)'
+    const border = 'rgba(255, 255, 255, 0.38)'
+    const borderSoft = 'rgba(255, 255, 255, 0.16)'
+    const text = '#f4f8ff'
+    const textDim = 'rgba(226, 236, 255, 0.62)'
+    const tint = 'rgba(120, 190, 255, 0.95)'
+    const glassOverrides: Partial<LX.ActiveTheme> = {
+      'c-app-background': 'rgba(11, 16, 36, 0.55)',
+      'c-main-background': 'rgba(11, 16, 36, 0.42)',
+      'c-content-background': surfaceStrong,
+      'c-border-background': border,
+      'c-font': text,
+      'c-font-label': textDim,
+      'c-primary-font': tint,
+      'c-primary-font-hover': 'rgba(120, 190, 255, 0.75)',
+      'c-primary-font-active': 'rgba(120, 190, 255, 0.6)',
+      'c-primary-background': surface,
+      'c-primary-background-hover': surfaceStrong,
+      'c-primary-background-active': controlActive,
+      'c-primary-input-background': control,
+      'c-button-font': text,
+      'c-button-font-selected': '#ffffff',
+      'c-button-background': control,
+      'c-button-background-selected': 'rgba(120, 190, 255, 0.35)',
+      'c-button-background-hover': surfaceStrong,
+      'c-button-background-active': controlActive,
+      'c-list-header-border-bottom': borderSoft,
+      'c-badge-primary': tint,
+      'c-badge-secondary': 'rgba(198, 130, 255, 1)',
+      'c-badge-tertiary': 'rgba(80, 224, 200, 1)',
+    }
+    Object.assign(activeTheme, glassOverrides)
+  }
+
+  return activeTheme
 }
 
 
@@ -117,9 +160,12 @@ export const getTheme = async() => {
   //     : settingState.setting['theme.lightId']
   //   // : 'china_ink'
   //   : settingState.setting['theme.id']
-  let themeId = settingState.setting['common.isAutoTheme'] && shouldUseDarkColors
+  const selectedThemeId = settingState.setting['theme.id']
+  // 液态玻璃本身就是深色玻璃，跟随系统深色时不应被强制替换为纯黑主题
+  const isLiquidGlass = selectedThemeId == 'liquid_glass'
+  let themeId = settingState.setting['common.isAutoTheme'] && shouldUseDarkColors && !isLiquidGlass
     ? 'black'
-    : settingState.setting['theme.id']
+    : selectedThemeId
   // themeId = 'naruto'
   // themeId = 'pink'
   // themeId = 'black'

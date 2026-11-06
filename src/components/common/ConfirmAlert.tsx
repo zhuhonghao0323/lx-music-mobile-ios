@@ -1,11 +1,12 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
-import { View, ScrollView } from 'react-native'
+import { View, ScrollView, StyleSheet } from 'react-native'
 import Dialog, { type DialogType } from './Dialog'
 import Button from './Button'
 import { createStyle } from '@/utils/tools'
 import { useI18n } from '@/lang/index'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
+import { useIsGlass } from '@/theme/glass'
 
 const styles = createStyle({
   main: {
@@ -90,6 +91,7 @@ export default forwardRef<ConfirmAlertType, ConfirmAlertProps>(({
 }: ConfirmAlertProps, ref) => {
   const theme = useTheme()
   const t = useI18n()
+  const isGlass = useIsGlass()
 
   const dialogRef = useRef<DialogType>(null)
 
@@ -106,18 +108,18 @@ export default forwardRef<ConfirmAlertType, ConfirmAlertProps>(({
 
   return (
     <Dialog onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} ref={dialogRef}>
-      <View style={styles.main}>
+      <View style={StyleSheet.compose(styles.main, isGlass ? { marginLeft: 14, marginRight: 14 } : {})}>
         <ScrollView style={styles.content} keyboardShouldPersistTaps={'always'}>
-          {children ?? <Text>{text}</Text>}
+          {children ?? <Text color={isGlass ? '#f4f8ff' : undefined}>{text}</Text>}
         </ScrollView>
       </View>
-      <View style={{ ...styles.btns, ...(reverseBtn ? styles.btnsReversedDirection : styles.btnsDirection) }}>
-        <Button style={{ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
-          <Text color={theme['c-button-font']}>{cancelText || t('cancel')}</Text>
+      <View style={{ ...styles.btns, ...(reverseBtn ? styles.btnsReversedDirection : styles.btnsDirection), ...(isGlass ? { paddingLeft: 14, paddingRight: 14, paddingBottom: 18 } : {}) }}>
+        <Button style={StyleSheet.compose({ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: theme['c-button-background'] }, isGlass ? { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.38)' } : {})} onPress={handleCancel}>
+          <Text color={isGlass ? '#f4f8ff' : theme['c-button-font']}>{cancelText || t('cancel')}</Text>
         </Button>
         {showConfirm
-          ? <Button style={{ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: theme['c-button-background'] }} onPress={onConfirm} disabled={disabledConfirm}>
-              <Text color={theme['c-button-font']}>{confirmText || t('confirm')}</Text>
+          ? <Button style={StyleSheet.compose({ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: isGlass ? 'rgba(120, 190, 255, 0.42)' : theme['c-button-background'] }, isGlass ? { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' } : {})} onPress={onConfirm} disabled={disabledConfirm}>
+              <Text color={isGlass ? '#ffffff' : theme['c-button-font']}>{confirmText || t('confirm')}</Text>
             </Button>
           : null}
       </View>
