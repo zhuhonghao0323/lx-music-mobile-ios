@@ -1,26 +1,33 @@
-import { useRef } from 'react'
-import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import playerState from '@/store/player/state'
-import Btn from './Btn'
+import { TouchableOpacity } from 'react-native'
+import FavoriteBtn from '@/screens/PlayDetail/components/FavoriteBtn'
+import FavoriteIcon from '@/screens/PlayDetail/components/FavoriteIcon'
+import { createStyle } from '@/utils/tools'
+import { useTheme } from '@/store/theme/hook'
+import { BTN_WIDTH, BTN_ICON_SIZE } from './Btn'
 
 
 export default () => {
-  const musicAddModalRef = useRef<MusicAddModalType>(null)
-
-  const handleShowMusicAddModal = () => {
-    const musicInfo = playerState.playMusicInfo.musicInfo
-    if (!musicInfo) return
-    musicAddModalRef.current?.show({
-      musicInfo: 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo,
-      isMove: false,
-      listId: playerState.playMusicInfo.listId!,
-    })
-  }
-
+  const theme = useTheme()
   return (
-    <>
-      <Btn icon="add-music" onPress={handleShowMusicAddModal} />
-      <MusicAddModal ref={musicAddModalRef} />
-    </>
+    <FavoriteBtn>
+      {({ favorited, onPress, onLongPress }) => (
+        <TouchableOpacity
+          style={{ ...styles.cotrolBtn, width: BTN_WIDTH, height: BTN_WIDTH }}
+          activeOpacity={0.5}
+          onPress={onPress}
+          onLongPress={onLongPress}
+        >
+          <FavoriteIcon favorited={favorited} iconSize={BTN_ICON_SIZE} emptyColor={theme['c-font-label']} />
+        </TouchableOpacity>
+      )}
+    </FavoriteBtn>
   )
 }
+
+const styles = createStyle({
+  cotrolBtn: {
+    marginBottom: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+})

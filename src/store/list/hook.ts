@@ -1,6 +1,37 @@
 import { useEffect, useState } from 'react'
 import state, { type InitState } from './state'
 import { getListMusics } from '@/core/list'
+import { isMusicFavorited } from '@/core/favorite'
+
+/**
+ * 当前歌曲是否已收藏（收藏在任意收藏列表都算已收藏），随列表变化/切歌自动刷新
+ */
+export const useIsMusicFavorited = (musicInfo: LX.Music.MusicInfo | null) => {
+  const [favorited, setFavorited] = useState(false)
+  const musicId = musicInfo?.id ?? null
+
+  useEffect(() => {
+    let cancelled = false
+    const update = () => {
+      if (!musicId || !musicInfo) {
+        setFavorited(false)
+        return
+      }
+      void isMusicFavorited(musicInfo).then(result => {
+        if (!cancelled) setFavorited(result)
+      })
+    }
+    update()
+    global.app_event.on('myListMusicUpdate', update)
+    return () => {
+      cancelled = true
+      global.app_event.off('myListMusicUpdate', update)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [musicId])
+
+  return favorited
+}
 
 export const useMyList = () => {
   const [lists, setList] = useState(state.allList)

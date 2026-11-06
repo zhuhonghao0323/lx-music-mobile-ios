@@ -10,6 +10,7 @@ import { HEADER_HEIGHT } from './components/Header'
 import { BTN_WIDTH } from './MoreBtn/Btn'
 import { marginLeft } from './constant'
 import Image from '@/components/common/Image'
+import CoverGesture from '@/screens/PlayDetail/components/CoverGesture'
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 
@@ -37,11 +38,13 @@ export default memo(({ componentId }: { componentId: string }) => {
   return (
     <View style={{ ...styles.container, height: contentHeight }}>
       <View style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
-        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={{
-          width: imgWidth,
-          height: imgWidth,
-          borderRadius: 2,
-        }} />
+        <CoverGesture width={imgWidth} height={imgWidth}>
+          <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={{
+            width: imgWidth,
+            height: imgWidth,
+            borderRadius: 2,
+          }} />
+        </CoverGesture>
       </View>
     </View>
   )

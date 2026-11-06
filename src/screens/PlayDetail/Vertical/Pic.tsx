@@ -8,6 +8,7 @@ import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { useNavigationComponentDidAppear } from '@/navigation'
 import { HEADER_HEIGHT } from './components/Header'
 import Image from '@/components/common/Image'
+import CoverGesture from '@/screens/PlayDetail/components/CoverGesture'
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 
@@ -40,7 +41,9 @@ export default ({ componentId }: { componentId: string }) => {
   return (
     <View style={styles.container}>
       <View style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
-        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={style} />
+        <CoverGesture width={style.width} height={style.height}>
+          <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={style} />
+        </CoverGesture>
       </View>
     </View>
   )

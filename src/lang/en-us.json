@@ -1,4 +1,9 @@
 {
+  "collect_cancel": "Removed from favorites",
+  "favorite_added": "Added to favorites",
+  "favorite_removed": "Removed from favorites",
+  "player_cover_swipe_next": "Next",
+  "player_cover_swipe_prev": "Previous",
   "add_to": "Add to ...",
   "agree": "Sure",
   "agree_go": "Turn it on",
