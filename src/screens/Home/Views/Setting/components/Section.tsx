@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from '@/components/common/Text'
-import { useGlass } from '@/theme/glass'
+import { useGlass, useMd3 } from '@/theme/glass'
 import GlassView from '@/components/common/GlassView'
 
 
@@ -15,6 +15,26 @@ interface Props {
 export default ({ title, children }: Props) => {
   const theme = useTheme()
   const glass = useGlass()
+  const md3 = useMd3()
+
+  // MD3 主题：M3 Card 规格（surfaceContainer + 16dp 圆角 + elevation 1）
+  if (md3.isMd3) {
+    return (
+      <View style={[styles.container, md3.card(), {
+        paddingTop: md3.spacing.lg,
+        paddingBottom: md3.spacing.md,
+        marginBottom: md3.spacing.lg,
+        marginHorizontal: md3.spacing.sm + md3.spacing.xs,
+      }]}>
+        <Text
+          style={{ ...styles.title, borderLeftWidth: 0, marginLeft: md3.spacing.lg, marginBottom: md3.spacing.md }}
+          size={16}
+          color={md3.surface.primary}
+        >{title}</Text>
+        <View>{children}</View>
+      </View>
+    )
+  }
 
   return (
     <GlassView

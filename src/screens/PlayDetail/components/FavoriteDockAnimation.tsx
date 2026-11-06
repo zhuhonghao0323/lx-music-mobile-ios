@@ -19,10 +19,16 @@ export interface FavoriteDockAnimationPayload {
 }
 
 let runner: ((payload: FavoriteDockAnimationPayload) => void) | null = null
+let arriveListener: ((direction: 'add' | 'remove') => void) | null = null
 
 /** 触发一次「收进/抽出」动画；播放页未挂载时安全忽略 */
 export const playFavoriteDockAnimation = (payload: FavoriteDockAnimationPayload) => {
   runner?.(payload)
+}
+
+/** 注册「封面已到达心形」的回调，供心形播放晃动/变红反馈 */
+export const setFavoriteArriveListener = (fn: ((direction: 'add' | 'remove') => void) | null) => {
+  arriveListener = fn
 }
 
 const FLY_DURATION = 480
@@ -60,17 +66,22 @@ export default ({ onArrive }: { onArrive?: (direction: 'add' | 'remove') => void
     animRef.current = anim
     anim.start(({ finished }) => {
       if (!finished) return
-      // 到达目标：播放一下「吸附」脉冲，然后清理
+      // 封面刚落到心形上：立刻通知心形播放晃动/变红，观感上「收到了」
+      setPayload((current) => {
+        if (current) {
+          onArrive?.(current.direction)
+          arriveListener?.(current.direction)
+        }
+        return current
+      })
+      // 再播放一下「吸附」脉冲，然后清理
       Animated.timing(burst, {
         toValue: 1,
         duration: BURST_DURATION,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
-        setPayload((current) => {
-          if (current) onArrive?.(current.direction)
-          return null
-        })
+        setPayload(null)
       })
     })
   }, [payload, progress, burst, onArrive])

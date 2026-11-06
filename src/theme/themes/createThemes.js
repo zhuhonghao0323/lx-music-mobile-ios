@@ -314,6 +314,28 @@ const defaultThemes = [
       'c-badge-tertiary': 'rgba(80, 224, 200, 1)',
     },
   },
+  {
+    // 移植自 md3Music 的 Material Design 3 设计语言：
+    // 种子色 #0061A4（MD3 官方主题构建器的 key tone 40），
+    // 深色面用 M3 dark scheme 的 surface / surfaceContainer 层级。
+    id: 'md3',
+    name: 'MD3 韵律',
+    isDark: true,
+    config: {
+      primary: 'rgb(161, 201, 255)',
+      font: 'rgb(227, 227, 232)',
+      'c-app-background': '#121318',
+      'c-main-background': '#1A1B21',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      // M3 强调色组：primary / secondary / tertiary 容器色文本
+      'c-badge-primary': 'rgb(161, 201, 255)',
+      'c-badge-secondary': 'rgb(198, 198, 220)',
+      'c-badge-tertiary': 'rgb(236, 178, 213)',
+    },
+  },
 ]
 
 const themes = defaultThemes.map(({ config: { primary, font, ...extInfo }, ...themeInfo }) => {

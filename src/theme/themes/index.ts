@@ -136,6 +136,48 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     Object.assign(activeTheme, glassOverrides)
   }
 
+  // MD3（移植自 md3Music）：Material Design 3 深色 surface 层级 + primary/secondary 容器色。
+  // 语义色全部按 M3 ColorScheme(dark) 的 token 命名映射，保证卡片/按钮/弹层的层次与官方一致。
+  if (theme.id == 'md3') {
+    const md3Overrides: Partial<LX.ActiveTheme> = {
+      // --- M3 surface 层级（dark scheme） ---
+      'c-app-background': '#121318',
+      'c-main-background': '#1A1B21',
+      'c-content-background': '#1E1F25',
+      'c-border-background': '#44474F',
+      'c-list-header-border-bottom': '#2A2C33',
+
+      // --- M3 onSurface / onSurfaceVariant ---
+      'c-font': '#E3E3E8',
+      'c-font-label': '#C4C6CF',
+
+      // --- M3 primary / onPrimaryContainer ---
+      'c-primary-font': '#A1C9FF',
+      'c-primary-font-hover': '#BCD5FF',
+      'c-primary-font-active': '#D4E3FF',
+
+      // --- M3 primaryContainer / secondaryContainer ---
+      'c-primary-background': '#2C3A4E',
+      'c-primary-background-hover': '#374A63',
+      'c-primary-background-active': '#44587A',
+      'c-primary-input-background': '#26272E',
+
+      // --- M3 按钮：filled 用 primary，tonal 用 secondaryContainer ---
+      'c-button-font': '#DDEEFF',
+      'c-button-font-selected': '#0B1B2B',
+      'c-button-background': '#2C3A4E',
+      'c-button-background-selected': '#A1C9FF',
+      'c-button-background-hover': '#374A63',
+      'c-button-background-active': '#44587A',
+
+      // --- M3 徽章：primary / secondary / tertiary ---
+      'c-badge-primary': '#A1C9FF',
+      'c-badge-secondary': '#C6C6DC',
+      'c-badge-tertiary': '#ECB2D5',
+    }
+    Object.assign(activeTheme, md3Overrides)
+  }
+
   return activeTheme
 }
 

@@ -3,9 +3,69 @@ import { useTheme } from '@/store/theme/hook'
 
 /** 液态玻璃主题 id */
 export const LIQUID_GLASS_ID = 'liquid_glass'
+/** MD3 主题 id（移植自 md3Music 的 Material Design 3 设计语言） */
+export const MD3_ID = 'md3'
 
 /** 是否处于液态玻璃主题 */
 export const useIsGlass = () => useTheme().id == LIQUID_GLASS_ID
+/** 是否处于 MD3 主题 */
+export const useIsMd3 = () => useTheme().id == MD3_ID
+
+/**
+ * md3Music 的尺寸 token（4dp 基准、8dp 节奏），按需在这里集中取用。
+ * 数值直接来自其 lib/core/theme/app_dimens.dart，保证与源项目的视觉节奏一致。
+ */
+export const MD3_SPACING = { none: 0, xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const
+export const MD3_RADIUS = { xs: 4, cover: 6, sm: 8, md: 12, lg: 16, dropdownPanel: 20, xl: 28, full: 999 } as const
+
+/** MD3 深色 surface 层级（对应 M3 ColorScheme.dark 的 surfaceContainer*） */
+export const MD3_SURFACE = {
+  base: '#121318',
+  containerLowest: '#0D0E13',
+  containerLow: '#1A1B21',
+  container: '#1E1F25',
+  containerHigh: '#282A2F',
+  containerHighest: '#33353A',
+  outline: '#8E9099',
+  outlineVariant: '#44474F',
+  primary: '#A1C9FF',
+  onPrimaryContainer: '#D4E3FF',
+  primaryContainer: '#2C3A4E',
+  secondaryContainer: '#42455C',
+} as const
+
+/** MD3 卡片样式：M3 规范 elevation 1 + 16dp 圆角 + surfaceContainer */
+export const md3Card = (): ViewStyle => ({
+  backgroundColor: MD3_SURFACE.container,
+  borderRadius: MD3_RADIUS.lg,
+  ...Platform.select({
+    ios: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.3,
+      shadowRadius: 3,
+    },
+    android: { elevation: 1 },
+  }),
+})
+
+/** MD3 按钮/输入：12dp 圆角 */
+export const md3Control = (): ViewStyle => ({
+  backgroundColor: MD3_SURFACE.primaryContainer,
+  borderRadius: MD3_RADIUS.md,
+})
+
+export const useMd3 = () => {
+  const isMd3 = useIsMd3()
+  return {
+    isMd3,
+    card: (): ViewStyle => (isMd3 ? md3Card() : {}),
+    control: (): ViewStyle => (isMd3 ? md3Control() : {}),
+    surface: MD3_SURFACE,
+    radius: MD3_RADIUS,
+    spacing: MD3_SPACING,
+  }
+}
 
 /** 是否使用原生毛玻璃（BlusView / UIVisualEffectView），iOS 全版本可用 */
 export const isNativeBlurAvailable = Platform.OS == 'ios'
