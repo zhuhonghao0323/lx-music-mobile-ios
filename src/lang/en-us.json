@@ -9,6 +9,7 @@
   "favorite_option_remove": "Remove favorite",
   "favorite_not_collected": "Not collected",
   "favorite_already_collected": "Collected",
+  "favorite_exists": "Already collected",
   "theme_liquid_glass": "Liquid Glass",
   "theme_md3": "MD3 Rhythm",
   "setting_liquid_glass_desc": "iOS 27 style — translucent glass over an aurora background",
