@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-ios-ipa:
     name: iOS IPA
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       NO_FLIPPER: 1
       IOS_SCHEME: LxMusicMobile
