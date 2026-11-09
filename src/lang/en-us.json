@@ -12,6 +12,8 @@
   "favorite_exists": "Already collected",
   "theme_liquid_glass": "Liquid Glass",
   "theme_md3": "MD3 Rhythm",
+  "setting_source_priority_title": "Source priority",
+  "setting_source_priority_desc": "Check to enable, use arrows to reorder. Auto-switches to the next source on failure; each new song starts from the first.",
   "setting_liquid_glass_desc": "iOS 27 style — translucent glass over an aurora background",
   "add_to": "Add to ...",
   "agree": "Sure",

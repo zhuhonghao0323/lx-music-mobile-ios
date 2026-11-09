@@ -7,6 +7,7 @@ import mg from './mg'
 import xm from './xm'
 import { supportQuality } from './api-source'
 import { versionChars } from './versionChars'
+import { getSourcePriority } from '@/core/sourcePriority'
 
 
 const sources = {
@@ -64,9 +65,16 @@ export const searchMusic = async({ name, singer, source: s, limit = 25 }) => {
   const musicName = trimStr(name)
   const tasks = []
   const excludeSource = ['xm']
-  for (const source of sources.sources) {
-    if (!sources[source.id].musicSearch || source.id == s || excludeSource.includes(source.id)) continue
-    tasks.push(sources[source.id].musicSearch.search(`${musicName} ${singer || ''}`.trim(), 1, limit).catch(_ => null))
+  // 按用户设置的优先级与启用集合决定搜索/自动切换顺序。
+  // findMusic 返回的候选顺序即 getOnlineOtherSourceMusicUrl 的尝试顺序，
+  // 因此这里排序后，播放失败时就会按手动排序依次切换，切歌也会从第一项重新开始。
+  const priority = getSourcePriority()
+  const sourceIds = priority.length
+    ? priority
+    : sources.sources.map(item => item.id)
+  for (const sourceId of sourceIds) {
+    if (!sources[sourceId]?.musicSearch || sourceId == s || excludeSource.includes(sourceId)) continue
+    tasks.push(sources[sourceId].musicSearch.search(`${musicName} ${singer || ''}`.trim(), 1, limit).catch(_ => null))
   }
   return (await Promise.all(tasks)).filter(s => s)
 }

@@ -133,13 +133,11 @@ export const updateCurrentTrackMetadata = async(metadata: {
   elapsedTime?: number
   playbackRate?: number
 }) => {
-  // 「与其他应用同时播放」模式下不写任何系统媒体信息。
-  //
-  // 注意：光把 setupPlayer 的 autoUpdateMetadata 设成 false 是不够的，
-  // updateMetadataForTrack 是手动写 MPNowPlayingInfoCenter，
-  // 不拦住它，灵动岛/锁屏/控制中心照样会出播放卡片。
-  if (Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']) return
-
+  // 「与其他应用同时播放」模式下不再清空/跳过系统媒体信息：
+  // iOS 依赖 MPNowPlayingInfoCenter 的活跃媒体会话来维持后台音频，
+  // 清空它会导致锁屏或进入后台后系统挂起播放（表现为「音乐直接停止」）。
+  // 保留锁屏卡片是后台持续播放的必要条件，混音本身由 AVAudioSession 的
+  // mixWithOthers 控制，与是否显示卡片无关。
   const currentTrackIndex = await TrackPlayer.getCurrentTrack().catch(() => null)
   if (currentTrackIndex != null && currentTrackIndex > -1) {
     await TrackPlayer.updateMetadataForTrack(currentTrackIndex, metadata).catch(() => {})

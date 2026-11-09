@@ -2,13 +2,14 @@ import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
 import { pause, playNext } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
-import { setStop } from '@/plugins/player'
+import { setStop, setPlay } from '@/plugins/player'
 import { delayUpdateMusicInfo, updateMetaData } from '@/plugins/player/playList'
 import { soundEffectController } from '@/plugins/player/soundEffect'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onHeadphonesDisconnected } from '@/utils/nativeModules/utils'
-import { Platform } from 'react-native'
+import { AppState, Platform } from 'react-native'
+import { clearOtherSourceCache } from '@/core/music/utils'
 
 
 export default async(setting: LX.AppSetting) => {
@@ -58,6 +59,8 @@ export default async(setting: LX.AppSetting) => {
       const playMusicInfo = playerState.playMusicInfo
       if (newValue == 'random' && playMusicInfo.musicInfo && !playMusicInfo.isTempPlay) addPlayedList({ ...(playMusicInfo as LX.Player.PlayMusicInfo) })
     }
+    // 音源排序/启用集合变化后，清空候选缓存，让下一次切歌按新顺序从第一音源开始
+    if (keys.includes('player.sourcePriority') || keys.includes('player.enabledSources')) clearOtherSourceCache()
     if (keys.some(soundEffectController.isSettingKey)) void soundEffectController.applyCurrentConfig()
   }
 
@@ -75,8 +78,23 @@ export default async(setting: LX.AppSetting) => {
 
   if (Platform.OS == 'ios') {
     onHeadphonesDisconnected(() => {
+      // 混音模式下忽略耳机拔出中断，避免与其它 App 同时播放时被误暂停
+      if (settingState.setting['player.isPlayWithOtherApps']) return
       if (!playerState.isPlay) return
       void pause()
+    })
+
+    // 「与其他应用同时播放」模式下，锁屏 / 进入后台时系统的音频中断有可能
+    // 让底层播放器进入 paused，但 JS 侧 UI 状态仍是「播放中」。
+    // 回到前台时，如果 UI 认为在播而底层确实停了，就主动恢复一次，
+    // 保证锁屏 / 后台都不会导致音乐停止。
+    AppState.addEventListener('change', (state) => {
+      if (state != 'active') return
+      if (!settingState.setting['player.isPlayWithOtherApps']) return
+      if (!playerState.isPlay || !playerState.playMusicInfo.musicInfo) return
+      if (global.lx.isPlayedStop) return
+      // 延迟一点，避开系统恢复音频会话时的抖动
+      setTimeout(() => { void setPlay() }, 180)
     })
   }
 }

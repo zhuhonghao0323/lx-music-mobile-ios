@@ -3,7 +3,7 @@ import { Animated, Easing, PanResponder, StyleSheet, View, type GestureResponder
 import Text from '@/components/common/Text'
 import { FAVORITE_COLOR } from './FavoriteIcon'
 import { triggerFavoriteDockAnimation } from './FavoriteBtn'
-import { addToFavorite, getPlayMusicInfo, isMusicFavorited, removeFromFavorite } from '@/core/favorite'
+import { addToFavorite, getPlayMusicInfo, isMusicFavorited, removeFromFavorite, toggleFavorite } from '@/core/favorite'
 import { playNext, playPrev } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { useI18n } from '@/lang'
@@ -21,6 +21,10 @@ const HINT_DRAG = 28
 const ACTION_DRAG = 88
 /** 悬浮状态的安全超时：即使收不到抬手事件也能自动恢复 */
 const LIFT_SAFETY_TIMEOUT = 8000
+/** 双击间隔阈值（ms） */
+const DOUBLE_TAP_INTERVAL = 300
+/** 双击两次按下之间的最大位移，超出则不算双击 */
+const DOUBLE_TAP_SLOP = 24
 
 type SwipeAction = 'next' | 'prev' | null
 type Mode = 'idle' | 'favorite'
@@ -68,6 +72,8 @@ export default ({ children, width, height }: {
   const startPoint = useRef({ x: 0, y: 0 })
   const hintRef = useRef<string | null>(null)
   const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastTapRef = useRef<{ time: number, x: number, y: number } | null>(null)
+  const doubleTapLockRef = useRef(false)
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
@@ -102,6 +108,24 @@ export default ({ children, width, height }: {
   const triggerDockAnimation = useCallback((direction: 'add' | 'remove') => {
     void triggerFavoriteDockAnimation(direction)
   }, [])
+
+  /**
+   * 双击封面：切换收藏状态，并复用与拖拽封面一致的 Dock 动画
+   * （加入=封面收进左下角心形，取消=从心形反向抽出）。
+   */
+  const handleDoubleTap = useCallback(() => {
+    if (busyRef.current || doubleTapLockRef.current) return
+    const info = getPlayMusicInfo()
+    if (!info) return
+    doubleTapLockRef.current = true
+    void toggleFavorite(info).then(result => {
+      setFavorited(result)
+      favRef.current = result
+      showResultTip(t(result ? 'favorite_added' : 'favorite_removed'))
+      triggerDockAnimation(result ? 'add' : 'remove')
+      setTimeout(() => { doubleTapLockRef.current = false }, 600)
+    })
+  }, [t, showResultTip, triggerDockAnimation])
 
   // ---------- 进入 / 退出悬浮 ----------
   /** 退出悬浮并确保恢复常态：所有动画值归零，任何情况下都能回到正常播放状态 */
@@ -297,15 +321,27 @@ export default ({ children, width, height }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [pan, onPanResponderRelease, exitFavoriteMode, snapBack, cancelLongPress, t, setModeBoth])
 
-  // 长按检测：用 touch 事件，避免与 PagerView 横向翻页抢占 responder
+  // 长按 / 双击检测：用 touch 事件，避免与 PagerView 横向翻页抢占 responder
   const onTouchStart = useCallback((e: GestureResponderEvent) => {
     cancelLongPress()
-    // 悬浮中再次触摸：只取消长按计时，不作为重新进入
     if (busyRef.current || modeRef.current == 'favorite') return
     const { pageX, pageY } = e.nativeEvent
+    const now = Date.now()
+    const prev = lastTapRef.current
+    const isDoubleTap = !!prev &&
+      now - prev.time < DOUBLE_TAP_INTERVAL &&
+      Math.abs(pageX - prev.x) < DOUBLE_TAP_SLOP &&
+      Math.abs(pageY - prev.y) < DOUBLE_TAP_SLOP
+    if (isDoubleTap) {
+      lastTapRef.current = null
+      // 双击：不启动长按计时，直接切换收藏
+      handleDoubleTap()
+      return
+    }
+    lastTapRef.current = { time: now, x: pageX, y: pageY }
     startPoint.current = { x: pageX, y: pageY }
     longPressTimer.current = setTimeout(() => { enterFavoriteMode() }, LONG_PRESS_DELAY)
-  }, [enterFavoriteMode, cancelLongPress])
+  }, [enterFavoriteMode, cancelLongPress, handleDoubleTap])
 
   const onTouchMove = useCallback((e: GestureResponderEvent) => {
     if (!longPressTimer.current) return
