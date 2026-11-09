@@ -1,5 +1,5 @@
 import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
-import { pause, playNext } from '@/core/player/player'
+import { pause, playNext, resetCustomSourceForNewSong } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
 import { setStop, setPlay } from '@/plugins/player'
@@ -9,7 +9,6 @@ import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onHeadphonesDisconnected } from '@/utils/nativeModules/utils'
 import { AppState, Platform } from 'react-native'
-import { clearOtherSourceCache } from '@/core/music/utils'
 
 
 export default async(setting: LX.AppSetting) => {
@@ -59,8 +58,6 @@ export default async(setting: LX.AppSetting) => {
       const playMusicInfo = playerState.playMusicInfo
       if (newValue == 'random' && playMusicInfo.musicInfo && !playMusicInfo.isTempPlay) addPlayedList({ ...(playMusicInfo as LX.Player.PlayMusicInfo) })
     }
-    // 音源排序/启用集合变化后，清空候选缓存，让下一次切歌按新顺序从第一音源开始
-    if (keys.includes('player.sourcePriority') || keys.includes('player.enabledSources')) clearOtherSourceCache()
     if (keys.some(soundEffectController.isSettingKey)) void soundEffectController.applyCurrentConfig()
   }
 
@@ -72,6 +69,10 @@ export default async(setting: LX.AppSetting) => {
   global.app_event.on('playerEnded', handleEnded)
   global.app_event.on('picUpdated', updatePic)
   global.app_event.on('musicToggled', refreshNowPlaying)
+  global.app_event.on('musicToggled', () => {
+    const id = playerState.playMusicInfo.musicInfo?.id
+    if (id) resetCustomSourceForNewSong(id)
+  })
   global.app_event.on('lyricUpdated', refreshNowPlaying)
   global.state_event.on('configUpdated', handleConfigUpdated)
   void soundEffectController.applyCurrentConfig()

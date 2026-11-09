@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native'
 import MoreBtn from './components/MoreBtn'
 import PlayInfo from './components/PlayInfo'
 import ControlBtn from './components/ControlBtn'
+import SourceBtn from './components/SourceBtn'
 import { createStyle } from '@/utils/tools'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { useIsGlass } from '@/theme/glass'
@@ -26,6 +27,7 @@ export default memo(() => {
       nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_player}
     >
       <PlayInfo />
+      <SourceBtn />
       <ControlBtn />
       <MoreBtn />
     </GlassView>

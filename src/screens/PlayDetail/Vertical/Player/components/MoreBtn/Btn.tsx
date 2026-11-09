@@ -23,7 +23,6 @@ export default ({ icon, color, onPress, onLongPress }: {
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(255, 255, 255, 0.35)',
         borderRadius: BTN_WIDTH / 2,
-        marginLeft: 8,
         shadowColor: 'rgba(6, 10, 30, 0.5)',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
@@ -40,7 +39,6 @@ export default ({ icon, color, onPress, onLongPress }: {
 
 const styles = createStyle({
   cotrolBtn: {
-    marginLeft: 5,
     justifyContent: 'center',
     alignItems: 'center',
 

@@ -29,7 +29,6 @@ export default () => {
 
 const styles = createStyle({
   cotrolBtn: {
-    marginLeft: 5,
     justifyContent: 'center',
     alignItems: 'center',
   },

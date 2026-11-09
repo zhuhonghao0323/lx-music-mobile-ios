@@ -4,15 +4,10 @@ import Text from '@/components/common/Text'
 import { FAVORITE_COLOR } from './FavoriteIcon'
 import { triggerFavoriteDockAnimation } from './FavoriteBtn'
 import { addToFavorite, getPlayMusicInfo, isMusicFavorited, removeFromFavorite, toggleFavorite } from '@/core/favorite'
-import { playNext, playPrev } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { useI18n } from '@/lang'
 import { scaleSizeW } from '@/utils/pixelRatio'
 
-/** 轻滑触发切歌的最小距离 */
-const SWIPE_THRESHOLD = 42
-/** 轻滑判定为「竖直」的轴比（斜向一律不处理） */
-const AXIS_RATIO = 1.6
 /** 进入收藏模式所需的长按时长 */
 const LONG_PRESS_DELAY = 1000
 /** 收藏模式内拖动多少即给出提示 */
@@ -26,19 +21,7 @@ const DOUBLE_TAP_INTERVAL = 300
 /** 双击两次按下之间的最大位移，超出则不算双击 */
 const DOUBLE_TAP_SLOP = 24
 
-type SwipeAction = 'next' | 'prev' | null
 type Mode = 'idle' | 'favorite'
-
-/**
- * 判定普通模式的轻滑：只有足够「竖直」的上划/下滑才切歌，斜向不处理。
- */
-const classifySwipe = (dx: number, dy: number): SwipeAction => {
-  const ax = Math.abs(dx)
-  const ay = Math.abs(dy)
-  if (Math.max(ax, ay) < SWIPE_THRESHOLD) return null
-  if (ay <= ax * AXIS_RATIO) return null
-  return dy < 0 ? 'next' : 'prev'
-}
 
 /**
  * 播放界面封面手势容器：
@@ -236,24 +219,7 @@ export default ({ children, width, height }: {
     })
   }, [pan, fade, lift, actionTop, actionBottom, setModeBoth, showResultTip, triggerDockAnimation, t, cancelSafetyTimer, exitFavoriteMode])
 
-  // ---------- 普通切歌（纯垂直） ----------
-  const runSwipe = useCallback((action: Exclude<SwipeAction, null>) => {
-    busyRef.current = true
-    const flyY = action == 'next' ? -height * 0.85 : height * 0.85
-    Animated.parallel([
-      // 只用 Y 轴，保证封面不左右晃动
-      Animated.timing(pan.y, { toValue: flyY, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: false }),
-    ]).start(() => {
-      if (action == 'next') void playNext()
-      else void playPrev()
-      pan.setValue({ x: 0, y: 0 })
-      Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(() => {
-        busyRef.current = false
-      })
-    })
-  }, [pan, fade, height])
-
+  // ---------- 普通切歌已迁到全屏 FullScreenSwipe，这里只保留复位 ----------
   const snapBack = useCallback(() => {
     Animated.spring(pan.y, { toValue: 0, friction: 7, tension: 90, useNativeDriver: false }).start()
   }, [pan])
@@ -277,20 +243,19 @@ export default ({ children, width, height }: {
       return
     }
 
+    // 普通模式不在这里处理切歌（已交给全屏 FullScreenSwipe），仅复位
     setModeBoth('idle')
-    const action = classifySwipe(gs.dx, gs.dy)
-    if (!action || busyRef.current) { snapBack(); return }
-    runSwipe(action)
+    snapBack()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exitFavoriteMode, doAddFavorite, doRemoveFavorite, runSwipe, snapBack, setModeBoth, cancelLongPress])
+  }, [exitFavoriteMode, doAddFavorite, doRemoveFavorite, snapBack, setModeBoth, cancelLongPress])
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_e, gs) => {
       if (busyRef.current) return false
-      const ax = Math.abs(gs.dx)
-      const ay = Math.abs(gs.dy)
-      return modeRef.current == 'favorite' ? ay > 2 : ay > 4 && ay >= ax * 0.7
+      // 只有长按悬浮（收藏模式）时才抢手势；
+      // 普通模式的上下滑切歌已统一交给全屏 FullScreenSwipe 处理，这里不再抢。
+      return modeRef.current == 'favorite' && Math.abs(gs.dy) > 2
     },
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: (e: GestureResponderEvent) => {

@@ -30,8 +30,62 @@ import { LIST_IDS } from '@/config/constant'
 import { addListMusics, removeListMusics } from '@/core/list'
 import { addDislikeInfo } from '@/core/dislikeList'
 import { markTimeoutExitInteraction } from './timeoutExit'
+import { setApiSource } from '@/core/apiSource'
+import {
+  getCurrentSourceId,
+  getNextCustomSourceId,
+  getDefaultCustomSourceId,
+  isCustomSource,
+} from '@/core/customSource'
+import { setCurrentPlayQuality } from '@/store/player/quality'
 
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
+
+/**
+ * 当前歌曲在「当前自定义源」上解析失败时，自动切到排序中的下一个自定义源，
+ * 并重新触发取 URL。返回是否真的做了切换（false 表示没有可切换的下一个源）。
+ *
+ * - 只在当前源本身就是自定义源时触发，避免把内置源也搅进来。
+ * - 每首歌维护一个「已尝试过的源」集合，全部失败一轮后停止，避免无限循环。
+ */
+const triedSourceIds = new Map<string, Set<string>>()
+const currentSongSourceKey = () => playerState.playMusicInfo.musicInfo?.id ?? ''
+let sourceSwitching = false
+
+const trySwitchToNextCustomSource = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem): Promise<boolean> => {
+  const currentId = getCurrentSourceId()
+  if (!isCustomSource(currentId)) return false
+  const key = currentSongSourceKey()
+  const tried = triedSourceIds.get(key) ?? new Set<string>()
+  tried.add(currentId)
+  triedSourceIds.set(key, tried)
+  const next = getNextCustomSourceId(currentId)
+  if (!next || tried.has(next)) return false
+  if (sourceSwitching) return false
+  sourceSwitching = true
+  try {
+    setStatusText(global.i18n.t('toggle_custom_source_try'))
+    setApiSource(next)
+    // 等待新音源脚本初始化完成后再重试取 URL
+    await global.lx.apiInitPromise[0].catch(() => false)
+    setMusicUrl(musicInfo, true)
+    return true
+  } finally {
+    // 单飞锁复位：赋值常量 false，不存在读改写竞态
+    // eslint-disable-next-line require-atomic-updates
+    sourceSwitching = false
+  }
+}
+
+/** 切歌时把「已尝试源」记录清掉，从排序第一个自定义源重新开始 */
+export const resetCustomSourceForNewSong = (musicId: string) => {
+  triedSourceIds.delete(musicId)
+  const first = getDefaultCustomSourceId()
+  if (!first) return
+  const current = getCurrentSourceId()
+  // 仅当用户当前用的就是自定义源时才切回默认源，避免打断手动选择内置源的用户
+  if (isCustomSource(current) && current != first) setApiSource(first)
+}
 
 const createDelayNextTimeout = (delay: number) => {
   let timeout: number | null
@@ -157,8 +211,14 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
     currentStreamInfo.musicId = musicInfo.id
     currentStreamInfo.url = result.url
     currentStreamInfo.quality = result.quality
+    setCurrentPlayQuality(result.quality)
     setResource(musicInfo, result.url, currentTime, result.quality)
-  }).catch((err: any) => {
+  }).catch(async(err: any) => {
+    // 自定义源解析失败：自动切到排序里的下一个自定义源并重试
+    if (musicInfo === playerState.playMusicInfo.musicInfo && !global.lx.isPlayedStop) {
+      const switched = await trySwitchToNextCustomSource(musicInfo)
+      if (switched) return
+    }
     setStatusText(err.message as string)
     global.app_event.error()
     addDelayNextTimeout()

@@ -11,24 +11,6 @@ import settingState from '@/store/setting/state'
 import { requestMsg } from '@/utils/message'
 import BackgroundTimer from 'react-native-background-timer'
 import { apis } from '@/utils/musicSdk/api-source'
-import { getSourcePriority } from '@/core/sourcePriority'
-
-/**
- * 按用户设置的音源优先级重排候选歌曲（稳定排序，优先级高的在前）。
- * findMusic 内部会按「匹配质量」排序，这里把用户的手动排序重新作为主导，
- * 保证自动切换与切歌起始音源都遵循设置里的顺序。
- */
-const sortBySourcePriority = (list: LX.Music.MusicInfoOnline[]): LX.Music.MusicInfoOnline[] => {
-  const priority = getSourcePriority()
-  if (!priority.length) return list
-  const rank = new Map(priority.map((id, index) => [id, index]))
-  return [...list].sort((a, b) => {
-    const ra = rank.get(a.source) ?? Number.MAX_SAFE_INTEGER
-    const rb = rank.get(b.source) ?? Number.MAX_SAFE_INTEGER
-    return ra - rb
-  })
-}
-
 
 const getOtherSourcePromises = new Map()
 export const existTimeExp = /\[\d{1,2}:.*\d{1,4}\]/
@@ -82,7 +64,7 @@ export const getOtherSource = async(musicInfo: LX.Music.MusicInfo | LX.Download.
     }, 12_000)
     findMusic(searchMusicInfo).then((otherSource) => {
       if (otherSourceCache.size > 10) otherSourceCache.clear()
-      const source = sortBySourcePriority(otherSource.map(toNewMusicInfo) as LX.Music.MusicInfoOnline[])
+      const source = otherSource.map(toNewMusicInfo) as LX.Music.MusicInfoOnline[]
       otherSourceCache.set(musicInfo, source)
       resolve(source)
     }).catch(reject).finally(() => {

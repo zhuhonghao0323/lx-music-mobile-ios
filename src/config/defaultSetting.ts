@@ -33,9 +33,9 @@ const defaultSetting: LX.AppSetting = {
   'player.isEnableAudioOffload': true,
   'player.isPlayWithOtherApps': false,
   'player.isPlayWithOtherAppsTipDisabled': false,
-  // 音源优先级与启用集合：决定自动切换顺序、以及每次切歌从哪个音源开始
-  'player.sourcePriority': ['kw', 'kg', 'tx', 'wy', 'mg'],
-  'player.enabledSources': ['kw', 'kg', 'tx', 'wy', 'mg'],
+  // 播放页封面下方三行歌词预览的外观
+  'theme.lyricPreviewColor': 'white',
+  'theme.lyricPreviewFontSize': 15,
   'player.isShowLyricTranslation': false,
   'player.isShowLyricRoma': false,
   'player.isShowNotificationImage': true,

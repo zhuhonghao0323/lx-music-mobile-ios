@@ -212,15 +212,14 @@ declare global {
       'player.isPlayWithOtherAppsTipDisabled': boolean
 
       /**
-       * 音源优先级列表（有序），播放失败时按此顺序自动切换下一个音源；
-       * 每次切换歌曲都从第一个音源重新开始尝试。
+       * 播放页封面下方三行歌词预览的高亮颜色
        */
-      'player.sourcePriority': string[]
+      'theme.lyricPreviewColor': string
 
       /**
-       * 已启用的音源（可复选），未启用的音源不参与自动切换
+       * 播放页封面下方三行歌词预览的字号
        */
-      'player.enabledSources': string[]
+      'theme.lyricPreviewFontSize': number
 
       /**
        * 是否显示歌词翻译

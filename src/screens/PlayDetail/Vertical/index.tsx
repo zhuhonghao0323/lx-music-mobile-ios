@@ -8,7 +8,9 @@ import Player from './Player'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import Pic from './Pic'
 import Lyric from './Lyric'
+import LyricPreview from './Player/components/LyricPreview'
 import FavoriteDockAnimation from '@/screens/PlayDetail/components/FavoriteDockAnimation'
+import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
@@ -74,25 +76,26 @@ export default memo(({ componentId }: { componentId: string }) => {
   return (
     <>
       <Header />
-      <View style={styles.container}>
-        <PagerView
-          onPageSelected={onPageSelected}
-          // onPageScrollStateChanged={onPageScrollStateChanged}
-          style={styles.pagerView}
-        >
-          <View collapsable={false}>
-            <Pic componentId={componentId} />
-          </View>
-          <View collapsable={false}>
-            <LyricPage activeIndex={pageIndex} />
-          </View>
-        </PagerView>
-        {/* <View style={styles.pageIndicator} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pageIndicator}>
-          <View style={{ ...styles.pageIndicatorItem, backgroundColor: pageIndex == 0 ? theme['c-primary-light-100-alpha-700'] : theme['c-primary-alpha-900'] }}></View>
-          <View style={{ ...styles.pageIndicatorItem, backgroundColor: pageIndex == 1 ? theme['c-primary-light-100-alpha-700'] : theme['c-primary-alpha-900'] }}></View>
-        </View> */}
-        <Player />
-      </View>
+      <FullScreenSwipe>
+        <View style={styles.container}>
+          <PagerView
+            onPageSelected={onPageSelected}
+            // onPageScrollStateChanged={onPageScrollStateChanged}
+            style={styles.pagerView}
+          >
+            <View collapsable={false}>
+              <View style={styles.picPage}>
+                <Pic componentId={componentId} />
+                <LyricPreview />
+              </View>
+            </View>
+            <View collapsable={false}>
+              <LyricPage activeIndex={pageIndex} />
+            </View>
+          </PagerView>
+          <Player />
+        </View>
+      </FullScreenSwipe>
       {/* 封面收进/抽出心形的 Dock 动画覆盖层：整屏绝对定位，不拦截触摸 */}
       <FavoriteDockAnimation />
     </>
@@ -106,6 +109,10 @@ const styles = createStyle({
   },
   pagerView: {
     flex: 1,
+  },
+  picPage: {
+    flex: 1,
+    flexDirection: 'column',
   },
   // pageIndicator: {
   //   flex: 0,

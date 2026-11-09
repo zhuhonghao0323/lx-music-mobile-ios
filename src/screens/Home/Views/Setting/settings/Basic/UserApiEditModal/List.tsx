@@ -15,18 +15,23 @@ import { Icon } from '@/components/common/Icon'
 import settingState from '@/store/setting/state'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { setApiSource } from '@/core/apiSource'
+import { reorderCustomSources } from '@/core/customSource'
 
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate, onSaveUrl }: {
+const ListItem = ({ item, activeId, index, total, isDefault, onRemove, onChangeAllowShowUpdateAlert, onChangeAutoUpdate, onUpdate, onSaveUrl, onMove }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
+  index: number
+  total: number
+  isDefault: boolean
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
   onChangeAutoUpdate: (id: string, enabled: boolean) => void
   onUpdate: (item: LX.UserApi.UserApiInfo) => Promise<void>
   onSaveUrl: (item: LX.UserApi.UserApiInfo, url: string) => void
+  onMove: (index: number, delta: number) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
@@ -66,19 +71,26 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
   return (
     <View style={{ ...styles.listItem, backgroundColor: activeId == item.id ? theme['c-primary-background-active'] : 'transparent' }}>
       <View style={styles.listItemLeft}>
-        <Text size={14}>
-          {item.name}
-          {
-            item.version ? (
-              <Text size={12} color={theme['c-font-label']}>{ '   ' + formatVersionName(item.version) }</Text>
-            ) : null
-          }
-          {
-            item.author ? (
-              <Text size={12} color={theme['c-font-label']}>{ '   ' + item.author }</Text>
-            ) : null
-          }
-        </Text>
+        <View style={styles.nameRow}>
+          <Text size={14}>
+            {item.name}
+            {
+              item.version ? (
+                <Text size={12} color={theme['c-font-label']}>{ '   ' + formatVersionName(item.version) }</Text>
+              ) : null
+            }
+            {
+              item.author ? (
+                <Text size={12} color={theme['c-font-label']}>{ '   ' + item.author }</Text>
+              ) : null
+            }
+          </Text>
+        </View>
+        {
+          isDefault
+            ? <Text size={11} color={theme['c-primary']}>{t('user_api_priority_default')}</Text>
+            : null
+        }
         {
           item.description ? (
             <Text size={12} color={theme['c-font-label']}>{item.description}</Text>
@@ -113,6 +125,14 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert, onCh
         }
       </View>
       <View style={styles.listItemRight}>
+        <View style={styles.priorityBtns}>
+          <TouchableOpacity style={styles.priorityBtn} onPress={() => { onMove(index, -1) }} disabled={index == 0}>
+            <Icon name="chevron-left-2" color={index == 0 ? theme['c-font-label'] : theme['c-primary']} size={14} style={{ transform: [{ rotate: '90deg' }] }} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.priorityBtn} onPress={() => { onMove(index, 1) }} disabled={index == total - 1}>
+            <Icon name="chevron-right-2" color={index == total - 1 ? theme['c-font-label'] : theme['c-primary']} size={14} style={{ transform: [{ rotate: '90deg' }] }} />
+          </TouchableOpacity>
+        </View>
         {
           canUpdate
             ? (
@@ -180,25 +200,49 @@ export default () => {
     })
   }, [])
 
+  const handleMove = useCallback((index: number, delta: number) => {
+    const target = index + delta
+    if (target < 0 || target >= userApiList.length) return
+    const next = userApiList.map(item => item.id)
+    const tmp = next[index]
+    next[index] = next[target]
+    next[target] = tmp
+    void reorderCustomSources(next).then(() => {
+      // 排序变化后把当前音源切回新的默认源，保证「第一个是默认音源」
+      const first = next[0]
+      if (first && settingState.setting['common.apiSource'] != first && /^user_api/.test(settingState.setting['common.apiSource'])) {
+        setApiSource(first)
+      }
+    })
+  }, [userApiList])
+
   return (
     <ScrollView style={styles.scrollView} keyboardShouldPersistTaps={'always'}>
       <View onStartShouldSetResponder={() => true}>
         {
           userApiList.length
-            ? userApiList.map((item) => {
-              return (
-              <ListItem
-                key={item.id}
-                item={item}
-                activeId={apiSource}
-                onRemove={handleRemove}
-                onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
-                onChangeAutoUpdate={handleChangeAutoUpdate}
-                onUpdate={handleUpdate}
-                onSaveUrl={handleSaveUrl}
-              />
-              )
-            })
+            ? <>
+                <Text style={styles.priorityTitle} size={13} color={theme['c-primary']}>{t('user_api_priority_title')}</Text>
+                <Text style={styles.priorityDesc} size={11} color={theme['c-font-label']}>{t('user_api_priority_desc')}</Text>
+                {userApiList.map((item, index) => {
+                  return (
+                  <ListItem
+                    key={item.id}
+                    item={item}
+                    activeId={apiSource}
+                    index={index}
+                    total={userApiList.length}
+                    isDefault={index == 0}
+                    onRemove={handleRemove}
+                    onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
+                    onChangeAutoUpdate={handleChangeAutoUpdate}
+                    onUpdate={handleUpdate}
+                    onSaveUrl={handleSaveUrl}
+                    onMove={handleMove}
+                  />
+                  )
+                })}
+              </>
             : <Text style={styles.tipText} color={theme['c-font-label']}>{t('user_api_empty')}</Text>
         }
       </View>
@@ -230,7 +274,28 @@ const styles = createStyle({
   },
   listItemRight: {
     flex: 0,
+    alignItems: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  priorityBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  priorityBtn: {
+    padding: 5,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priorityTitle: {
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  priorityDesc: {
+    marginBottom: 8,
+    lineHeight: 15,
   },
   // btns: {
   //   padding: 5,

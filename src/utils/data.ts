@@ -626,6 +626,21 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
 }
 
 /**
+ * 覆盖自定义音源列表顺序（拖拽排序后持久化）。
+ * 只改列表项顺序，不动脚本内容。
+ */
+export const saveUserApiOrder = async(orderedIds: string[]): Promise<LX.UserApi.UserApiInfo[]> => {
+  const rank = new Map(orderedIds.map((id, index) => [id, index]))
+  userApis = [...userApis].sort((a, b) => {
+    const ra = rank.get(a.id) ?? Number.MAX_SAFE_INTEGER
+    const rb = rank.get(b.id) ?? Number.MAX_SAFE_INTEGER
+    return ra - rb
+  })
+  await saveData(userApiPrefix, userApis)
+  return [...userApis]
+}
+
+/**
  * 更新音源列表项上的字段（autoUpdate / lastCheckTime / userModified 等）。
  * 只改元数据，不动脚本本身。
  */

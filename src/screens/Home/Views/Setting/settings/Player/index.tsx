@@ -13,7 +13,7 @@ import IsShowLyricTranslation from './IsShowLyricTranslation'
 import IsShowLyricRoma from './IsShowLyricRoma'
 import IsS2T from './IsS2T'
 import MaxCache from './MaxCache'
-import SourcePriority from './SourcePriority'
+import LyricPreviewSettings from './LyricPreviewSettings'
 import { useI18n } from '@/lang'
 import { isDesktopLyricSupported } from '@/utils/nativeModules/lyricDesktop'
 
@@ -35,7 +35,7 @@ export default memo(() => {
       <IsS2T />
       <MaxCache />
       <PlayHighQuality />
-      <SourcePriority />
+      <LyricPreviewSettings />
     </Section>
   )
 })
