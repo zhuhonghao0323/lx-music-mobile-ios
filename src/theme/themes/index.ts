@@ -178,6 +178,49 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     Object.assign(activeTheme, md3Overrides)
   }
 
+  // 网易云音乐：还原 flutter_cloud_music 的配色
+  // （lib/common/res/colors.dart：app_main #C93D2D、app_main_light #EB4D44、
+  //  dark_bg_color #0D0D0C、dark_card_color #121111、back1 #1D1F22、back2 #121314）
+  if (theme.id == 'netease') {
+    const neteaseOverrides: Partial<LX.ActiveTheme> = {
+      // --- 深色背景层级 ---
+      'c-app-background': '#0D0D0C',
+      'c-main-background': '#121111',
+      'c-content-background': '#1D1F22',
+      'c-border-background': '#2A2A2A',
+      'c-list-header-border-bottom': '#1A1A19',
+
+      // --- 文字：深色模式下白色 0.85 透明度的层级 ---
+      'c-font': '#FEFEFE',
+      'c-font-label': 'rgba(255, 255, 255, 0.65)',
+
+      // --- 标志性红色 ---
+      'c-primary-font': '#EB4D44',
+      'c-primary-font-hover': '#F2675F',
+      'c-primary-font-active': '#FF8A84',
+
+      // --- 红色容器（卡片/选中态） ---
+      'c-primary-background': '#3A1B18',
+      'c-primary-background-hover': '#4A211D',
+      'c-primary-background-active': '#611A1A',
+      'c-primary-input-background': '#232323',
+
+      // --- 按钮：选中红 #E13534，未选中暗红 #611A1A ---
+      'c-button-font': '#FEFEFE',
+      'c-button-font-selected': '#FFFFFF',
+      'c-button-background': '#3A1B18',
+      'c-button-background-selected': '#E13534',
+      'c-button-background-hover': '#4A211D',
+      'c-button-background-active': '#611A1A',
+
+      // --- 徽章：网易云红 / 黄色 / 蓝色 ---
+      'c-badge-primary': '#EB4D44',
+      'c-badge-secondary': '#FFCD29',
+      'c-badge-tertiary': '#5A7CAA',
+    }
+    Object.assign(activeTheme, neteaseOverrides)
+  }
+
   return activeTheme
 }
 

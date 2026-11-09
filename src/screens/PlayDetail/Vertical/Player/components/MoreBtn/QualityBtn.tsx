@@ -20,8 +20,7 @@ export default memo(() => {
   const btnRef = useRef<TouchableOpacity>(null)
 
   const qualities = useMemo(() => {
-    const list = [...TRY_QUALITYS_LIST, '128k'].reverse() as LX.Quality[]
-    return list
+    return [...TRY_QUALITYS_LIST, '128k'].reverse() as LX.Quality[]
   }, [])
 
   const menus = useMemo<Menus>(() => qualities.map(q => ({
@@ -50,17 +49,18 @@ export default memo(() => {
     <>
       <TouchableOpacity
         ref={btnRef}
-        style={[styles.btn, { width: BTN_WIDTH, height: BTN_WIDTH, borderColor: theme['c-font-label'] }]}
+        style={[styles.btn, { width: BTN_WIDTH, height: BTN_WIDTH }]}
         activeOpacity={0.5}
         onPress={showMenu}
       >
-        <Text style={styles.text} size={10} color={theme['c-font-label']} numberOfLines={1}>{label}</Text>
+        <Text style={styles.text} size={14} color={theme['c-font-label']} numberOfLines={1}>{label}</Text>
       </TouchableOpacity>
       <Menu
         ref={menuRef}
         menus={menus}
         activeId={playQuality}
         center
+        fontSize={12}
         onPress={handleSelect}
       />
     </>
@@ -71,8 +71,6 @@ const styles = StyleSheet.create({
   btn: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 6,
     paddingHorizontal: 2,
   },
   text: {

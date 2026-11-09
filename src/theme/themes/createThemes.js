@@ -319,7 +319,7 @@ const defaultThemes = [
     // 种子色 #0061A4（MD3 官方主题构建器的 key tone 40），
     // 深色面用 M3 dark scheme 的 surface / surfaceContainer 层级。
     id: 'md3',
-    name: 'MD3 韵律',
+    name: '暗黑Z',
     isDark: true,
     config: {
       primary: 'rgb(161, 201, 255)',
@@ -334,6 +334,26 @@ const defaultThemes = [
       'c-badge-primary': 'rgb(161, 201, 255)',
       'c-badge-secondary': 'rgb(198, 198, 220)',
       'c-badge-tertiary': 'rgb(236, 178, 213)',
+    },
+  },
+  {
+    // 网易云音乐配色（还原自 AIYO77/flutter_cloud_music 的 lib/common/res/colors.dart）
+    // 标志性红色 #C93D2D / 点亮红 #EB4D44，深色底 #0D0D0C，卡片 #121111
+    id: 'netease',
+    name: '网易云',
+    isDark: true,
+    config: {
+      primary: 'rgb(201, 61, 45)',
+      font: 'rgb(254, 254, 254)',
+      'c-app-background': '#0D0D0C',
+      'c-main-background': '#121111',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': 'rgb(235, 77, 68)',
+      'c-badge-secondary': 'rgb(255, 205, 41)',
+      'c-badge-tertiary': 'rgb(90, 124, 170)',
     },
   },
 ]

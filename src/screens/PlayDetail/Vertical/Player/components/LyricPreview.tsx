@@ -1,14 +1,14 @@
-import { memo, useMemo } from 'react'
-import { View, StyleSheet } from 'react-native'
-import Text from '@/components/common/Text'
+import { memo, useEffect, useMemo, useRef } from 'react'
+import { Animated, Easing, StyleSheet, View } from 'react-native'
 import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { useSettingValue } from '@/store/setting/hook'
 import { useTheme } from '@/store/theme/hook'
-import { scaleSizeW } from '@/utils/pixelRatio'
+import { scaleSizeW, setSpText } from '@/utils/pixelRatio'
 
 /**
- * 封面下方的三行歌词预览：上一句 / 当前句（高亮）/ 下一句（调暗）。
- * 颜色与字号取自设置，与全屏歌词页互不干扰。
+ * 封面与进度条之间的三行歌词预览：上一句 / 当前句（高亮）/ 下一句（调暗）。
+ * - 容器 flex:1 并居中：歌词块始终位于封面下方与进度条上方的中间位置
+ * - 换行时整体上移一小段并淡入淡出，模拟歌词滚动
  */
 const LYRIC_COLORS: Record<string, string> = {
   white: '#ffffff',
@@ -16,6 +16,9 @@ const LYRIC_COLORS: Record<string, string> = {
   pink: '#ff8fb1',
   green: '#7ee8a2',
 }
+
+const ROW_GAP = scaleSizeW(12)
+const FADE_DURATION = 260
 
 export default memo(() => {
   const theme = useTheme()
@@ -25,13 +28,10 @@ export default memo(() => {
   const fontSize = useSettingValue('theme.lyricPreviewFontSize')
 
   const highlightColor = LYRIC_COLORS[colorKey] ?? theme['c-primary']
-  const dimColor = 'rgba(255,255,255,0.55)'
+  const dimColor = 'rgba(255,255,255,0.45)'
 
   const { prev, current, next } = useMemo(() => {
-    const getText = (index: number) => {
-      const item = lines[index]
-      return item?.text?.trim() ?? ''
-    }
+    const getText = (index: number) => lines[index]?.text?.trim() ?? ''
     return {
       prev: currentIndex > 0 ? getText(currentIndex - 1) : '',
       current: getText(currentIndex),
@@ -39,25 +39,69 @@ export default memo(() => {
     }
   }, [lines, currentIndex])
 
-  const baseSize = fontSize
+  // 换行动画：整体轻微上移 + 淡入，制造「滚动」感
+  const anim = useRef(new Animated.Value(1)).current
+  const translateY = useRef(new Animated.Value(0)).current
+  const firstRef = useRef(true)
+
+  useEffect(() => {
+    // 首帧不做动画，避免进入播放页时闪一下
+    if (firstRef.current) {
+      firstRef.current = false
+      return
+    }
+    anim.setValue(0)
+    translateY.setValue(scaleSizeW(10))
+    Animated.parallel([
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: FADE_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: FADE_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }, [currentIndex, anim, translateY])
+
+  const rowSize = setSpText(fontSize - 1)
+  const currentSize = setSpText(fontSize + 1)
 
   return (
     <View style={styles.container} pointerEvents="none">
-      <Text style={styles.line} size={baseSize - 1} color={dimColor} numberOfLines={1}>{prev || ' '}</Text>
-      <Text style={styles.currentLine} size={baseSize + 1} color={highlightColor} numberOfLines={1}>{current || ' '}</Text>
-      <Text style={styles.line} size={baseSize - 1} color={dimColor} numberOfLines={1}>{next || ' '}</Text>
+      <Animated.View style={[styles.block, { opacity: anim, transform: [{ translateY }] }]}>
+        <Animated.Text
+          numberOfLines={1}
+          style={[styles.line, { fontSize: rowSize, color: dimColor, marginBottom: ROW_GAP }]}
+        >{prev || ' '}</Animated.Text>
+        <Animated.Text
+          numberOfLines={1}
+          style={[styles.currentLine, { fontSize: currentSize, color: highlightColor, marginBottom: ROW_GAP }]}
+        >{current || ' '}</Animated.Text>
+        <Animated.Text
+          numberOfLines={1}
+          style={[styles.line, { fontSize: rowSize, color: dimColor }]}
+        >{next || ' '}</Animated.Text>
+      </Animated.View>
     </View>
   )
 })
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-    paddingHorizontal: scaleSizeW(24),
-    paddingVertical: scaleSizeW(6),
+    // flex:1 让三行歌词在「封面下沿 → 进度条上沿」之间垂直居中
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    paddingHorizontal: scaleSizeW(24),
+  },
+  block: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   line: {
     textAlign: 'center',
