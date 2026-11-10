@@ -1,10 +1,9 @@
-import { View, StyleSheet } from 'react-native'
+import { View } from 'react-native'
 
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from '@/components/common/Text'
 import { useGlass, useMd3 } from '@/theme/glass'
-import GlassView from '@/components/common/GlassView'
 
 
 interface Props {
@@ -37,21 +36,27 @@ export default ({ title, children }: Props) => {
   }
 
   return (
-    <GlassView
-      material="thin"
-      radius={20}
-      style={StyleSheet.compose(styles.container, glass.isGlass ? {
-        paddingTop: 14,
-        paddingBottom: 12,
-        marginBottom: 14,
-        marginHorizontal: 6,
-      } : {})}
-    >
-      <Text style={{ ...styles.title, borderLeftColor: glass.isGlass ? 'rgba(242, 120, 104, 0.95)' : theme['c-primary'], ...(glass.isGlass ? { marginLeft: 12 } : {}) }} size={16} color={glass.textColor()}>{title}</Text>
-      <View>
-        {children}
-      </View>
-    </GlassView>
+    // 液态玻璃主题：设置分组不再铺玻璃底。
+    // 之前每个 Section 都套 GlassView，而 GlassView 内含 BlurView + 色调层 + 高光层，
+    // 叠加后每组之间会浮出一条明显的浅色横带（视觉上就是「浅色框」）。
+    // 设计上设置项应直接贴在页面背景上，只靠标题的分隔感来分组。
+    glass.isGlass
+      ? (
+          <View style={[styles.container, { paddingTop: 12, paddingBottom: 8, marginBottom: 6, marginHorizontal: 12 }]}>
+            <Text style={{ ...styles.title, borderLeftColor: 'rgba(242, 120, 104, 0.95)', marginLeft: 4 }} size={16} color={glass.textColor()}>{title}</Text>
+            <View>
+              {children}
+            </View>
+          </View>
+        )
+      : (
+          <View style={styles.container}>
+            <Text style={{ ...styles.title, borderLeftColor: theme['c-primary'] }} size={16} color={theme['c-font']}>{title}</Text>
+            <View>
+              {children}
+            </View>
+          </View>
+        )
   )
 }
 

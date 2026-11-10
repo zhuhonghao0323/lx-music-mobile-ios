@@ -95,22 +95,23 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     'bg-image': bgImg,
   }
 
-  // 浅色液态玻璃：白霜底 + 深字 + 珊瑚强调。
-  // 注意：浅色主题下「白底叠白底」会让控件完全看不出形状，
-  // 因此控件底色提高到不透明度 0.9 + 明显加重的描边，保证边界清晰可见。
+  // 浅色液态玻璃：纯白底 + 深字 + 珊瑚强调。
+  // 关键点：浅色主题里「白色控件叠白色背景」几乎不可见，
+  // 因此控件改用「极淡的冷灰底 + 明确描边」，靠明度差而不是色相差来区分。
   if (theme.id == 'liquid_glass_light') {
     const text = '#1C1A1A'
     const textDim = 'rgba(60, 55, 55, 0.62)'
     const tint = 'rgba(226, 96, 80, 1)'
-    const surfaceStrong = 'rgba(255, 255, 255, 0.96)'
-    const control = 'rgba(255, 255, 255, 0.90)'
-    const controlActive = 'rgba(235, 232, 230, 1)'
-    // 描边在浅色主题里必须足够重，否则控件轮廓完全消失
+    const surfaceStrong = '#FFFFFF'
+    // 控件底色：比白底略暗一档的冷灰，形成清晰的“可点击块”观感
+    const control = 'rgba(228, 224, 221, 0.90)'
+    const controlActive = 'rgba(210, 205, 201, 1)'
     const border = 'rgba(120, 110, 105, 0.30)'
     const borderSoft = 'rgba(120, 110, 105, 0.16)'
     const glassLightOverrides: Partial<LX.ActiveTheme> = {
-      'c-app-background': '#F2EFED',
-      'c-main-background': '#F7F5F3',
+      // 页面纯白，控件用冷灰，明度差足够
+      'c-app-background': '#FFFFFF',
+      'c-main-background': '#FAF8F7',
       'c-content-background': surfaceStrong,
       'c-border-background': border,
       'c-font': text,
@@ -118,16 +119,16 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
       'c-primary-font': tint,
       'c-primary-font-hover': 'rgba(226, 96, 80, 0.86)',
       'c-primary-font-active': 'rgba(226, 96, 80, 0.72)',
-      // 主色容器：浅色主题下用极淡的珊瑚底，让选中项有明确视觉区分
-      'c-primary-background': 'rgba(226, 96, 80, 0.10)',
-      'c-primary-background-hover': 'rgba(226, 96, 80, 0.16)',
-      'c-primary-background-active': 'rgba(226, 96, 80, 0.22)',
+      'c-primary-background': 'rgba(226, 96, 80, 0.12)',
+      'c-primary-background-hover': 'rgba(226, 96, 80, 0.18)',
+      'c-primary-background-active': 'rgba(226, 96, 80, 0.24)',
       'c-primary-input-background': control,
       'c-button-font': text,
       'c-button-font-selected': '#FFFFFF',
+      // 按钮：冷灰底 + 深字，白底页面上清晰可见
       'c-button-background': control,
       'c-button-background-selected': 'rgba(226, 96, 80, 0.92)',
-      'c-button-background-hover': surfaceStrong,
+      'c-button-background-hover': controlActive,
       'c-button-background-active': controlActive,
       'c-list-header-border-bottom': borderSoft,
       'c-badge-primary': tint,

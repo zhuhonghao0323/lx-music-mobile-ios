@@ -83,13 +83,19 @@ const GlassView = memo(({
         Platform.OS == 'ios'
           ? <BlurView
               style={[StyleSheet.absoluteFill, layerStyle]}
-              blurType={IOS_BLUR_TYPE[material]}
-              blurAmount={material == 'thick' ? 24 : material == 'regular' ? 18 : 12}
-              reducedTransparencyFallbackColor={FALLBACK_BG[material]}
+              // 满屏容器（radius<=0，多为 Header/Aside 这类通栏）不铺任何材质：
+              // 系统材质在浅色环境底上会泛出一整块浅色横带，正是「浅色框」的来源。
+              blurType={isFullBleed ? 'dark' : IOS_BLUR_TYPE[material]}
+              blurAmount={isFullBleed ? 0 : (material == 'thick' ? 24 : material == 'regular' ? 18 : 12)}
+              reducedTransparencyFallbackColor={isFullBleed ? 'transparent' : FALLBACK_BG[material]}
             />
-          : <View style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: FALLBACK_BG[material] }]} />
+          : <View style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: isFullBleed ? 'transparent' : FALLBACK_BG[material] }]} />
       }
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(255, 255, 255, 0.05)' }]} />
+      {isFullBleed
+        ? null
+        : (
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(255, 255, 255, 0.05)' }]} />
+          )}
       {/* 玻璃光泽：上半部叠一层由亮到透的渐变，模拟玻璃受光后的柔和反射。
           分三段做阶梯渐变（工程未引入渐变库），视觉上足够平滑且开销极低。 */}
       {showHighlight
