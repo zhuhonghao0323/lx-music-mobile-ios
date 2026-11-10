@@ -32,6 +32,8 @@ export type SwiftUIPlayerCommand =
   | 'openFavoriteListPicker'
   | 'openSourcePicker'
   | 'openQualityPicker'
+  | 'selectSource'
+  | 'selectQuality'
   | 'openComment'
   | 'togglePlayMode'
   | 'openSetting'
