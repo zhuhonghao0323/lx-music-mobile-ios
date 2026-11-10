@@ -296,22 +296,25 @@ const defaultThemes = [
     },
   },
   {
+    // iOS 27 Liquid Glass 视觉语言（按设计交付说明还原）
+    // 暖黑环境底 + 珊瑚粉橙强调色；iOS 17 用原生 UIVisualEffectView 毛玻璃近似。
     id: 'liquid_glass',
     name: '液态玻璃',
     isDark: true,
     config: {
-      // 冷蓝主色，配合浅色字体（isDark: true 会生成浅色文字）
-      primary: 'rgb(120, 180, 255)',
-      font: 'rgb(238, 244, 255)',
-      'c-app-background': 'rgba(11, 16, 36, 0.55)',
-      'c-main-background': 'rgba(11, 16, 36, 0.42)',
+      // 珊瑚粉橙强调色 #F27868
+      primary: 'rgb(242, 120, 104)',
+      // 主文字 #F5F2F1
+      font: 'rgb(245, 242, 241)',
+      'c-app-background': '#0B090A',
+      'c-main-background': '#0B090A',
       'bg-image': '',
       'bg-image-position': 'center',
       'bg-image-size': 'cover',
 
-      'c-badge-primary': 'rgba(120, 190, 255, 1)',
-      'c-badge-secondary': 'rgba(198, 130, 255, 1)',
-      'c-badge-tertiary': 'rgba(80, 224, 200, 1)',
+      'c-badge-primary': '#F27868',
+      'c-badge-secondary': '#E8B27D',
+      'c-badge-tertiary': '#9BB0C4',
     },
   },
   {

@@ -111,7 +111,8 @@ export default ({ children }: Props) => {
             StyleSheet.absoluteFill,
             {
               backgroundColor: theme['c-content-background'],
-              opacity: isGlass ? 0.5 : 0.76,
+              // 设计规范：模糊背景只负责氛围，遮罩 65%~78% 保证文字对比度
+              opacity: isGlass ? 0.68 : 0.76,
             },
           ]}
         />

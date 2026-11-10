@@ -92,7 +92,7 @@ const MenuItem = ({ id, icon, onPress }: {
   const activeStyle = isGlass ? {
     marginHorizontal: 8,
     borderRadius: 14,
-    backgroundColor: 'rgba(120, 190, 255, 0.24)',
+    backgroundColor: 'rgba(242, 120, 104, 0.24)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.35)',
   } : {}
@@ -101,12 +101,12 @@ const MenuItem = ({ id, icon, onPress }: {
   return activeId == id
     ? <View style={StyleSheet.compose(styles.menuItem, activeStyle)}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-primary-font-active']} />
+          <Icon name={icon} size={20} color={isGlass ? '#F5F2F1' : theme['c-primary-font-active']} />
         </View>
       </View>
     : <TouchableOpacity style={StyleSheet.compose(styles.menuItem, normalStyle)} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-font-label']} />
+          <Icon name={icon} size={20} color={isGlass ? '#F5F2F1' : theme['c-font-label']} />
         </View>
       </TouchableOpacity>
 }

@@ -47,7 +47,7 @@ export default ({ title, children }: Props) => {
         marginHorizontal: 6,
       } : {})}
     >
-      <Text style={{ ...styles.title, borderLeftColor: glass.isGlass ? 'rgba(120, 190, 255, 0.95)' : theme['c-primary'], ...(glass.isGlass ? { marginLeft: 12 } : {}) }} size={16} color={glass.textColor()}>{title}</Text>
+      <Text style={{ ...styles.title, borderLeftColor: glass.isGlass ? 'rgba(242, 120, 104, 0.95)' : theme['c-primary'], ...(glass.isGlass ? { marginLeft: 12 } : {}) }} size={16} color={glass.textColor()}>{title}</Text>
       <View>
         {children}
       </View>

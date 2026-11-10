@@ -40,7 +40,7 @@ export default forwardRef<BtnType, BtnProps>(({ ripple: propsRipple = {}, disabl
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: 'rgba(255, 255, 255, 0.38)',
       borderRadius: 14,
-      shadowColor: 'rgba(6, 10, 30, 0.55)',
+      shadowColor: 'rgba(6, 4, 4, 0.55)',
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 14,

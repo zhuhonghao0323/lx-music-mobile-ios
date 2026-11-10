@@ -31,10 +31,10 @@ const IOS_BLUR_TYPE = {
 } as const
 
 const FALLBACK_BG = {
-  ultraThin: 'rgba(28, 34, 58, 0.42)',
-  thin: 'rgba(28, 34, 58, 0.58)',
-  regular: 'rgba(28, 34, 58, 0.72)',
-  thick: 'rgba(28, 34, 58, 0.86)',
+  ultraThin: 'rgba(24, 18, 18, 0.40)',
+  thin: 'rgba(24, 18, 18, 0.56)',
+  regular: 'rgba(24, 18, 18, 0.70)',
+  thick: 'rgba(24, 18, 18, 0.84)',
 } as const
 
 const GlassView = memo(({
@@ -55,7 +55,8 @@ const GlassView = memo(({
     borderRadius: r,
     ...(isGlass && shadow ? Platform.select({
       ios: {
-        shadowColor: 'rgba(4, 8, 24, 0.6)',
+        // 暖黑基调下的柔和阴影（设计规范：不做强烈霓虹感）
+        shadowColor: 'rgba(6, 4, 4, 0.55)',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.45,
         shadowRadius: 24,
@@ -83,7 +84,7 @@ const GlassView = memo(({
             />
           : <View style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: FALLBACK_BG[material] }]} />
       }
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(120, 170, 255, 0.06)' }]} />
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(255, 255, 255, 0.05)' }]} />
       {border
         ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.border, layerStyle]} />
         : null}
@@ -98,16 +99,18 @@ const GlassView = memo(({
 const styles = StyleSheet.create({
   border: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.55)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.28)',
-    borderRightColor: 'rgba(255, 255, 255, 0.16)',
+    // 设计规范：玻璃描边 rgba(255,255,255,0.22)，顶部略亮形成受光感
+    borderTopColor: 'rgba(255, 255, 255, 0.28)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.20)',
+    borderRightColor: 'rgba(255, 255, 255, 0.14)',
     borderBottomColor: 'rgba(255, 255, 255, 0.10)',
   },
   highlight: {
     position: 'absolute',
     top: 0,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    // 设计规范：玻璃高光 rgba(255,255,255,0.12)，不做强烈霓虹
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
 })
 

@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     paddingVertical: scaleSizeW(10),
     borderRadius: scaleSizeW(24),
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: 'rgba(6, 10, 30, 0.55)',
+    shadowColor: 'rgba(6, 4, 4, 0.55)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.45,
     shadowRadius: 16,

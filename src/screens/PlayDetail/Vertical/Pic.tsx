@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { View, type View as ViewType } from 'react-native'
+import { Animated, Easing, StyleSheet, View, type View as ViewType } from 'react-native'
 // import { useLayout } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
 import { usePlayerMusicInfo } from '@/store/player/hook'
@@ -46,6 +46,27 @@ export default ({ componentId }: { componentId: string }) => {
   useNavigationComponentDidAppear(componentId, () => {
     setAnimated(true)
   })
+
+  // 设计规范：页面进入时封面以 0.92 → 1.0 轻缩放进入，约 220–280ms
+  const enterScale = useRef(new Animated.Value(0.92)).current
+  const enterOpacity = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(enterScale, {
+        toValue: 1,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(enterOpacity, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }, [enterScale, enterOpacity])
+
   // console.log('render pic')
 
   const style = useMemo(() => {
@@ -53,11 +74,14 @@ export default ({ componentId }: { componentId: string }) => {
     return {
       width: imgWidth,
       height: imgWidth,
-      borderRadius: isGlass ? 24 : 2,
+      // 设计规范：封面圆角 18–22，保持清晰完整、不叠加玻璃蒙层
+      borderRadius: isGlass ? 20 : 2,
       ...(isGlass ? {
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.45)',
-        shadowColor: 'rgba(6, 10, 30, 0.7)',
+        // 仅极细受光描边，避免厚重边框；封面本体保持清晰不加模糊
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.24)',
+        // 暖黑基调下的柔和投影，让封面从模糊背景中浮起
+        shadowColor: 'rgba(6, 4, 4, 0.62)',
         shadowOffset: { width: 0, height: 18 },
         shadowOpacity: 0.55,
         shadowRadius: 30,
@@ -68,11 +92,20 @@ export default ({ componentId }: { componentId: string }) => {
 
   return (
     <View style={styles.container}>
-      <View ref={containerRef} collapsable={false} style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
+      <Animated.View
+        ref={containerRef}
+        collapsable={false}
+        style={{
+          ...styles.content,
+          elevation: animated ? 3 : 0,
+          opacity: enterOpacity,
+          transform: [{ scale: enterScale }],
+        }}
+      >
         <CoverGesture width={style.width} height={style.height}>
           <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={style} />
         </CoverGesture>
-      </View>
+      </Animated.View>
     </View>
   )
 }

@@ -66,8 +66,8 @@ const Header = () => {
   return (
     <View style={{ paddingTop: statusBarHeight, backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-700-alpha-500'], ...(isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' } : {}) }}>
       <View style={styles.header}>
-        <Icon name="logo" color={isGlass ? '#f4f8ff' : theme['c-primary-dark-100-alpha-300']} size={28} />
-        <Text style={styles.headerText} size={28} color={isGlass ? '#f4f8ff' : theme['c-primary-dark-100-alpha-300']}>LX Music</Text>
+        <Icon name="logo" color={isGlass ? '#F5F2F1' : theme['c-primary-dark-100-alpha-300']} size={28} />
+        <Text style={styles.headerText} size={28} color={isGlass ? '#F5F2F1' : theme['c-primary-dark-100-alpha-300']}>LX Music</Text>
       </View>
     </View>
   )
@@ -87,7 +87,7 @@ const MenuItem = ({ id, icon, onPress }: {
   const activeStyle = isGlass ? {
     marginHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(120, 190, 255, 0.24)',
+    backgroundColor: 'rgba(242, 120, 104, 0.24)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.35)',
   } : {}
@@ -96,15 +96,15 @@ const MenuItem = ({ id, icon, onPress }: {
   return activeId == id
     ? <View style={StyleSheet.compose(styles.menuItem, activeStyle)}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-primary-font-active']} />
+          <Icon name={icon} size={20} color={isGlass ? '#F5F2F1' : theme['c-primary-font-active']} />
         </View>
         <Text style={styles.text} color={isGlass ? '#ffffff' : theme['c-primary-font']}>{t(id)}</Text>
       </View>
     : <TouchableOpacity style={StyleSheet.compose(styles.menuItem, normalStyle)} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={isGlass ? '#f4f8ff' : theme['c-font-label']} />
+          <Icon name={icon} size={20} color={isGlass ? '#F5F2F1' : theme['c-font-label']} />
         </View>
-        <Text style={styles.text} color={isGlass ? '#f4f8ff' : undefined}>{t(id)}</Text>
+        <Text style={styles.text} color={isGlass ? '#F5F2F1' : undefined}>{t(id)}</Text>
       </TouchableOpacity>
 }
 

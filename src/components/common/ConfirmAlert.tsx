@@ -110,15 +110,15 @@ export default forwardRef<ConfirmAlertType, ConfirmAlertProps>(({
     <Dialog onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} ref={dialogRef}>
       <View style={StyleSheet.compose(styles.main, isGlass ? { marginLeft: 14, marginRight: 14 } : {})}>
         <ScrollView style={styles.content} keyboardShouldPersistTaps={'always'}>
-          {children ?? <Text color={isGlass ? '#f4f8ff' : undefined}>{text}</Text>}
+          {children ?? <Text color={isGlass ? '#F5F2F1' : undefined}>{text}</Text>}
         </ScrollView>
       </View>
       <View style={{ ...styles.btns, ...(reverseBtn ? styles.btnsReversedDirection : styles.btnsDirection), ...(isGlass ? { paddingLeft: 14, paddingRight: 14, paddingBottom: 18 } : {}) }}>
         <Button style={StyleSheet.compose({ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: theme['c-button-background'] }, isGlass ? { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.38)' } : {})} onPress={handleCancel}>
-          <Text color={isGlass ? '#f4f8ff' : theme['c-button-font']}>{cancelText || t('cancel')}</Text>
+          <Text color={isGlass ? '#F5F2F1' : theme['c-button-font']}>{cancelText || t('cancel')}</Text>
         </Button>
         {showConfirm
-          ? <Button style={StyleSheet.compose({ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: isGlass ? 'rgba(120, 190, 255, 0.42)' : theme['c-button-background'] }, isGlass ? { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' } : {})} onPress={onConfirm} disabled={disabledConfirm}>
+          ? <Button style={StyleSheet.compose({ ...styles.btn, ...(reverseBtn ? styles.btnReversedDirection : styles.btnDirection), backgroundColor: isGlass ? 'rgba(242, 120, 104, 0.42)' : theme['c-button-background'] }, isGlass ? { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.22)' } : {})} onPress={onConfirm} disabled={disabledConfirm}>
               <Text color={isGlass ? '#ffffff' : theme['c-button-font']}>{confirmText || t('confirm')}</Text>
             </Button>
           : null}

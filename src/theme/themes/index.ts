@@ -95,43 +95,49 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     'bg-image': bgImg,
   }
 
-  // 液态玻璃：把全局语义色统一改成半透明玻璃色，
-  // 这样所有引用 c-button-background / c-content-background / c-primary-background …
+  // 液态玻璃（iOS 27 Liquid Glass 视觉语言，按设计交付说明还原）：
+  // 把全局语义色统一改成半透明玻璃色，这样所有引用
+  // c-button-background / c-content-background / c-primary-background …
   // 的组件都会自动获得一致的玻璃质感，无需逐个改造。
+  // 基调：暖黑 #0B090A 环境底 + 珊瑚粉橙 #F27868 强调色。
   if (theme.id == 'liquid_glass') {
-    const surface = 'rgba(255, 255, 255, 0.14)'
-    const surfaceStrong = 'rgba(255, 255, 255, 0.22)'
-    const control = 'rgba(255, 255, 255, 0.16)'
-    const controlActive = 'rgba(255, 255, 255, 0.30)'
-    const border = 'rgba(255, 255, 255, 0.38)'
-    const borderSoft = 'rgba(255, 255, 255, 0.16)'
-    const text = '#f4f8ff'
-    const textDim = 'rgba(226, 236, 255, 0.62)'
-    const tint = 'rgba(120, 190, 255, 0.95)'
+    const surface = 'rgba(255, 255, 255, 0.10)'
+    const surfaceStrong = 'rgba(255, 255, 255, 0.16)'
+    const control = 'rgba(255, 255, 255, 0.12)'
+    const controlActive = 'rgba(255, 255, 255, 0.22)'
+    // 玻璃描边 rgba(255,255,255,0.22)（设计规范）
+    const border = 'rgba(255, 255, 255, 0.22)'
+    const borderSoft = 'rgba(255, 255, 255, 0.12)'
+    // 主文字 #F5F2F1 / 次级文字 #B8B0B0（设计规范）
+    const text = '#F5F2F1'
+    const textDim = '#B8B0B0'
+    // 强调色 #F27868
+    const tint = 'rgba(242, 120, 104, 0.95)'
     const glassOverrides: Partial<LX.ActiveTheme> = {
-      'c-app-background': 'rgba(11, 16, 36, 0.55)',
-      'c-main-background': 'rgba(11, 16, 36, 0.42)',
+      // 暖黑环境底，避免纯黑造成层次断裂
+      'c-app-background': '#0B090A',
+      'c-main-background': '#0B090A',
       'c-content-background': surfaceStrong,
       'c-border-background': border,
       'c-font': text,
       'c-font-label': textDim,
       'c-primary-font': tint,
-      'c-primary-font-hover': 'rgba(120, 190, 255, 0.75)',
-      'c-primary-font-active': 'rgba(120, 190, 255, 0.6)',
+      'c-primary-font-hover': 'rgba(242, 120, 104, 0.82)',
+      'c-primary-font-active': 'rgba(242, 120, 104, 0.68)',
       'c-primary-background': surface,
       'c-primary-background-hover': surfaceStrong,
       'c-primary-background-active': controlActive,
       'c-primary-input-background': control,
       'c-button-font': text,
-      'c-button-font-selected': '#ffffff',
+      'c-button-font-selected': '#FFFFFF',
       'c-button-background': control,
-      'c-button-background-selected': 'rgba(120, 190, 255, 0.35)',
+      'c-button-background-selected': 'rgba(242, 120, 104, 0.42)',
       'c-button-background-hover': surfaceStrong,
       'c-button-background-active': controlActive,
       'c-list-header-border-bottom': borderSoft,
       'c-badge-primary': tint,
-      'c-badge-secondary': 'rgba(198, 130, 255, 1)',
-      'c-badge-tertiary': 'rgba(80, 224, 200, 1)',
+      'c-badge-secondary': '#E8B27D',
+      'c-badge-tertiary': '#9BB0C4',
     }
     Object.assign(activeTheme, glassOverrides)
   }

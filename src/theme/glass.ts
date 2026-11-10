@@ -71,37 +71,45 @@ export const useMd3 = () => {
 export const isNativeBlurAvailable = Platform.OS == 'ios'
 
 /**
- * 液态玻璃调色板。
+ * 液态玻璃调色板（按设计交付说明还原）。
  * 背景模糊由原生 BlurView 提供；这里只负责描边、高光、阴影、文字色等光学层。
+ * 数值来源：音乐播放器_iOS27_LiquidGlass 开发交付说明 §3 视觉规范。
  */
 const GLASS = {
-  // 面板降级底色（非 iOS 或降低透明度时）
-  surface: 'rgba(28, 34, 58, 0.62)',
-  surfaceStrong: 'rgba(28, 34, 58, 0.78)',
-  surfaceDim: 'rgba(28, 34, 58, 0.44)',
-  control: 'rgba(255, 255, 255, 0.10)',
-  controlActive: 'rgba(255, 255, 255, 0.22)',
-  border: 'rgba(255, 255, 255, 0.38)',
-  borderSoft: 'rgba(255, 255, 255, 0.16)',
-  highlight: 'rgba(255, 255, 255, 0.6)',
-  shadow: 'rgba(4, 8, 24, 0.6)',
-  scrim: 'rgba(6, 10, 26, 0.46)',
-  tint: 'rgba(120, 190, 255, 0.95)',
-  text: '#f4f8ff',
-  textDim: 'rgba(226, 236, 255, 0.66)',
+  // 面板降级底色（非 iOS 或降低透明度时）——暖黑
+  surface: 'rgba(18, 14, 14, 0.62)',
+  surfaceStrong: 'rgba(18, 14, 14, 0.78)',
+  surfaceDim: 'rgba(18, 14, 14, 0.44)',
+  control: 'rgba(255, 255, 255, 0.08)',
+  controlActive: 'rgba(255, 255, 255, 0.16)',
+  // 玻璃描边 rgba(255,255,255,0.22)，1px 以内
+  border: 'rgba(255, 255, 255, 0.22)',
+  borderSoft: 'rgba(255, 255, 255, 0.12)',
+  // 玻璃高光 rgba(255,255,255,0.12)
+  highlight: 'rgba(255, 255, 255, 0.12)',
+  shadow: 'rgba(6, 4, 4, 0.55)',
+  scrim: 'rgba(11, 9, 10, 0.46)',
+  // 强调色 #F27868
+  tint: 'rgba(242, 120, 104, 0.95)',
+  // 主文字 #F5F2F1 / 次级文字 #B8B0B0
+  text: '#F5F2F1',
+  textDim: '#B8B0B0',
 } as const
 
-/** 极光背景光斑（供 PageContent 绘制，被原生玻璃真实虚化） */
+/**
+ * 环境背景光斑：设计稿要求由「封面放大模糊 + 黑色遮罩」形成环境底色，
+ * 这里保留一组暖色光斑作为封面上色前的兜底层，色相与暖黑基调一致。
+ */
 export const GLASS_AURORA = [
-  { color: 'rgba(86, 130, 255, 0.55)', size: 0.9, top: -0.12, left: -0.18 },
-  { color: 'rgba(198, 112, 255, 0.45)', size: 0.75, top: 0.08, left: 0.55 },
-  { color: 'rgba(64, 220, 200, 0.40)', size: 0.8, top: 0.48, left: -0.12 },
-  { color: 'rgba(255, 138, 190, 0.38)', size: 0.7, top: 0.66, left: 0.5 },
-  { color: 'rgba(90, 170, 255, 0.35)', size: 0.6, top: 0.82, left: 0.1 },
+  { color: 'rgba(242, 120, 104, 0.28)', size: 0.9, top: -0.12, left: -0.18 },
+  { color: 'rgba(232, 178, 125, 0.22)', size: 0.75, top: 0.08, left: 0.55 },
+  { color: 'rgba(155, 176, 196, 0.16)', size: 0.8, top: 0.48, left: -0.12 },
+  { color: 'rgba(242, 120, 104, 0.18)', size: 0.7, top: 0.66, left: 0.5 },
+  { color: 'rgba(120, 90, 80, 0.20)', size: 0.6, top: 0.82, left: 0.1 },
 ] as const
 
-export const GLASS_BASE = '#0b1024'
-export const GLASS_DEEP = '#070a18'
+export const GLASS_BASE = '#0B090A'
+export const GLASS_DEEP = '#070505'
 
 /**
  * 面板样式占位：原生毛玻璃的描边/高光/阴影/圆角全部由 GlassView 提供，

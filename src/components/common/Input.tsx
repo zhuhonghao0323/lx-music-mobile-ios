@@ -128,7 +128,7 @@ export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, c
         autoComplete="off"
         style={StyleSheet.compose({ ...styles.input, ...inputGlassStyle, color: theme['c-font'], fontSize: setSpText(size) }, style)}
         placeholderTextColor={glass.isGlass ? 'rgba(226, 236, 255, 0.5)' : theme['c-primary-dark-100-alpha-600']}
-        selectionColor={glass.isGlass ? 'rgba(120, 190, 255, 0.6)' : theme['c-primary-light-100-alpha-300']}
+        selectionColor={glass.isGlass ? 'rgba(242, 120, 104, 0.6)' : theme['c-primary-light-100-alpha-300']}
         ref={inputRef} {...props} />
       {/* <View style={styles.clearBtnContent}>
       <Animated.View style={{ ...styles.clearBtnContent, transform: [{ scale: scaleClearBtn }] }}> */}
