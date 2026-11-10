@@ -176,13 +176,17 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
                   },
                 },
               ],
-              // content: {
-              //   translationX: {
-              //     from: windowSizeTools.getSize().width,
-              //     to: 0,
-              //     duration: 300,
-              //   },
-              // },
+              // 整个页面柔和淡入 + 轻微上移，配合共享元素转场更顺滑
+              content: {
+                alpha: {
+                  from: 0,
+                  duration: 260,
+                },
+                translationY: {
+                  from: 24,
+                  duration: 320,
+                },
+              },
             },
             pop: {
               content: {

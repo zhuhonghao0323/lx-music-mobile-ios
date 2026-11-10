@@ -4,6 +4,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { useIsGlass } from '@/theme/glass'
+import { haptic } from '@/utils/haptics'
 
 export const BTN_WIDTH = scaleSizeW(36)
 export const BTN_ICON_SIZE = 24
@@ -29,8 +30,8 @@ export default ({ icon, color, onPress, onLongPress }: {
         shadowRadius: 10,
       } : {})}
       activeOpacity={0.5}
-      onPress={onPress}
-      onLongPress={onLongPress}
+      onPress={() => { haptic.tap(); onPress() }}
+      onLongPress={onLongPress ? () => { haptic.longPress(); onLongPress() } : undefined}
     >
       <Icon name={icon} color={color ?? (isGlass ? '#f4f8ff' : theme['c-font-label'])} size={BTN_ICON_SIZE} />
     </TouchableOpacity>

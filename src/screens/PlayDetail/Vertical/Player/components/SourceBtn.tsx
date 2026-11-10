@@ -8,6 +8,7 @@ import { useUserApiList } from '@/store/userApi'
 import { setApiSource } from '@/core/apiSource'
 import { getSourceDisplayName } from '@/core/customSource'
 import { scaleSizeW } from '@/utils/pixelRatio'
+import { haptic } from '@/utils/haptics'
 
 /**
  * 播放按钮上方的「当前音源」小字标签，点击可手动切换自定义音源。
@@ -31,6 +32,7 @@ export default memo(() => {
 
   const showMenu = () => {
     if (!userApiList.length) return
+    haptic.tap()
     btnRef.current?.measure((_x, _y, w, h, px, py) => {
       const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
       menuRef.current?.show(position, { width: Math.max(Math.ceil(w), 120), height: 40 })
@@ -39,6 +41,7 @@ export default memo(() => {
 
   const handleSelect = (menu: Menus[number]) => {
     if (menu.action == currentSourceId) return
+    haptic.select()
     setApiSource(menu.action)
   }
 

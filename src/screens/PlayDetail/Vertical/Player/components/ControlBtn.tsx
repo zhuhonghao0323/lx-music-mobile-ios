@@ -10,6 +10,7 @@ import { BTN_WIDTH } from './MoreBtn/Btn'
 import { useMemo } from 'react'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { useIsGlass } from '@/theme/glass'
+import { haptic } from '@/utils/haptics'
 
 const glassButton = (size: number) => ({
   width: size,
@@ -37,6 +38,7 @@ const PrevBtn = ({ size }: { size: number }) => {
   const btnStyle = useCtrlStyle(size)
   const isGlass = useIsGlass()
   const handlePlayPrev = () => {
+    haptic.trackChange()
     markTimeoutExitInteraction()
     void playPrev()
   }
@@ -51,6 +53,7 @@ const NextBtn = ({ size }: { size: number }) => {
   const btnStyle = useCtrlStyle(size)
   const isGlass = useIsGlass()
   const handlePlayNext = () => {
+    haptic.trackChange()
     markTimeoutExitInteraction()
     void playNext()
   }
@@ -68,6 +71,7 @@ const TogglePlayBtn = ({ size }: { size: number }) => {
   const isGlass = useIsGlass()
   return (
     <TouchableOpacity style={btnStyle} activeOpacity={0.5} onPress={() => {
+      haptic.playToggle()
       markTimeoutExitInteraction()
       togglePlay()
     }}>

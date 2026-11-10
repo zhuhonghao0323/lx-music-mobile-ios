@@ -5,6 +5,7 @@ import { getPlayMusicInfo, getFavoriteListsContaining, removeFromFavoriteList, t
 import { useIsMusicFavorited } from '@/store/list/hook'
 import { usePlayMusicInfo } from '@/store/player/hook'
 import { toast } from '@/utils/tools'
+import { haptic } from '@/utils/haptics'
 import { playFavoriteDockAnimation } from './FavoriteDockAnimation'
 
 export interface FavoriteBtnRenderProps {
@@ -54,15 +55,22 @@ export default ({ children }: {
 
   const handlePress = () => {
     if (!musicInfo) return
+    // 轻点心形：先给一次触感，再根据结果给「收藏/取消」不同的反馈
+    haptic.tap()
     const anchor = anchorRef.current
     if (!anchor) {
-      void toggleFavorite(musicInfo)
+      void toggleFavorite(musicInfo).then(result => {
+        if (result) haptic.favorite()
+        else haptic.unfavorite()
+      })
       return
     }
     // 先测量心形与封面位置，再起动画；收藏数据立即生效，动画只做视觉反馈
     void measureHeart().then(target => {
       void measureCover().then(from => {
         void toggleFavorite(musicInfo).then(result => {
+          if (result) haptic.favorite()
+          else haptic.unfavorite()
           toast(global.i18n.t(result ? 'collect_success' : 'collect_cancel'))
           if (!from || !target || from.width <= 0) return
           playFavoriteDockAnimation({
@@ -78,6 +86,7 @@ export default ({ children }: {
 
   const handleLongPress = () => {
     if (!musicInfo) return
+    haptic.longPress()
     // 先查出这首歌曲当前所在的收藏列表，再打开弹窗，保证列表高亮/取消状态准确
     void getFavoriteListsContaining(musicInfo).then(list => {
       musicAddModalRef.current?.show({

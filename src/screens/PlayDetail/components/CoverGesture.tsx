@@ -7,6 +7,7 @@ import { addToFavorite, getPlayMusicInfo, isMusicFavorited, removeFromFavorite, 
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { useI18n } from '@/lang'
 import { scaleSizeW } from '@/utils/pixelRatio'
+import { haptic } from '@/utils/haptics'
 
 /** 进入收藏模式所需的长按时长 */
 const LONG_PRESS_DELAY = 1000
@@ -101,7 +102,10 @@ export default ({ children, width, height }: {
     const info = getPlayMusicInfo()
     if (!info) return
     doubleTapLockRef.current = true
+    haptic.tap()
     void toggleFavorite(info).then(result => {
+      if (result) haptic.favorite()
+      else haptic.unfavorite()
       setFavorited(result)
       favRef.current = result
       showResultTip(t(result ? 'favorite_added' : 'favorite_removed'))
@@ -134,6 +138,7 @@ export default ({ children, width, height }: {
 
   const enterFavoriteMode = useCallback(() => {
     if (busyRef.current || modeRef.current == 'favorite') return
+    haptic.longPress()
     setModeBoth('favorite')
     pan.setValue({ x: 0, y: 0 })
     setDragHint(null)
@@ -174,6 +179,7 @@ export default ({ children, width, height }: {
       setDragHint(null)
       hintRef.current = null
       void addToFavorite(info).then(() => {
+        haptic.favorite()
         setFavorited(true)
         favRef.current = true
         showResultTip(t('favorite_added'))
@@ -208,6 +214,7 @@ export default ({ children, width, height }: {
       setDragHint(null)
       hintRef.current = null
       void removeFromFavorite(info).then(() => {
+        haptic.unfavorite()
         setFavorited(false)
         favRef.current = false
         showResultTip(t('favorite_removed'))

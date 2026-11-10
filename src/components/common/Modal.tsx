@@ -1,47 +1,55 @@
 // import { createStyle } from '@/utils/tools'
-import { useImperativeHandle, forwardRef, useState, useMemo } from 'react'
-import { Modal, Platform, TouchableWithoutFeedback, View, type ModalProps as _ModalProps } from 'react-native'
+import { useImperativeHandle, forwardRef, useState, useMemo, useRef, useEffect } from 'react'
+import { Animated, Modal, Platform, TouchableWithoutFeedback, View, type ModalProps as _ModalProps } from 'react-native'
 import { useStatusbarHeight } from '@/store/common/hook'
-// import { useWindowSize } from '@/utils/hooks'
-
-// const styles = createStyle({
-//   container: {
-//     flex: 1,
-//   },
-//   // mask: {
-//   //   position: 'absolute',
-//   //   top: 0,
-//   //   left: 0,
-//   //   bottom: 0,
-//   //   right: 0,
-//   //   // width: '100%',
-//   //   // height: '100%',
-//   // },
-// })
 
 export interface ModalProps extends Omit<_ModalProps, 'visible'> {
   onHide?: () => void
-  /**
-   * 按返回键是否隐藏
-   */
   keyHide?: boolean
-  /**
-   * 点击背景是否隐藏
-   */
   bgHide?: boolean
-  /**
-   * 背景颜色
-   */
   bgColor?: string
-  /**
-   * 是否填充状态栏
-   */
   statusBarPadding?: boolean
 }
 
-
 export interface ModalType {
   setVisible: (visible: boolean) => void
+}
+
+/**
+ * 弹层内容入场动画：缩放 + 上移 + 淡入，用 spring 收尾制造「弹一下」的丝滑感。
+ * 所有基于 Modal 的弹窗（Dialog / Popup / Menu / MusicAddModal）统一获得该效果。
+ */
+const AnimatedContent = ({ visible, children }: { visible: boolean, children: React.ReactNode }) => {
+  const anim = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: visible ? 1 : 0,
+      friction: 9,
+      tension: 110,
+      useNativeDriver: true,
+    }).start()
+  }, [visible, anim])
+
+  const translateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [24, 0],
+  })
+  const scale = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.94, 1],
+  })
+
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        opacity: anim,
+        transform: [{ translateY }, { scale }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  )
 }
 
 export default forwardRef<ModalType, ModalProps>(({
@@ -54,7 +62,6 @@ export default forwardRef<ModalType, ModalProps>(({
   ...props
 }: ModalProps, ref) => {
   const [visible, setVisible] = useState(false)
-  // const { window: windowSize } = useWindowSize()
   const statusBarHeight = useStatusbarHeight()
   const handleRequestClose = () => {
     if (keyHide) {
@@ -83,13 +90,16 @@ export default forwardRef<ModalType, ModalProps>(({
     : undefined, [])
   const content = (
     <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: statusBarPadding ? statusBarHeight : 0 }}>
-      {memoChildren}
+      <AnimatedContent visible={visible}>
+        {memoChildren}
+      </AnimatedContent>
     </View>
   )
 
   return (
     <Modal
-      animationType="fade"
+      // 用 'none' 关闭系统生硬的 fade，由 AnimatedContent 提供统一柔和动画
+      animationType="none"
       transparent={true}
       hardwareAccelerated={true}
       statusBarTranslucent={true}
@@ -98,8 +108,6 @@ export default forwardRef<ModalType, ModalProps>(({
       supportedOrientations={supportedOrientations}
       {...props}
     >
-      {/* <StatusBar /> */}
-      {/* <View style={{ flex: 1, paddingTop: statusBarPadding ? StatusBar.currentHeight : 0 }}> */}
       {
         bgHide
           ? (
@@ -109,7 +117,6 @@ export default forwardRef<ModalType, ModalProps>(({
             )
           : content
       }
-      {/* </View> */}
     </Modal>
   )
 })

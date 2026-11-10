@@ -10,6 +10,7 @@ import { formatQuality, useCurrentPlayQuality } from '@/store/player/quality'
 import { BTN_WIDTH } from './Btn'
 import Text from '@/components/common/Text'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
+import { haptic } from '@/utils/haptics'
 
 /** 底部功能行：显示当前音质，点击弹出音质选择，切换后按新音质重新取 URL */
 export default memo(() => {
@@ -31,6 +32,7 @@ export default memo(() => {
   const label = formatQuality(currentQuality ?? playQuality)
 
   const showMenu = () => {
+    haptic.tap()
     btnRef.current?.measure((_x, _y, w, h, px, py) => {
       const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
       menuRef.current?.show(position, { width: Math.max(Math.ceil(w), 96), height: 40 })
@@ -40,6 +42,7 @@ export default memo(() => {
   const handleSelect = (menu: Menus[number]) => {
     const q = menu.action as LX.Quality
     if (q == playQuality) return
+    haptic.select()
     updateSetting({ 'player.playQuality': q })
     const musicInfo = playerState.playMusicInfo.musicInfo
     if (musicInfo) setMusicUrl(musicInfo, true)
