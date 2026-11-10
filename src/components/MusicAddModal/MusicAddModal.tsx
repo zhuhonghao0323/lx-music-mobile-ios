@@ -11,6 +11,10 @@ export interface SelectInfo {
   musicInfo: LX.Music.MusicInfo | null
   listId: string
   isMove: boolean
+  /** 这首歌曲当前所在的收藏列表 id（长按收藏按钮时传入，用于准确标出并支持取消） */
+  favoritedListIds?: string[]
+  /** 从某个列表里取消收藏 */
+  onRemoveFromList?: (listId: string) => void
   // single: boolean
 }
 const initSelectInfo = {}
@@ -79,7 +83,12 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, r
         selectInfo.musicInfo
           ? (<>
               <Title musicInfo={selectInfo.musicInfo} isMove={selectInfo.isMove} />
-              <List musicInfo={selectInfo.musicInfo} onPress={handleSelect} />
+              <List
+                musicInfo={selectInfo.musicInfo}
+                onPress={handleSelect}
+                favoritedListIds={selectInfo.favoritedListIds}
+                onRemove={selectInfo.onRemoveFromList}
+              />
             </>)
           : null
       }

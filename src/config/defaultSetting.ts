@@ -1,5 +1,5 @@
 const defaultSetting: LX.AppSetting = {
-  version: '2.0',
+  version: '2.1',
   'common.isAutoTheme': false,
   'common.langId': null,
   'common.apiSource': '',
@@ -30,7 +30,7 @@ const defaultSetting: LX.AppSetting = {
   'player.timeoutExitPlayed': true,
   'player.isAutoCleanPlayedList': false,
   'player.isHandleAudioFocus': true,
-  'player.isEnableAudioOffload': true,
+  'player.isEnableAudioOffload': false,
   'player.isPlayWithOtherApps': false,
   'player.isPlayWithOtherAppsTipDisabled': false,
   // 播放页封面下方三行歌词预览的外观

@@ -28,18 +28,61 @@ export const getFavoriteListIds = (): string[] => [
   ...userLists.map(l => l.id),
 ]
 
+/** 统一的字符串归一化：去掉空白/常见标点、转小写，避免「歌名 - 歌手」细微差异导致判不中 */
+const normalize = (str: string | undefined | null): string =>
+  (str ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[''`´]/g, '')
+    .replace(/[()（）[\]【】<>《》「」『』]/g, '')
+
+/**
+ * 歌曲是否「同一首」的判定键：歌名 + 演唱者。
+ *
+ * 为什么不用 id：用户早期从其它音源导入到列表的歌曲记录的是当时的 id，
+ * 与现在播放时拿到的新 id 并不相同，用 id 比较会永远判定为未收藏。
+ * 歌名 + 演唱者是跨音源稳定的身份信息，因此统一用它作为收藏判定依据。
+ */
+export const getMusicKey = (musicInfo: LX.Music.MusicInfo): string =>
+  `${normalize(musicInfo.name)}__${normalize(musicInfo.singer)}`
+
+/** 找出某个歌曲在指定列表中命中的条目（按 歌名+演唱者 匹配） */
+export const findMusicInList = (list: LX.Music.MusicInfo[], musicInfo: LX.Music.MusicInfo): LX.Music.MusicInfo | undefined => {
+  const key = getMusicKey(musicInfo)
+  // 优先按 id 精确命中，再退化为 歌名+演唱者 匹配
+  return list.find(m => m.id == musicInfo.id) ?? list.find(m => getMusicKey(m) == key)
+}
+
 /**
  * 判断歌曲是否已经收藏在任意一个收藏列表中。
- * 「我的收藏」是聚合列表，正常情况检查它即可；同时兜底检查用户自建列表，
- * 以兼容旧数据（自建列表里有、但还没同步进「我的收藏」的歌曲）。
+ * 「我的收藏」是聚合列表，同时检查用户自建列表以兼容历史数据；
+ * 匹配使用 歌名+演唱者，兼容不同音源产生不同 id 的情况。
  */
 export const isMusicFavorited = async(musicInfo: LX.Music.MusicInfo): Promise<boolean> => {
-  const id = musicInfo.id
   for (const listId of getFavoriteListIds()) {
     const list = await getListMusics(listId)
-    if (list.some(m => m.id == id)) return true
+    if (findMusicInList(list, musicInfo)) return true
   }
   return false
+}
+
+/**
+ * 查出歌曲当前所在的全部收藏列表（用于长按收藏按钮时准确显示 / 取消）。
+ * 返回列表信息（id + 名称），按 我的收藏 → 用户自建列表 的顺序。
+ */
+export const getFavoriteListsContaining = async(
+  musicInfo: LX.Music.MusicInfo,
+): Promise<Array<{ id: string, name: string }>> => {
+  const result: Array<{ id: string, name: string }> = []
+  for (const listId of getFavoriteListIds()) {
+    const list = await getListMusics(listId)
+    if (!findMusicInList(list, musicInfo)) continue
+    result.push({
+      id: listId,
+      name: listId == LIST_IDS.LOVE ? global.i18n.t('list_name_love') : (userLists.find(l => l.id == listId)?.name ?? listId),
+    })
+  }
+  return result
 }
 
 /**
@@ -61,14 +104,15 @@ export const syncMyFavoriteList = async(): Promise<void> => {
     do {
       pending = false
       const loveList = await getListMusics(LIST_IDS.LOVE)
-      const exists = new Set(loveList.map(m => m.id))
+      const exists = new Set(loveList.map(m => getMusicKey(m)))
       const missing: LX.Music.MusicInfo[] = []
       const seen = new Set<string>()
       for (const listInfo of userLists) {
         const list = await getListMusics(listInfo.id)
         for (const musicInfo of list) {
-          if (exists.has(musicInfo.id) || seen.has(musicInfo.id)) continue
-          seen.add(musicInfo.id)
+          const key = getMusicKey(musicInfo)
+          if (exists.has(key) || seen.has(key)) continue
+          seen.add(key)
           missing.push(musicInfo)
         }
       }
@@ -98,15 +142,27 @@ export const addToFavorite = async(musicInfo: LX.Music.MusicInfo, listId?: strin
 /**
  * 取消收藏：把歌曲从「我的收藏」以及所有收藏列表里移除，
  * 使之真正变为「未收藏」状态（否则仍会出现在聚合清单里）。
+ * 按 歌名+演唱者 定位，兼容历史数据里 id 不同的同款歌曲。
  */
 export const removeFromFavorite = async(musicInfo: LX.Music.MusicInfo): Promise<void> => {
-  const id = musicInfo.id
   // 先移除用户自建列表里的引用，再移除「我的收藏」，避免同步逻辑把歌曲重新补回来
   for (const listInfo of userLists) {
     const list = await getListMusics(listInfo.id)
-    if (list.some(m => m.id == id)) await removeListMusics(listInfo.id, [id])
+    const hit = findMusicInList(list, musicInfo)
+    if (hit) await removeListMusics(listInfo.id, [hit.id])
   }
-  await removeListMusics(LIST_IDS.LOVE, [id])
+  const loveList = await getListMusics(LIST_IDS.LOVE)
+  const loveHit = findMusicInList(loveList, musicInfo)
+  if (loveHit) await removeListMusics(LIST_IDS.LOVE, [loveHit.id])
+}
+
+/**
+ * 只从指定列表取消收藏（长按收藏按钮里逐个取消时用）。
+ */
+export const removeFromFavoriteList = async(listId: string, musicInfo: LX.Music.MusicInfo): Promise<void> => {
+  const list = await getListMusics(listId)
+  const hit = findMusicInList(list, musicInfo)
+  if (hit) await removeListMusics(listId, [hit.id])
 }
 
 /**

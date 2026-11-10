@@ -50,9 +50,11 @@ const EditListItem = ({ itemWidth }: {
   )
 }
 
-export default ({ musicInfo, onPress }: {
+export default ({ musicInfo, onPress, favoritedListIds, onRemove }: {
   musicInfo: LX.Music.MusicInfo
   onPress: (listInfo: LX.List.MyListInfo) => void
+  favoritedListIds?: string[]
+  onRemove?: (listId: string) => void
 }) => {
   const windowSize = useWindowSize()
   const allList = useMyList()
@@ -66,7 +68,17 @@ export default ({ musicInfo, onPress }: {
   return (
     <ScrollView style={{ flexGrow: 0 }}>
       <View style={styles.list} onStartShouldSetResponder={() => true}>
-        { allList.map(info => <ListItem key={info.id} listInfo={info} musicInfo={musicInfo} onPress={onPress} width={itemWidth} />) }
+        { allList.map(info => (
+          <ListItem
+            key={info.id}
+            listInfo={info}
+            musicInfo={musicInfo}
+            onPress={onPress}
+            width={itemWidth}
+            isFavorited={favoritedListIds?.includes(info.id)}
+            onRemove={onRemove}
+          />
+        )) }
         <EditListItem itemWidth={itemWidth} />
       </View>
     </ScrollView>

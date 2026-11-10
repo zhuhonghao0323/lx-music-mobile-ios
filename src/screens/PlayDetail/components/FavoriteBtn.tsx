@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { type LayoutRectangle } from 'react-native'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { getPlayMusicInfo, toggleFavorite } from '@/core/favorite'
+import { getPlayMusicInfo, getFavoriteListsContaining, removeFromFavoriteList, toggleFavorite } from '@/core/favorite'
 import { useIsMusicFavorited } from '@/store/list/hook'
 import { usePlayMusicInfo } from '@/store/player/hook'
 import { toast } from '@/utils/tools'
@@ -78,10 +78,20 @@ export default ({ children }: {
 
   const handleLongPress = () => {
     if (!musicInfo) return
-    musicAddModalRef.current?.show({
-      musicInfo,
-      isMove: false,
-      listId: playMusicInfo.listId!,
+    // 先查出这首歌曲当前所在的收藏列表，再打开弹窗，保证列表高亮/取消状态准确
+    void getFavoriteListsContaining(musicInfo).then(list => {
+      musicAddModalRef.current?.show({
+        musicInfo,
+        isMove: false,
+        listId: playMusicInfo.listId!,
+        favoritedListIds: list.map(item => item.id),
+        // 取消后由 ListItem 内部的 useMusicExistsList 订阅列表变化自动刷新
+        onRemoveFromList: (listId: string) => {
+          const info = getPlayMusicInfo()
+          if (!info) return
+          void removeFromFavoriteList(listId, info)
+        },
+      })
     })
   }
 

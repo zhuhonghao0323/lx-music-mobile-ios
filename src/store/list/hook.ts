@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import state, { type InitState } from './state'
 import { getListMusics } from '@/core/list'
-import { isMusicFavorited } from '@/core/favorite'
+import { isMusicFavorited, findMusicInList } from '@/core/favorite'
 
 /**
  * 当前歌曲是否已收藏（收藏在任意收藏列表都算已收藏），随列表变化/切歌自动刷新
@@ -9,6 +9,8 @@ import { isMusicFavorited } from '@/core/favorite'
 export const useIsMusicFavorited = (musicInfo: LX.Music.MusicInfo | null) => {
   const [favorited, setFavorited] = useState(false)
   const musicId = musicInfo?.id ?? null
+  const musicName = musicInfo?.name ?? ''
+  const musicSinger = musicInfo?.singer ?? ''
 
   useEffect(() => {
     let cancelled = false
@@ -28,7 +30,7 @@ export const useIsMusicFavorited = (musicInfo: LX.Music.MusicInfo | null) => {
       global.app_event.off('myListMusicUpdate', update)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicId])
+  }, [musicId, musicName, musicSinger])
 
   return favorited
 }
@@ -105,10 +107,22 @@ export const useMusicExistsList = (list: LX.List.MyListInfo, musicInfo: LX.Music
   const [isExists, setExists] = useState(false)
 
   useEffect(() => {
-    void getListMusics(list.id).then((musics) => {
-      setExists(musics.some(s => s.id == musicInfo.id))
-    })
-  }, [list.id, musicInfo.id])
+    let cancelled = false
+    const check = () => {
+      void getListMusics(list.id).then((musics) => {
+        // 用 歌名+演唱者 判定，兼容不同音源导入后 id 不一致的同一首歌
+        if (!cancelled) setExists(!!findMusicInList(musics, musicInfo))
+      })
+    }
+    check()
+    // 列表内容变化后重新判定，避免弹窗里状态滞后
+    global.app_event.on('myListMusicUpdate', check)
+    return () => {
+      cancelled = true
+      global.app_event.off('myListMusicUpdate', check)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.id, musicInfo.id, musicInfo.name, musicInfo.singer])
 
   return isExists
 }
