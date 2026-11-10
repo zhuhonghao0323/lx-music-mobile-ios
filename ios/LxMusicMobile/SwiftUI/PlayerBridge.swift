@@ -99,9 +99,6 @@ final class PlayerBridge: ObservableObject {
     if let v = dict["lyricColor"] as? String { lyricColor = v }
     if let v = dict["lyricFontSize"] as? Double { lyricFontSize = v }
   }
-
-  /// 音质可选列表（[{value,label}]）
-  @Published var qualityOptionList: [[String: String]] = []
 }
 
 /// 轻量震动反馈封装：统一走系统 Taptic Engine。
