@@ -96,7 +96,32 @@ export default ({ children }: Props) => {
   ), [children, windowSize.height, windowSize.width])
 
   const picComponent = useMemo(() => {
-    // 自定义背景图优先；液态玻璃主题在自定义背景图上也保持半透明玻璃氛围
+    // 液态玻璃主题：设计规范要求「封面放大模糊 + 黑色遮罩 65%~78%」形成暖黑环境底，
+    // 因此这里在模糊封面之上再压一层暖黑遮罩，保证整体基调是 #0B090A 的暖黑，
+    // 而不是直接把封面糊成一片粉灰。
+    if (isGlass) {
+      return (
+        <View style={{ flex: 1, overflow: 'hidden' }}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE }]} />
+          <ImageBackground
+            style={{ position: 'absolute', left: 0, top: 0, height: windowSize.height, width: windowSize.width }}
+            source={{ uri: pic!, headers: defaultHeaders }}
+            resizeMode="cover"
+            blurRadius={BLUR_RADIUS}
+          />
+          {/* 暖黑遮罩：规范 65%~78%，让文字与控件始终清晰 */}
+          <View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE, opacity: 0.74 }]}
+          />
+          <ContentContainer>
+            <View style={{ flex: 1, flexDirection: 'column' }}>
+              {children}
+            </View>
+          </ContentContainer>
+        </View>
+      )
+    }
     return (
       <View style={{ flex: 1, overflow: 'hidden' }}>
         <ImageBackground
@@ -111,8 +136,7 @@ export default ({ children }: Props) => {
             StyleSheet.absoluteFill,
             {
               backgroundColor: theme['c-content-background'],
-              // 设计规范：模糊背景只负责氛围，遮罩 65%~78% 保证文字对比度
-              opacity: isGlass ? 0.68 : 0.76,
+              opacity: 0.76,
             },
           ]}
         />

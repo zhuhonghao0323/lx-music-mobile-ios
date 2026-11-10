@@ -24,6 +24,8 @@ export default ({ icon, size = 18, color, onPress }: {
   onPress: () => void
 }) => {
   const isGlass = useIsGlass()
+  // 设计稿顶部按钮为细线图标，玻璃主题下略收一档更接近线框观感
+  const iconSize = isGlass ? Math.max(14, size - 2) : size
   // 设计规范：按钮按下缩至 0.96，松开回弹至 1.0
   const pressScale = useRef(new Animated.Value(1)).current
   const animateTo = useCallback((to: number) => {
@@ -43,7 +45,7 @@ export default ({ icon, size = 18, color, onPress }: {
   if (!isGlass) {
     return (
       <TouchableOpacity onPress={handlePress} style={{ ...styles.button, width: HEADER_HEIGHT }}>
-        <Icon name={icon} color={color} size={size} />
+        <Icon name={icon} color={color} size={iconSize} />
       </TouchableOpacity>
     )
   }
@@ -62,7 +64,7 @@ export default ({ icon, size = 18, color, onPress }: {
         <View style={styles.glassCircle}>
           {/* 顶部柔和高光，模拟玻璃受光 */}
           <View pointerEvents="none" style={styles.glassHighlight} />
-          <Icon name={icon} color={color ?? 'rgba(245,242,241,0.92)'} size={size} />
+          <Icon name={icon} color={color ?? 'rgba(245,242,241,0.92)'} size={iconSize} />
         </View>
       </Animated.View>
     </TouchableOpacity>

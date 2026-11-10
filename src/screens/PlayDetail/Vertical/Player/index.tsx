@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 
 // import Title from './components/Title'
 import MoreBtn from './components/MoreBtn'
@@ -14,16 +14,28 @@ import GlassView from '@/components/common/GlassView'
 
 export default memo(() => {
   const isGlass = useIsGlass()
+
+  // 液态玻璃主题：按设计稿，控制区直接浮在环境背景之上，
+  // 不套任何圆角矩形玻璃容器（否则会出现一圈方框，与设计不符）。
+  if (isGlass) {
+    return (
+      <View
+        style={StyleSheet.compose(styles.container, styles.glassContainer)}
+        nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_player}
+      >
+        <PlayInfo />
+        <SourceBtn />
+        <ControlBtn />
+        <MoreBtn />
+      </View>
+    )
+  }
+
   return (
     <GlassView
       material="thin"
       radius={26}
-      style={StyleSheet.compose(styles.container, isGlass ? {
-        marginHorizontal: 10,
-        marginBottom: 10,
-        paddingTop: 14,
-        paddingBottom: 18,
-      } : {})}
+      style={styles.container}
       nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_player}
     >
       <PlayInfo />
@@ -38,15 +50,17 @@ const styles = createStyle({
   container: {
     flex: 0,
     width: '100%',
-    // paddingTop: progressContentPadding,
-    // marginTop: -progressContentPadding,
-    // backgroundColor: 'rgba(0, 0, 0, .1)',
     paddingHorizontal: 15,
     paddingBottom: 15,
     paddingTop: 5,
-    // backgroundColor: AppColors.primary,
-    // backgroundColor: 'red',
     flexDirection: 'column',
+  },
+  // 设计稿：底部控制组贴近安全区，不需要额外外边距/底色
+  glassContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+    paddingTop: 0,
+    backgroundColor: 'transparent',
   },
   status: {
     marginTop: 10,
@@ -54,6 +68,5 @@ const styles = createStyle({
     flex: 0,
     paddingLeft: 5,
     justifyContent: 'space-evenly',
-    // backgroundColor: 'rgba(0, 0, 0, .1)',
   },
 })

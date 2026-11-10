@@ -59,7 +59,7 @@ export default ({ icon, color, onPress, onLongPress }: {
         onPress={() => { haptic.tap(); onPress() }}
         onLongPress={onLongPress ? () => { haptic.longPress(); onLongPress() } : undefined}
       >
-        <Icon name={icon} color={color ?? (isGlass ? '#F5F2F1' : theme['c-font-label'])} size={isGlass ? BTN_ICON_SIZE - 2 : BTN_ICON_SIZE} />
+        <Icon name={icon} color={color ?? (isGlass ? '#F5F2F1' : theme['c-font-label'])} size={isGlass ? BTN_ICON_SIZE - 5 : BTN_ICON_SIZE} />
       </TouchableOpacity>
     </Animated.View>
   )

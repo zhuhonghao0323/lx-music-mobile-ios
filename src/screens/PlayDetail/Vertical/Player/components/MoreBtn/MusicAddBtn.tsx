@@ -41,7 +41,7 @@ export default () => {
             onPress={onPress}
             onLongPress={onLongPress}
           >
-            <FavoriteIcon favorited={favorited} iconSize={BTN_ICON_SIZE - 2} emptyColor={isGlass ? '#F5F2F1' : theme['c-font-label']} />
+            <FavoriteIcon favorited={favorited} iconSize={BTN_ICON_SIZE - 5} emptyColor={isGlass ? '#F5F2F1' : theme['c-font-label']} />
           </TouchableOpacity>
         </View>
       )}
