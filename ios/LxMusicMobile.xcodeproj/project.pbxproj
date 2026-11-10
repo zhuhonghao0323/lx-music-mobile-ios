@@ -13,6 +13,12 @@
 		11F1A0A6A0F340D5B1E6A001 /* icomoon.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 11F1A0A5A0F340D5B1E6A001 /* icomoon.ttf */; };
 		22D0B001A0F340D5B1E6A003 /* user-api-preload.js in Resources */ = {isa = PBXBuildFile; fileRef = 22D0B000A0F340D5B1E6A003 /* user-api-preload.js */; };
 		22D0B002A0F340D5B1E6A003 /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED297162215061F000B7C4FE /* JavaScriptCore.framework */; };
+		3A5E0000000000000000B001 /* PlayerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A001 /* PlayerBridge.swift */; };
+		3A5E0000000000000000B002 /* ColorParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A002 /* ColorParser.swift */; };
+		3A5E0000000000000000B003 /* SwiftUIPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A003 /* SwiftUIPlayerView.swift */; };
+		3A5E0000000000000000B004 /* LXSwiftUIPlayerHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A004 /* LXSwiftUIPlayerHostView.swift */; };
+		3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */; };
+		3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.swift */; };
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
@@ -37,6 +43,14 @@
 		11F1A0A5A0F340D5B1E6A001 /* icomoon.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = icomoon.ttf; path = LxMusicMobile/icomoon.ttf; sourceTree = "<group>"; };
 		11D2C600B4A24A5E9B5B0001 /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
 		22D0B000A0F340D5B1E6A003 /* user-api-preload.js */ = {isa = PBXFileReference; lastKnownFileType = text.javascript; name = "user-api-preload.js"; path = "../android/app/src/main/assets/script/user-api-preload.js"; sourceTree = "<group>"; };
+		3A5E0000000000000000A001 /* PlayerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlayerBridge.swift; path = LxMusicMobile/SwiftUI/PlayerBridge.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A002 /* ColorParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ColorParser.swift; path = LxMusicMobile/SwiftUI/ColorParser.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A003 /* SwiftUIPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUIPlayerView.swift; path = LxMusicMobile/SwiftUI/SwiftUIPlayerView.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A004 /* LXSwiftUIPlayerHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPlayerHostView.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerHostView.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPlayerModule.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerModule.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPlayerViewManager.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerViewManager.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A007 /* SwiftUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftUI; path = LxMusicMobile/SwiftUI; sourceTree = "<group>"; };
+		3A5E0000000000000000A008 /* LxMusicMobile-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "LxMusicMobile-Bridging-Header.h"; path = "LxMusicMobile/LxMusicMobile-Bridging-Header.h"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* LxMusicMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LxMusicMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FAF1A68108700A75B9A /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppDelegate.h; path = LxMusicMobile/AppDelegate.h; sourceTree = "<group>"; };
 		13B07FB01A68108700A75B9A /* AppDelegate.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AppDelegate.mm; path = LxMusicMobile/AppDelegate.mm; sourceTree = "<group>"; };
@@ -100,6 +114,14 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				11F1A0A5A0F340D5B1E6A001 /* icomoon.ttf */,
 				22D0B000A0F340D5B1E6A003 /* user-api-preload.js */,
+				3A5E0000000000000000A001 /* PlayerBridge.swift */,
+				3A5E0000000000000000A002 /* ColorParser.swift */,
+				3A5E0000000000000000A003 /* SwiftUIPlayerView.swift */,
+				3A5E0000000000000000A004 /* LXSwiftUIPlayerHostView.swift */,
+				3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */,
+				3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.swift */,
+				3A5E0000000000000000A007 /* SwiftUI */,
+				3A5E0000000000000000A008 /* LxMusicMobile-Bridging-Header.h */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB71A68108700A75B9A /* main.m */,
@@ -408,6 +430,12 @@
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
+				3A5E0000000000000000B001 /* PlayerBridge.swift in Sources */,
+				3A5E0000000000000000B002 /* ColorParser.swift in Sources */,
+				3A5E0000000000000000B003 /* SwiftUIPlayerView.swift in Sources */,
+				3A5E0000000000000000B004 /* LXSwiftUIPlayerHostView.swift in Sources */,
+				3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */,
+				3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,6 +523,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = cn.toside.music.mobile;
 				PRODUCT_NAME = LxMusicMobile;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_OBJC_BRIDGING_HEADER = "LxMusicMobile/LxMusicMobile-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -520,6 +549,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = cn.toside.music.mobile;
 				PRODUCT_NAME = LxMusicMobile;
+				SWIFT_OBJC_BRIDGING_HEADER = "LxMusicMobile/LxMusicMobile-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};

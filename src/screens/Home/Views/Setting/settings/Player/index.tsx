@@ -13,6 +13,7 @@ import IsShowLyricTranslation from './IsShowLyricTranslation'
 import IsShowLyricRoma from './IsShowLyricRoma'
 import IsS2T from './IsS2T'
 import MaxCache from './MaxCache'
+import IsUseSwiftUIPlayer from './IsUseSwiftUIPlayer'
 import LyricPreviewSettings from './LyricPreviewSettings'
 import { useI18n } from '@/lang'
 import { isDesktopLyricSupported } from '@/utils/nativeModules/lyricDesktop'
@@ -36,6 +37,7 @@ export default memo(() => {
       <MaxCache />
       <PlayHighQuality />
       <LyricPreviewSettings />
+      <IsUseSwiftUIPlayer />
     </Section>
   )
 })

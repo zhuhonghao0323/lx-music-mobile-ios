@@ -212,6 +212,12 @@ declare global {
       'player.isPlayWithOtherAppsTipDisabled': boolean
 
       /**
+       * 是否使用 SwiftUI 版播放页（仅 iOS 有效）。
+       * 默认关闭；关闭时使用原有 RN 播放页，便于随时回退。
+       */
+      'player.useSwiftUIPlayer': boolean
+
+      /**
        * 播放页封面下方三行歌词预览的高亮颜色
        */
       'theme.lyricPreviewColor': string

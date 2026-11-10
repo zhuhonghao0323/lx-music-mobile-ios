@@ -5,6 +5,7 @@
   "player_current_source": "Source",
   "player_quality_label": "Quality",
   "player_lyric_color": "Lyric color",
+  "setting_player_use_swiftui_player": "Use SwiftUI player (experimental)",
   "player_lyric_font_size": "Lyric font size",
   "player_lyric_color_white": "White",
   "player_lyric_color_blue": "Blue",

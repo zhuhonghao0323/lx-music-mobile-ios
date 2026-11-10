@@ -5,6 +5,7 @@
   "player_current_source": "音源",
   "player_quality_label": "音質",
   "player_lyric_color": "歌詞顏色",
+  "setting_player_use_swiftui_player": "使用 SwiftUI 播放頁（實驗）",
   "player_lyric_font_size": "歌詞字號",
   "player_lyric_color_white": "白色",
   "player_lyric_color_blue": "藍色",

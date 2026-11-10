@@ -33,6 +33,8 @@ const defaultSetting: LX.AppSetting = {
   'player.isEnableAudioOffload': false,
   'player.isPlayWithOtherApps': false,
   'player.isPlayWithOtherAppsTipDisabled': false,
+  // SwiftUI 播放页开关：默认关闭，关闭时使用原有 RN 播放页
+  'player.useSwiftUIPlayer': false,
   // 播放页封面下方三行歌词预览的外观
   'theme.lyricPreviewColor': 'white',
   'theme.lyricPreviewFontSize': 15,
