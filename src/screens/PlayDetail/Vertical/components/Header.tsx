@@ -17,7 +17,6 @@ import { useSetting } from '@/store/setting/hook'
 import { isSoundEffectActive } from '@/plugins/player/soundEffect'
 import Btn from './Btn'
 import TimeoutExitBtn from './TimeoutExitBtn'
-import { useIsGlass } from '@/theme/glass'
 import GlassView from '@/components/common/GlassView'
 
 export const HEADER_HEIGHT = scaleSizeH(_HEADER_HEIGHT)
@@ -42,7 +41,6 @@ export default memo(() => {
   const statusBarHeight = useStatusbarHeight()
   const theme = useTheme()
   const setting = useSetting()
-  const isGlass = useIsGlass()
 
   const back = () => {
     void pop(commonState.componentIds.playDetail!)
@@ -55,7 +53,16 @@ export default memo(() => {
   }
 
   return (
-    <GlassView material="ultraThin" radius={0} highlight={false} border={false} shadow={false} style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight, ...(isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {}) }} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
+    <GlassView
+      material="ultraThin"
+      radius={0}
+      highlight={false}
+      border={false}
+      shadow={false}
+      // 设计稿顶部是通栏玻璃，不额外画一条底线（之前那条 hairline 就是多余的框线）
+      style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight }}
+      nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}
+    >
       <StatusBar />
       <View style={styles.container}>
         <Btn icon="chevron-left" onPress={back} />

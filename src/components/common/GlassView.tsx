@@ -49,7 +49,12 @@ const GlassView = memo(({
   ...props
 }: GlassViewProps) => {
   const isGlass = useIsGlass()
-  const r = radius <= 0 ? 0 : Math.max(8, scaleSizeW(radius))
+  // radius <= 0 表示「铺满、不要圆角轮廓」：此时必须连描边和高光一起关掉，
+  // 否则会在满屏容器边缘留下一条可见的框线（之前播放页顶部就出现了这种情况）。
+  const isFullBleed = radius <= 0
+  const r = isFullBleed ? 0 : Math.max(8, scaleSizeW(radius))
+  const showBorder = border && !isFullBleed
+  const showHighlight = highlight && !isFullBleed
 
   const frameStyle = useMemo(() => ({
     borderRadius: r,
@@ -85,10 +90,10 @@ const GlassView = memo(({
           : <View style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: FALLBACK_BG[material] }]} />
       }
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(255, 255, 255, 0.05)' }]} />
-      {border
+      {showBorder
         ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.border, layerStyle]} />
         : null}
-      {highlight
+      {showHighlight
         ? <View pointerEvents="none" style={[styles.highlight, { left: r * 0.7, right: r * 0.7 }]} />
         : null}
       {children}

@@ -1,14 +1,14 @@
-// import { useEffect, useState } from 'react'
-import { Platform, SafeAreaView, StyleSheet, View } from 'react-native'
-import { useTheme } from '@/store/theme/hook'
-import ImageBackground from '@/components/common/ImageBackground'
-import { useWindowSize } from '@/utils/hooks'
 import { useMemo } from 'react'
-import { scaleSizeAbsHR } from '@/utils/pixelRatio'
+import { Platform, SafeAreaView, StyleSheet, View } from 'react-native'
+import ImageBackground from '@/components/common/ImageBackground'
 import { defaultHeaders } from './common/Image'
-import SizeView from './SizeView'
+import { useTheme } from '@/store/theme/hook'
+import { useWindowSize } from '@/utils/hooks'
 import { useBgPic } from '@/store/common/hook'
+import { scaleSizeAbsHR } from '@/utils/pixelRatio'
+import SizeView from './SizeView'
 import { GLASS_AURORA, GLASS_BASE, GLASS_DEEP, useIsGlass } from '@/theme/glass'
+import { useSettingValue } from '@/store/setting/hook'
 
 interface Props {
   children: React.ReactNode
@@ -16,13 +16,12 @@ interface Props {
 
 const BLUR_RADIUS = Math.max(scaleSizeAbsHR(18), 10)
 
-const ContentContainer = ({ children }: Props) => {
-  if (Platform.OS == 'ios') return <SafeAreaView style={{ flex: 1 }}>{children}</SafeAreaView>
-  return <>{children}</>
-}
-
-/** 液态玻璃主题专属：深色底 + 多团柔和极光光斑，供上层半透明玻璃折射 */
-const AuroraBackground = ({ width, height }: { width: number, height: number }) => {
+/**
+ * 液态玻璃主题的环境底：
+ * 暖黑底 + 缓和的暖色光斑（不再是旧版的冷蓝极光）。
+ * 设计规范要求底部整体是暖黑调，光斑只做极轻的氛围点缀。
+ */
+const GlassAmbient = ({ width, height }: { width: number, height: number }) => {
   const blobs = useMemo(() => GLASS_AURORA.map((blob, index) => {
     const size = Math.max(width, height) * blob.size
     return (
@@ -36,123 +35,112 @@ const AuroraBackground = ({ width, height }: { width: number, height: number }) 
           borderRadius: size / 2,
           top: height * blob.top,
           left: width * blob.left,
-          // 用多层同心半透明圈模拟柔和径向渐变（工程未引入渐变库）
           backgroundColor: blob.color,
-          opacity: 0.55,
+          opacity: 0.4,
         }}
       />
     )
   }), [width, height])
+
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE, overflow: 'hidden' }]}>
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_DEEP, opacity: 0.5 }]} />
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_DEEP, opacity: 0.6 }]} />
       {blobs}
-      {/* 顶部与底部的冷色雾，增加纵深 */}
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: height * 0.35, backgroundColor: 'rgba(90, 140, 255, 0.10)' }} />
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: height * 0.35, backgroundColor: 'rgba(10, 8, 30, 0.35)' }} />
     </View>
   )
 }
 
+const ContentContainer = ({ children }: Props) => {
+  if (Platform.OS == 'ios') return <SafeAreaView style={{ flex: 1 }}>{children}</SafeAreaView>
+  return <>{children}</>
+}
+
+/**
+ * 页面背景（统一决策，避免三套分支互相打架）。
+ *
+ * 优先级：
+ * 1. 液态玻璃主题：
+ *    - 开「动态背景」且有封面 → 模糊封面 + 74% 暖黑遮罩（保证基调仍是暖黑）
+ *    - 否则 → 暖黑底 + 极轻暖色光斑
+ * 2. 其它主题：
+ *    - 有动态背景封面 → 模糊封面 + 主题色遮罩
+ *    - 否则 → 主题背景图（受「隐藏黑色主题背景」控制）
+ */
 export default ({ children }: Props) => {
   const theme = useTheme()
   const isGlass = useIsGlass()
   const windowSize = useWindowSize()
   const pic = useBgPic()
+  const isHideBgDark = useSettingValue('theme.hideBgDark')
 
-  const themeComponent = useMemo(() => (
-    <View style={{ flex: 1, overflow: 'hidden' }}>
-      <ImageBackground
-        style={{ position: 'absolute', left: 0, top: 0, height: windowSize.height, width: windowSize.width, backgroundColor: theme['c-content-background'] }}
-        source={theme['bg-image']}
-        resizeMode="cover"
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            backgroundColor: theme['c-main-background'],
-          },
-        ]}
-      />
-      <ContentContainer>
-        <View style={{ flex: 1, flexDirection: 'column' }}>
-          {children}
-        </View>
-      </ContentContainer>
-    </View>
-  ), [children, theme, windowSize.height, windowSize.width])
+  const background = useMemo(() => {
+    const w = windowSize.width
+    const h = windowSize.height
 
-  const glassComponent = useMemo(() => (
-    <View style={{ flex: 1, overflow: 'hidden' }}>
-      <AuroraBackground width={windowSize.width} height={windowSize.height} />
-      <ContentContainer>
-        <View style={{ flex: 1, flexDirection: 'column' }}>
-          {children}
-        </View>
-      </ContentContainer>
-    </View>
-  ), [children, windowSize.height, windowSize.width])
-
-  const picComponent = useMemo(() => {
-    // 液态玻璃主题：设计规范要求「封面放大模糊 + 黑色遮罩 65%~78%」形成暖黑环境底，
-    // 因此这里在模糊封面之上再压一层暖黑遮罩，保证整体基调是 #0B090A 的暖黑，
-    // 而不是直接把封面糊成一片粉灰。
+    // ---------- 液态玻璃主题 ----------
     if (isGlass) {
+      // 有动态背景封面：以封面做氛围，但压在暖黑底上并加 74% 遮罩
+      if (pic) {
+        return (
+          <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE }]} />
+            <ImageBackground
+              style={{ position: 'absolute', left: 0, top: 0, width: w, height: h }}
+              source={{ uri: pic, headers: defaultHeaders }}
+              resizeMode="cover"
+              blurRadius={BLUR_RADIUS}
+            />
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE, opacity: 0.74 }]} />
+          </View>
+        )
+      }
+      return <GlassAmbient width={w} height={h} />
+    }
+
+    // ---------- 其它主题：动态背景 ----------
+    if (pic) {
       return (
-        <View style={{ flex: 1, overflow: 'hidden' }}>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE }]} />
+        <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
           <ImageBackground
-            style={{ position: 'absolute', left: 0, top: 0, height: windowSize.height, width: windowSize.width }}
-            source={{ uri: pic!, headers: defaultHeaders }}
+            style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, backgroundColor: theme['c-content-background'] }}
+            source={{ uri: pic, headers: defaultHeaders }}
             resizeMode="cover"
             blurRadius={BLUR_RADIUS}
           />
-          {/* 暖黑遮罩：规范 65%~78%，让文字与控件始终清晰 */}
-          <View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE, opacity: 0.74 }]}
-          />
-          <ContentContainer>
-            <View style={{ flex: 1, flexDirection: 'column' }}>
-              {children}
-            </View>
-          </ContentContainer>
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme['c-content-background'], opacity: 0.76 }]} />
         </View>
       )
     }
+
+    // ---------- 其它主题：主题背景图 ----------
+    // 「隐藏黑色主题背景」开启时，深色主题不使用背景图，直接铺纯色
+    const bgImage = theme['bg-image']
+    const useBgImage = !!bgImage && !(theme.isDark && isHideBgDark)
     return (
-      <View style={{ flex: 1, overflow: 'hidden' }}>
-        <ImageBackground
-          style={{ position: 'absolute', left: 0, top: 0, height: windowSize.height, width: windowSize.width, backgroundColor: theme['c-content-background'] }}
-          source={{ uri: pic!, headers: defaultHeaders }}
-          resizeMode="cover"
-          blurRadius={BLUR_RADIUS}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: theme['c-content-background'],
-              opacity: 0.76,
-            },
-          ]}
-        />
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+        {useBgImage
+          ? <ImageBackground
+              style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, backgroundColor: theme['c-content-background'] }}
+              source={bgImage}
+              resizeMode="cover"
+            />
+          : <View style={[StyleSheet.absoluteFill, { backgroundColor: theme['c-content-background'] }]} />}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme['c-main-background'], opacity: useBgImage ? 1 : 0.001 }]} />
+      </View>
+    )
+  }, [isGlass, pic, theme, windowSize.width, windowSize.height, isHideBgDark])
+
+  return (
+    <>
+      <SizeView />
+      <View style={{ flex: 1 }}>
+        {background}
         <ContentContainer>
           <View style={{ flex: 1, flexDirection: 'column' }}>
             {children}
           </View>
         </ContentContainer>
       </View>
-    )
-  }, [children, pic, theme, isGlass, windowSize.height, windowSize.width])
-
-  return (
-    <>
-      <SizeView />
-      {pic ? picComponent : isGlass ? glassComponent : themeComponent}
     </>
   )
 }
