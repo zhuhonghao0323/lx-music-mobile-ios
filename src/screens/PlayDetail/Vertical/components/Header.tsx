@@ -17,7 +17,6 @@ import { useSetting } from '@/store/setting/hook'
 import { isSoundEffectActive } from '@/plugins/player/soundEffect'
 import Btn from './Btn'
 import TimeoutExitBtn from './TimeoutExitBtn'
-import GlassView from '@/components/common/GlassView'
 
 export const HEADER_HEIGHT = scaleSizeH(_HEADER_HEIGHT)
 
@@ -53,14 +52,11 @@ export default memo(() => {
   }
 
   return (
-    <GlassView
-      material="ultraThin"
-      radius={0}
-      highlight={false}
-      border={false}
-      shadow={false}
-      // 设计稿顶部是通栏玻璃，不额外画一条底线（之前那条 hairline 就是多余的框线）
-      style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight }}
+    <View
+      style={[
+        styles.headerWrap,
+        { height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight },
+      ]}
       nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}
     >
       <StatusBar />
@@ -73,15 +69,20 @@ export default memo(() => {
       </View>
       <SoundEffectPopup ref={soundEffectPopupRef} layoutMode="stacked" />
       <SettingPopup ref={popupRef} direction="vertical" />
-    </GlassView>
+    </View>
   )
 })
 
 
 const styles = StyleSheet.create({
+  // 设计稿顶部是通栏：不铺任何底色/描边，只靠页面上方的暖黑渐变承接，
+  // 之前的 GlassView 会因为 ultraThin 材质在半透明层上泛出一块白底，形成可见框体。
+  headerWrap: {
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
   container: {
     flexDirection: 'row',
-    // justifyContent: 'center',
     height: '100%',
   },
   titleContent: {

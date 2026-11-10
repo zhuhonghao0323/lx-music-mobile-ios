@@ -76,25 +76,37 @@ export default ({ children }: Props) => {
   const background = useMemo(() => {
     const w = windowSize.width
     const h = windowSize.height
+    // 浅色液态玻璃用白霜底，深色用暖黑底
+    const isGlassLight = theme.id == 'liquid_glass_light'
+    const glassBase = isGlassLight ? '#F2EFED' : GLASS_BASE
 
     // ---------- 液态玻璃主题 ----------
     if (isGlass) {
-      // 有动态背景封面：以封面做氛围，但压在暖黑底上并加 74% 遮罩
+      // 有动态背景封面：以封面做氛围，但压在底色上并加遮罩
       if (pic) {
         return (
           <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: glassBase }]} />
             <ImageBackground
               style={{ position: 'absolute', left: 0, top: 0, width: w, height: h }}
               source={{ uri: pic, headers: defaultHeaders }}
               resizeMode="cover"
               blurRadius={BLUR_RADIUS}
             />
-            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_BASE, opacity: 0.74 }]} />
+            {/* 深色压 74% 暖黑；浅色压 82% 白霜，保证仍是明亮的浅色基调 */}
+            <View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFill, {
+                backgroundColor: glassBase,
+                opacity: isGlassLight ? 0.82 : 0.74,
+              }]}
+            />
           </View>
         )
       }
-      return <GlassAmbient width={w} height={h} />
+      return isGlassLight
+        ? <View style={[StyleSheet.absoluteFill, { backgroundColor: glassBase }]} />
+        : <GlassAmbient width={w} height={h} />
     }
 
     // ---------- 其它主题：动态背景 ----------
@@ -129,7 +141,6 @@ export default ({ children }: Props) => {
       </View>
     )
   }, [isGlass, pic, theme, windowSize.width, windowSize.height, isHideBgDark])
-
   return (
     <>
       <SizeView />

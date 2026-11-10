@@ -90,6 +90,17 @@ const GlassView = memo(({
           : <View style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: FALLBACK_BG[material] }]} />
       }
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { backgroundColor: tint ?? 'rgba(255, 255, 255, 0.05)' }]} />
+      {/* 玻璃光泽：上半部叠一层由亮到透的渐变，模拟玻璃受光后的柔和反射。
+          分三段做阶梯渐变（工程未引入渐变库），视觉上足够平滑且开销极低。 */}
+      {showHighlight
+        ? (
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, layerStyle, { overflow: 'hidden' }]}>
+              <View style={[styles.sheen, { height: '34%', opacity: 0.10 }]} />
+              <View style={[styles.sheen, { top: '22%', height: '22%', opacity: 0.05 }]} />
+              <View style={[styles.sheen, { top: '44%', height: '12%', opacity: 0.02 }]} />
+            </View>
+          )
+        : null}
       {showBorder
         ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.border, layerStyle]} />
         : null}
@@ -102,6 +113,13 @@ const GlassView = memo(({
 })
 
 const styles = StyleSheet.create({
+  sheen: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: '#FFFFFF',
+  },
   border: {
     borderWidth: StyleSheet.hairlineWidth,
     // 设计规范：玻璃描边 rgba(255,255,255,0.22)，顶部略亮形成受光感

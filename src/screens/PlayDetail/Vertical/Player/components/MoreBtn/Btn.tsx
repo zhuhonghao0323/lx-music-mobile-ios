@@ -6,12 +6,10 @@ import { useTheme } from '@/store/theme/hook'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
+import { GLASS_CIRCLE_SIZE, glassCircleStyle } from './glassButton'
 
 export const BTN_WIDTH = scaleSizeW(36)
 export const BTN_ICON_SIZE = 24
-
-/** 玻璃主题下底部辅助按钮的圆形底（设计规范：48–54，四个等宽分布） */
-const GLASS_CIRCLE_SIZE = Math.max(44, scaleSizeW(46))
 
 export default ({ icon, color, onPress, onLongPress }: {
   icon: string
@@ -37,21 +35,8 @@ export default ({ icon, color, onPress, onLongPress }: {
     <Animated.View style={isGlass ? { transform: [{ scale: pressScale }] } : undefined}>
       <TouchableOpacity
         style={StyleSheet.compose(
-          { ...styles.cotrolBtn, width: isGlass ? glassSize : BTN_WIDTH, height: isGlass ? glassSize : BTN_WIDTH },
-          isGlass ? {
-            // 设计规范：半透明白玻璃 + rgba(255,255,255,0.22) 细描边 + 顶部受光
-            backgroundColor: 'rgba(255, 255, 255, 0.09)',
-            borderWidth: StyleSheet.hairlineWidth,
-            borderTopColor: 'rgba(255, 255, 255, 0.30)',
-            borderLeftColor: 'rgba(255, 255, 255, 0.20)',
-            borderRightColor: 'rgba(255, 255, 255, 0.16)',
-            borderBottomColor: 'rgba(255, 255, 255, 0.10)',
-            borderRadius: glassSize / 2,
-            shadowColor: 'rgba(6, 4, 4, 0.55)',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.4,
-            shadowRadius: 18,
-          } : {},
+          styles.cotrolBtn,
+          isGlass ? glassCircleStyle(glassSize) : { width: BTN_WIDTH, height: BTN_WIDTH },
         )}
         activeOpacity={isGlass ? 1 : 0.55}
         onPressIn={isGlass ? () => { animateTo(0.96) } : undefined}

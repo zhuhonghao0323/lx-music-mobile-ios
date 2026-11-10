@@ -18,7 +18,7 @@ export const useCurrentPlayQuality = () => {
   return value
 }
 
-/** 把内部音质标识格式化成展示文案 */
+/** 把内部音质标识格式化成展示文案（完整形式，用于菜单） */
 export const formatQuality = (q: LX.Quality | null): string => {
   if (!q) return '--'
   switch (q) {
@@ -27,6 +27,24 @@ export const formatQuality = (q: LX.Quality | null): string => {
     case '320k': return '320kbps'
     case 'flac': return 'FLAC'
     case 'flac24bit': return 'FLAC 24bit'
+    case 'ape': return 'APE'
+    case 'wav': return 'WAV'
+    default: return q
+  }
+}
+
+/**
+ * 简写形式，用于播放页底部的小圆按钮（空间有限）。
+ * 320kbps → 320k，FLAC → FLAC，FLAC 24bit → 24bit
+ */
+export const formatQualityShort = (q: LX.Quality | null): string => {
+  if (!q) return '--'
+  switch (q) {
+    case '128k': return '128k'
+    case '192k': return '192k'
+    case '320k': return '320k'
+    case 'flac': return 'FLAC'
+    case 'flac24bit': return '24bit'
     case 'ape': return 'APE'
     case 'wav': return 'WAV'
     default: return q

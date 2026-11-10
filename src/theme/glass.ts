@@ -1,13 +1,20 @@
 import { Platform, StyleSheet, type ViewStyle } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 
-/** 液态玻璃主题 id */
+/** 液态玻璃主题 id（深色） */
 export const LIQUID_GLASS_ID = 'liquid_glass'
+/** 液态玻璃主题 id（浅色） */
+export const LIQUID_GLASS_LIGHT_ID = 'liquid_glass_light'
 /** MD3 主题 id（移植自 md3Music 的 Material Design 3 设计语言） */
 export const MD3_ID = 'md3'
 
-/** 是否处于液态玻璃主题 */
-export const useIsGlass = () => useTheme().id == LIQUID_GLASS_ID
+/** 是否处于液态玻璃主题（深色或浅色都算） */
+export const useIsGlass = () => {
+  const id = useTheme().id
+  return id == LIQUID_GLASS_ID || id == LIQUID_GLASS_LIGHT_ID
+}
+/** 是否处于浅色液态玻璃 */
+export const useIsGlassLight = () => useTheme().id == LIQUID_GLASS_LIGHT_ID
 /** 是否处于 MD3 主题 */
 export const useIsMd3 = () => useTheme().id == MD3_ID
 

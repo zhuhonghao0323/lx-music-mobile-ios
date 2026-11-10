@@ -95,6 +95,46 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     'bg-image': bgImg,
   }
 
+  // 浅色液态玻璃：白霜底 + 深字 + 珊瑚强调。
+  // 描边在这里要「反色」——浅底上用深色描边才有玻璃边缘感。
+  if (theme.id == 'liquid_glass_light') {
+    const text = '#1C1A1A'
+    const textDim = 'rgba(60, 55, 55, 0.62)'
+    const tint = 'rgba(226, 96, 80, 0.95)'
+    const surface = 'rgba(255, 255, 255, 0.62)'
+    const surfaceStrong = 'rgba(255, 255, 255, 0.82)'
+    const control = 'rgba(255, 255, 255, 0.58)'
+    const controlActive = 'rgba(255, 255, 255, 0.86)'
+    const border = 'rgba(120, 110, 105, 0.20)'
+    const borderSoft = 'rgba(120, 110, 105, 0.12)'
+    const glassLightOverrides: Partial<LX.ActiveTheme> = {
+      'c-app-background': '#F2EFED',
+      'c-main-background': '#F7F5F3',
+      'c-content-background': surfaceStrong,
+      'c-border-background': border,
+      'c-font': text,
+      'c-font-label': textDim,
+      'c-primary-font': tint,
+      'c-primary-font-hover': 'rgba(226, 96, 80, 0.82)',
+      'c-primary-font-active': 'rgba(226, 96, 80, 0.68)',
+      'c-primary-background': surface,
+      'c-primary-background-hover': surfaceStrong,
+      'c-primary-background-active': controlActive,
+      'c-primary-input-background': control,
+      'c-button-font': text,
+      'c-button-font-selected': '#FFFFFF',
+      'c-button-background': control,
+      'c-button-background-selected': 'rgba(226, 96, 80, 0.88)',
+      'c-button-background-hover': surfaceStrong,
+      'c-button-background-active': controlActive,
+      'c-list-header-border-bottom': borderSoft,
+      'c-badge-primary': tint,
+      'c-badge-secondary': '#C89150',
+      'c-badge-tertiary': '#5F7E99',
+    }
+    Object.assign(activeTheme, glassLightOverrides)
+  }
+
   // 液态玻璃（iOS 27 Liquid Glass 视觉语言，按设计交付说明还原）：
   // 把全局语义色统一改成半透明玻璃色，这样所有引用
   // c-button-background / c-content-background / c-primary-background …

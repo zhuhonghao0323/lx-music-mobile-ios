@@ -296,6 +296,27 @@ const defaultThemes = [
     },
   },
   {
+    // 浅色版 Liquid Glass：白霜底 + 珊瑚强调色。
+    // 与深色版共用同一套「玻璃光学层」逻辑，只是底色与描边方向取反。
+    id: 'liquid_glass_light',
+    name: '液态玻璃·浅色',
+    isDark: false,
+    config: {
+      primary: 'rgb(226, 96, 80)',
+      // 浅色主题需要深字
+      font: 'rgb(28, 26, 26)',
+      'c-app-background': '#F2EFED',
+      'c-main-background': '#F7F5F3',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': '#E26050',
+      'c-badge-secondary': '#C89150',
+      'c-badge-tertiary': '#5F7E99',
+    },
+  },
+  {
     // iOS 27 Liquid Glass 视觉语言（按设计交付说明还原）
     // 暖黑环境底 + 珊瑚粉橙强调色；iOS 17 用原生 UIVisualEffectView 毛玻璃近似。
     id: 'liquid_glass',
