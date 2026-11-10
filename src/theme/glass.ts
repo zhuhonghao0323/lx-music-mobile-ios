@@ -19,6 +19,30 @@ export const useIsGlassLight = () => useTheme().id == LIQUID_GLASS_LIGHT_ID
 export const useIsMd3 = () => useTheme().id == MD3_ID
 
 /**
+ * 统一圆角 token。
+ *
+ * 玻璃主题下全站统一大圆角（弹窗 24 / 面板 18 / 控件 14），
+ * 其它主题沿用项目原来的紧凑风格，避免影响既有主题观感。
+ */
+export const RADIUS = {
+  /** 模态弹窗（Dialog / Popup） */
+  dialog: 24,
+  /** 浮层面板（下拉面板、菜单） */
+  panel: 18,
+  /** 控件（按钮、输入框、列表项） */
+  control: 14,
+  /** 小元素（徽标、缩略图） */
+  small: 8,
+} as const
+
+/** 按当前主题取圆角：玻璃主题用统一大圆角，其它主题回落到传入的默认值 */
+export const useRadius = () => {
+  const isGlass = useIsGlass()
+  return (fallback: number, token?: keyof typeof RADIUS): number =>
+    isGlass ? RADIUS[token ?? 'control'] : fallback
+}
+
+/**
  * md3Music 的尺寸 token（4dp 基准、8dp 节奏），按需在这里集中取用。
  * 数值直接来自其 lib/core/theme/app_dimens.dart，保证与源项目的视觉节奏一致。
  */

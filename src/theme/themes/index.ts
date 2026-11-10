@@ -96,17 +96,18 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
   }
 
   // 浅色液态玻璃：白霜底 + 深字 + 珊瑚强调。
-  // 描边在这里要「反色」——浅底上用深色描边才有玻璃边缘感。
+  // 注意：浅色主题下「白底叠白底」会让控件完全看不出形状，
+  // 因此控件底色提高到不透明度 0.9 + 明显加重的描边，保证边界清晰可见。
   if (theme.id == 'liquid_glass_light') {
     const text = '#1C1A1A'
     const textDim = 'rgba(60, 55, 55, 0.62)'
-    const tint = 'rgba(226, 96, 80, 0.95)'
-    const surface = 'rgba(255, 255, 255, 0.62)'
-    const surfaceStrong = 'rgba(255, 255, 255, 0.82)'
-    const control = 'rgba(255, 255, 255, 0.58)'
-    const controlActive = 'rgba(255, 255, 255, 0.86)'
-    const border = 'rgba(120, 110, 105, 0.20)'
-    const borderSoft = 'rgba(120, 110, 105, 0.12)'
+    const tint = 'rgba(226, 96, 80, 1)'
+    const surfaceStrong = 'rgba(255, 255, 255, 0.96)'
+    const control = 'rgba(255, 255, 255, 0.90)'
+    const controlActive = 'rgba(235, 232, 230, 1)'
+    // 描边在浅色主题里必须足够重，否则控件轮廓完全消失
+    const border = 'rgba(120, 110, 105, 0.30)'
+    const borderSoft = 'rgba(120, 110, 105, 0.16)'
     const glassLightOverrides: Partial<LX.ActiveTheme> = {
       'c-app-background': '#F2EFED',
       'c-main-background': '#F7F5F3',
@@ -115,16 +116,17 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
       'c-font': text,
       'c-font-label': textDim,
       'c-primary-font': tint,
-      'c-primary-font-hover': 'rgba(226, 96, 80, 0.82)',
-      'c-primary-font-active': 'rgba(226, 96, 80, 0.68)',
-      'c-primary-background': surface,
-      'c-primary-background-hover': surfaceStrong,
-      'c-primary-background-active': controlActive,
+      'c-primary-font-hover': 'rgba(226, 96, 80, 0.86)',
+      'c-primary-font-active': 'rgba(226, 96, 80, 0.72)',
+      // 主色容器：浅色主题下用极淡的珊瑚底，让选中项有明确视觉区分
+      'c-primary-background': 'rgba(226, 96, 80, 0.10)',
+      'c-primary-background-hover': 'rgba(226, 96, 80, 0.16)',
+      'c-primary-background-active': 'rgba(226, 96, 80, 0.22)',
       'c-primary-input-background': control,
       'c-button-font': text,
       'c-button-font-selected': '#FFFFFF',
       'c-button-background': control,
-      'c-button-background-selected': 'rgba(226, 96, 80, 0.88)',
+      'c-button-background-selected': 'rgba(226, 96, 80, 0.92)',
       'c-button-background-hover': surfaceStrong,
       'c-button-background-active': controlActive,
       'c-list-header-border-bottom': borderSoft,

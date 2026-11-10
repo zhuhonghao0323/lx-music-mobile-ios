@@ -176,12 +176,20 @@ export default forwardRef<PopupType, PopupProps>(({
       ...styles.modalView,
       ...modalViewStyle,
       backgroundColor: glass.isGlass ? undefined : theme['c-content-background'],
+      // 玻璃主题：四角全圆角（之前 bottom 位置把下方两角强制设成 0，
+      // 导致弹窗底部是直角、视觉上与设计不符）
       borderRadius: glass.isGlass ? 24 : undefined,
       borderTopLeftRadius: glass.isGlass ? 24 : undefined,
       borderTopRightRadius: glass.isGlass ? 24 : undefined,
-      borderBottomLeftRadius: glass.isGlass ? (position == 'top' ? 24 : 0) : undefined,
-      borderBottomRightRadius: glass.isGlass ? (position == 'top' ? 24 : 0) : undefined,
-      margin: glass.isGlass && position == 'bottom' ? 8 : undefined,
+      borderBottomLeftRadius: glass.isGlass ? 24 : undefined,
+      borderBottomRightRadius: glass.isGlass ? 24 : undefined,
+      // 底部弹层左右留出边距并限制宽度，避免 width:100% + margin 造成贴边溢出
+      ...(glass.isGlass && position == 'bottom'
+        ? { marginHorizontal: 12, marginBottom: 12, width: undefined, left: 12, right: 12 }
+        : {}),
+      ...(glass.isGlass && position == 'top'
+        ? { marginHorizontal: 12, marginTop: 12, width: undefined, left: 12, right: 12 }
+        : {}),
     },
     glass.panel(),
   // eslint-disable-next-line react-hooks/exhaustive-deps

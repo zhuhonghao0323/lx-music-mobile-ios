@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { View } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 import { useKeyboard } from '@/utils/hooks'
 
 import Pic from './components/Pic'
@@ -10,16 +10,37 @@ import { createStyle } from '@/utils/tools'
 // import { useSettingValue } from '@/store/setting/hook'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
+import { useIsGlass } from '@/theme/glass'
 
 
 export default memo(({ isHome = false }: { isHome?: boolean }) => {
   // const { onLayout, ...layout } = useLayout()
   const { keyboardShown } = useKeyboard()
   const theme = useTheme()
+  const isGlass = useIsGlass()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
 
   const playerComponent = useMemo(() => (
-    <View style={{ ...styles.container, backgroundColor: theme['c-content-background'] }}>
+    <View
+      style={StyleSheet.compose(
+        styles.container,
+        isGlass
+          // 玻璃主题：浮动圆角卡片，左右留边距，不再是横贯全屏的直角条
+          ? {
+              backgroundColor: 'rgba(255, 255, 255, 0.09)',
+              marginHorizontal: 10,
+              marginBottom: 8,
+              borderRadius: 20,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderTopColor: 'rgba(255,255,255,0.26)',
+              borderLeftColor: 'rgba(255,255,255,0.18)',
+              borderRightColor: 'rgba(255,255,255,0.14)',
+              borderBottomColor: 'rgba(255,255,255,0.10)',
+              overflow: 'hidden',
+            }
+          : { backgroundColor: theme['c-content-background'] },
+      )}
+    >
       <Pic isHome={isHome} />
       <View style={styles.center}>
         <Title isHome={isHome} />
@@ -32,7 +53,7 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
         <ControlBtn />
       </View>
     </View>
-  ), [theme, isHome])
+  ), [theme, isHome, isGlass])
 
   // console.log('render pb')
 

@@ -64,7 +64,7 @@ const Header = () => {
   const isGlass = useIsGlass()
   const statusBarHeight = useStatusbarHeight()
   return (
-    <View style={{ paddingTop: statusBarHeight, backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-700-alpha-500'], ...(isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' } : {}) }}>
+    <View style={{ paddingTop: statusBarHeight, backgroundColor: isGlass ? 'transparent' : theme['c-primary-light-700-alpha-500'] }}>
       <View style={styles.header}>
         <Icon name="logo" color={isGlass ? '#F5F2F1' : theme['c-primary-dark-100-alpha-300']} size={28} />
         <Text style={styles.headerText} size={28} color={isGlass ? '#F5F2F1' : theme['c-primary-dark-100-alpha-300']}>LX Music</Text>
