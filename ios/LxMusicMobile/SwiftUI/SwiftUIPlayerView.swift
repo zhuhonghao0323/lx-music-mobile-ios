@@ -15,7 +15,7 @@ struct SwiftUIPlayerView: View {
 
   var body: some View {
     ZStack {
-      backgroundColor.ignoresSafeArea()
+      backgroundColor.edgesIgnoringSafeArea(.all)
 
       VStack(spacing: 0) {
         header
@@ -80,15 +80,11 @@ struct SwiftUIPlayerView: View {
 
   private func coverImage(width: CGFloat, height: CGFloat) -> some View {
     Group {
-      if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
-        AsyncImage(url: url) { phase in
-          switch phase {
-          case .success(let image):
-            image.resizable().aspectRatio(contentMode: .fill)
-          default:
-            placeholderCover
-          }
-        }
+      // AsyncImage 需要 iOS 15+，项目最低支持 iOS 13.4，这里改用轻量的
+      // URLSession 图片加载器（SwiftUICoverImage），保证低版本系统也能用。
+      if !bridge.picUrl.isEmpty, let url = URL(string: bridge.picUrl) {
+        // id 绑定 URL：换歌换封面时视图重建，从而触发重新加载
+        SwiftUICoverImage(url: url).id(bridge.picUrl)
       } else {
         placeholderCover
       }
