@@ -8,7 +8,6 @@ import PlayInfo from './components/PlayInfo'
 import ControlBtn from './components/ControlBtn'
 import { createStyle } from '@/utils/tools'
 // import { useSettingValue } from '@/store/setting/hook'
-import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { useIsGlass } from '@/theme/glass'
 
@@ -16,7 +15,6 @@ import { useIsGlass } from '@/theme/glass'
 export default memo(({ isHome = false }: { isHome?: boolean }) => {
   // const { onLayout, ...layout } = useLayout()
   const { keyboardShown } = useKeyboard()
-  const theme = useTheme()
   const isGlass = useIsGlass()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
 
@@ -24,38 +22,36 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
     <View
       style={StyleSheet.compose(
         styles.container,
-        isGlass
-          // 玻璃主题：浮动圆角卡片，左右留边距，不再是横贯全屏的直角条
-          ? {
-              backgroundColor: 'rgba(255, 255, 255, 0.09)',
-              marginHorizontal: 10,
-              marginBottom: 8,
-              borderRadius: 20,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderTopColor: 'rgba(255,255,255,0.26)',
-              borderLeftColor: 'rgba(255,255,255,0.18)',
-              borderRightColor: 'rgba(255,255,255,0.14)',
-              borderBottomColor: 'rgba(255,255,255,0.10)',
-              overflow: 'hidden',
-            }
-          : { backgroundColor: theme['c-content-background'] },
+        // 悬浮胶囊：无横框背景，靠半透明底 + 圆角 + 3D 立体阴影形成「浮起」质感
+        {
+          backgroundColor: isGlass ? 'rgba(28,24,24,0.70)' : 'rgba(24,22,22,0.92)',
+          borderRadius: 24,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderTopColor: 'rgba(255,255,255,0.30)',
+          borderLeftColor: 'rgba(255,255,255,0.18)',
+          borderRightColor: 'rgba(255,255,255,0.12)',
+          borderBottomColor: 'rgba(0,0,0,0.30)',
+          overflow: 'hidden',
+          shadowColor: 'rgba(0,0,0,0.55)',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.5,
+          shadowRadius: 18,
+          elevation: 10,
+        },
       )}
     >
+      {/* 顶部高光条：模拟玻璃受光，增强立体感 */}
+      <View pointerEvents="none" style={styles.glassSheen} />
       <Pic isHome={isHome} />
       <View style={styles.center}>
         <Title isHome={isHome} />
-        {/* <View style={{ ...styles.row, justifyContent: 'space-between' }}>
-          <PlayTime />
-        </View> */}
         <PlayInfo isHome={isHome} />
       </View>
       <View style={styles.right}>
         <ControlBtn />
       </View>
     </View>
-  ), [theme, isHome, isGlass])
-
-  // console.log('render pb')
+  ), [isHome, isGlass])
 
   return autoHidePlayBar && keyboardShown ? null : playerComponent
 })
@@ -64,20 +60,22 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
 const styles = createStyle({
   container: {
     width: '100%',
-    // height: 100,
-    // paddingTop: progressContentPadding,
-    // marginTop: -progressContentPadding,
-    // backgroundColor: 'rgba(0, 0, 0, .1)',
-    // borderTopWidth: BorderWidths.normal2,
     paddingVertical: 5,
     paddingLeft: 5,
-    // backgroundColor: AppColors.primary,
-    // backgroundColor: 'red',
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
     elevation: 10,
+  },
+  // 顶部高光条：玻璃受光，3D 立体感
+  glassSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   left: {
     // borderRadius: 3,

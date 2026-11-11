@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { View, FlatList, TouchableOpacity, Animated, Easing, StyleSheet, type ListRenderItem } from 'react-native'
-import Dialog, { type DialogType } from '@/components/common/Dialog'
+import Popup, { type PopupType } from '@/components/common/Popup'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -23,20 +23,20 @@ export interface PlaylistSheetType {
 const ROW_HEIGHT = scaleSizeW(58)
 
 /**
- * 当前播放列表（底部半屏 Sheet）—— 对标波点的「播放列表」弹层。
+ * 当前播放列表（底部抽屉 Sheet）—— 对标波点的「播放列表」弹层。
  *
- * 视觉要点：
+ * - 用 Popup 的 position='bottom'，从底部滑出（真正的底部抽屉）
  * - 每行带专辑缩略图（圆角）、歌名、歌手
  * - 右侧收藏心形，可直接切换收藏
  * - 播放中的条目高亮歌名
- * - 行进入时错峰淡入，避免一次性硬刷
+ * - 行进入时错峰淡入
  */
 export default forwardRef<PlaylistSheetType, {
   onHide?: () => void
 }>(({ onHide }, ref) => {
       const t = useI18n()
       const theme = useTheme()
-      const dialogRef = useRef<DialogType>(null)
+      const popupRef = useRef<PopupType>(null)
       const [token, setToken] = useState(0)
 
       // 当前播放队列：始终以播放器状态为唯一真源
@@ -53,7 +53,7 @@ export default forwardRef<PlaylistSheetType, {
       useImperativeHandle(ref, () => ({
         show() {
           setToken(v => v + 1)
-          dialogRef.current?.setVisible(true)
+          popupRef.current?.setVisible(true)
         },
       }))
 
@@ -73,28 +73,30 @@ export default forwardRef<PlaylistSheetType, {
       )
 
       return (
-    <Dialog ref={dialogRef} onHide={onHide} title={`${t('play_list')}`} closeBtn height="68%">
-      <View style={styles.countRow}>
-        <Text size={11} color={theme['c-font-label']}>{t('play_list_count', { count: list.length })}</Text>
+    <Popup ref={popupRef} onHide={onHide} title={t('play_list')} closeBtn position="bottom">
+      <View style={styles.sheetBody}>
+        <View style={styles.countRow}>
+          <Text size={11} color={theme['c-font-label']}>{t('play_list_count', { count: list.length })}</Text>
+        </View>
+        {list.length
+          ? (
+              <FlatList
+                data={list}
+                renderItem={renderItem}
+                keyExtractor={(item, index) => `${item.id}_${index}`}
+                initialNumToRender={14}
+                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+                style={styles.list}
+              />
+            )
+          : (
+              <View style={styles.empty}>
+                <Icon name="album" size={34} color={theme['c-font-label']} />
+                <Text size={12} color={theme['c-font-label']} style={styles.emptyText}>{t('play_list_empty')}</Text>
+              </View>
+            )}
       </View>
-      {list.length
-        ? (
-            <FlatList
-              data={list}
-              renderItem={renderItem}
-              keyExtractor={(item, index) => `${item.id}_${index}`}
-              initialNumToRender={14}
-              getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
-              style={styles.list}
-            />
-          )
-        : (
-            <View style={styles.empty}>
-              <Icon name="album" size={34} color={theme['c-font-label']} />
-              <Text size={12} color={theme['c-font-label']} style={styles.emptyText}>{t('play_list_empty')}</Text>
-            </View>
-          )}
-    </Dialog>
+    </Popup>
       )
     })
 
@@ -160,11 +162,7 @@ const PlaylistRow = ({ item, index, active, onPress }: {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={handleFavorite}
         >
-          <Icon
-            name="love"
-            size={17}
-            color={favorited ? FAVORITE_COLOR : theme['c-font-label']}
-          />
+          <Icon name="love" size={17} color={favorited ? FAVORITE_COLOR : theme['c-font-label']} />
         </TouchableOpacity>
       </TouchableOpacity>
     </Animated.View>
@@ -172,6 +170,10 @@ const PlaylistRow = ({ item, index, active, onPress }: {
 }
 
 const styles = createStyle({
+  sheetBody: {
+    width: '100%',
+    paddingBottom: scaleSizeW(12),
+  },
   countRow: {
     paddingHorizontal: scaleSizeW(16),
     paddingBottom: scaleSizeW(6),
@@ -208,10 +210,10 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   empty: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: scaleSizeW(40),
+    paddingTop: scaleSizeW(20),
   },
   emptyText: {
     marginTop: scaleSizeW(10),

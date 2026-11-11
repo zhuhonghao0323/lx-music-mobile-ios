@@ -6,19 +6,21 @@ import { useNavActiveId } from '@/store/common/hook'
 /**
  * 首页容器。
  *
- * 底部顺序：内容区 → 迷你播放条 → 悬浮胶囊导航。
+ * 底部结构（对标波点）：
+ *   内容区
+ *   → BottomTabs（左「主页」图标 + 中间迷你条胶囊 + 右「我的」图标）
  *
- * 迷你条在「正在播放」Tab 隐藏：
- * 该 Tab 本身就是全屏播放页，再叠一条迷你条会重复展示播放信息
- * （对接波点的做法：进入播放页后底部只留胶囊导航）。
+ * - 迷你条胶囊 = 原 PlayerBar，放在 BottomTabs 的中间插槽里
+ * - 播放页（nav_player）时中间插槽为空，只留左右导航图标
  */
 export default () => {
   const activeId = useNavActiveId()
   return (
     <>
       <Content />
-      {activeId == 'nav_player' ? null : <PlayerBar isHome />}
-      <BottomTabs />
+      <BottomTabs>
+        {activeId == 'nav_player' ? null : <PlayerBar isHome />}
+      </BottomTabs>
     </>
   )
 }
