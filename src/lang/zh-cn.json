@@ -630,5 +630,12 @@
   "user_api_bind_url_invalid": "请输入有效的 http(s) 地址",
   "user_api_bind_url_success": "已绑定更新地址",
   "setting_basic_user_api_auto_update_enabled": "自动更新URL音源",
-  "setting_basic_user_api_auto_update_enabled_desc": "开启后，App 冷启动时会自动检查所有已绑定地址的音源是否有新版本"
+  "setting_basic_user_api_auto_update_enabled_desc": "开启后，App 冷启动时会自动检查所有已绑定地址的音源是否有新版本",
+  "nav_mine_subtitle": "本地账号",
+  "nav_player": "正在播放",
+  "user_api_local": "本地用户",
+  "nav_my_lists": "我的歌单",
+  "nav_home": "主页",
+  "play_list": "当前播放列表",
+  "nav_mine": "我的"
 }

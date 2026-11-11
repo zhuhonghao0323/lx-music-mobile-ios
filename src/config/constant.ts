@@ -100,16 +100,35 @@ export const storageDataPrefixOld = {
 export const APP_PROVIDER_NAME = 'cn.toside.music.mobile.provider'
 
 
+/**
+ * 主页面导航项。
+ *
+ * 布局重构（对标波点音乐三 Tab）：
+ * - 旧结构是「左滑抽屉 + 5 个平级页」，由 nav 目录驱动 PagerView 左右滑动
+ * - 新结构是「底部三 Tab」，nav_home / nav_player / nav_mine 三个顶级页
+ * - 原有的 nav_search / nav_songlist / nav_top / nav_love / nav_setting
+ *   仍然保留，但降级为二级页（由主页内容区、我的页齿轮进入），
+ *   这样所有旧入口能力都还在，且不需要重写这些页面的内部逻辑。
+ */
 export const NAV_MENUS = [
+  { id: 'nav_home', icon: 'home' },
+  { id: 'nav_player', icon: 'play' },
+  { id: 'nav_mine', icon: 'love' },
+] as const
+
+/** 二级页导航 id（不再出现在底部 Tab 上，但仍作为可切换的页面存在） */
+export const SUB_NAV_MENUS = [
   { id: 'nav_search', icon: 'search-2' },
   { id: 'nav_songlist', icon: 'album' },
   { id: 'nav_top', icon: 'leaderboard' },
   { id: 'nav_love', icon: 'love' },
-  // { id: 'download', icon: 'download-2' },
   { id: 'nav_setting', icon: 'setting' },
 ] as const
 
-export type NAV_ID_Type = typeof NAV_MENUS[number]['id']
+/** 所有可用的导航 id（顶级 Tab + 二级页） */
+export const ALL_NAV_MENUS = [...NAV_MENUS, ...SUB_NAV_MENUS] as const
+
+export type NAV_ID_Type = typeof ALL_NAV_MENUS[number]['id']
 
 export const LXM_FILE_EXT_RXP = ['json', 'lxmc', 'bin']
 export const USER_API_SOURCE_FILE_EXT_RXP = ['js']
@@ -150,7 +169,7 @@ export const DEFAULT_SETTING = {
   },
 
   viewPrevState: {
-    id: 'nav_search' as NAV_ID_Type,
+    id: 'nav_home' as NAV_ID_Type,
     // query: {},
   },
 }

@@ -1,60 +1,14 @@
-import { useEffect, useRef } from 'react'
-// import { getWindowSise, onDimensionChange } from '@/utils/tools'
-import DrawerNav from './DrawerNav'
-import Header from './Header'
 import Main from './Main'
-import { useSettingValue } from '@/store/setting/hook'
-import { COMPONENT_IDS } from '@/config/constant'
-import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
-import { scaleSizeW } from '@/utils/pixelRatio'
 
-const MAX_WIDTH = scaleSizeW(300)
-
+/**
+ * 内容区。
+ *
+ * 重构前这里是「左滑抽屉 + Header + Main」，
+ * 现在抽屉取消、Header 也由各 Tab 页面自带（主页有自己的顶部栏），
+ * 因此只保留 Main（承载三 Tab 与二级页）。
+ */
 const Content = () => {
-  const drawer = useRef<DrawerLayoutFixedType>(null)
-  const drawerLayoutPosition = useSettingValue('common.drawerLayoutPosition')
-
-  useEffect(() => {
-    const changeVisible = (visible: boolean) => {
-      if (visible) {
-        drawer.current?.openDrawer()
-      } else {
-        drawer.current?.closeDrawer()
-      }
-    }
-
-    global.app_event.on('changeMenuVisible', changeVisible)
-
-    return () => {
-      global.app_event.off('changeMenuVisible', changeVisible)
-    }
-  }, [])
-
-  const navigationView = () => <DrawerNav />
-  // console.log('render drawer content')
-
-  return (
-    <DrawerLayoutFixed
-      ref={drawer}
-      widthPercentage={0.7}
-      widthPercentageMax={MAX_WIDTH}
-      visibleNavNames={[COMPONENT_IDS.home]}
-      // drawerWidth={width}
-      drawerPosition={drawerLayoutPosition}
-      renderNavigationView={navigationView}
-    >
-      <Header />
-      <Main />
-      {/* <View style={styles.container}>
-      </View> */}
-    </DrawerLayoutFixed>
-  )
+  return <Main />
 }
-
-// const styles = createStyle({
-//   container: {
-//     flex: 1,
-//   },
-// })
 
 export default Content

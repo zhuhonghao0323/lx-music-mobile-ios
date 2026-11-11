@@ -630,5 +630,12 @@
   "user_api_bind_url_invalid": "Please enter a valid http(s) URL",
   "user_api_bind_url_success": "Update URL bound",
   "setting_basic_user_api_auto_update_enabled": "Auto update URL scripts",
-  "setting_basic_user_api_auto_update_enabled_desc": "When enabled, the app checks all bound URL scripts for new versions on cold start"
+  "setting_basic_user_api_auto_update_enabled_desc": "When enabled, the app checks all bound URL scripts for new versions on cold start",
+  "nav_mine_subtitle": "Local account",
+  "nav_player": "Playing",
+  "user_api_local": "Local User",
+  "nav_my_lists": "My Lists",
+  "nav_home": "Home",
+  "play_list": "Play List",
+  "nav_mine": "Mine"
 }

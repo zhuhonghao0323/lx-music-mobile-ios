@@ -5,6 +5,9 @@ import SongList from '../Views/SongList'
 import Mylist from '../Views/Mylist'
 import Leaderboard from '../Views/Leaderboard'
 import Setting from '../Views/Setting'
+import HomeView from '../Views/Home'
+import PlayerView from '../Views/Player'
+import MineView from '../Views/Mine'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import PagerView, { type PageScrollStateChangedNativeEvent, type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
@@ -17,175 +20,68 @@ const hideKeys = [
   'theme.fontShadow',
 ] as Readonly<Array<keyof LX.AppSetting>>
 
-const SearchPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_search')
-  const component = useMemo(() => <Search />, [])
-  useEffect(() => {
-    let currentId: CommonState['navActiveId'] = commonState.navActiveId
-    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
-      currentId = id
-      if (id == 'nav_search') {
-        requestAnimationFrame(() => {
-          setVisible(true)
-        })
+/**
+ * 页面骨架：首次进入时才挂载，之后保持挂载（避免切 Tab 丢滚动位置）。
+ * 二级页额外支持「从设置页返回时重新可见」的刷新逻辑。
+ */
+const makePage = (PageComponent: React.ComponentType, navId: CommonState['navActiveId'], reloadOnSettingBack = false) => {
+  return () => {
+    const [visible, setVisible] = useState(commonState.navActiveId == navId)
+    const component = useMemo(() => <PageComponent />, [])
+    useEffect(() => {
+      let currentId: CommonState['navActiveId'] = commonState.navActiveId
+      const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
+        currentId = id
+        if (id == navId) {
+          requestAnimationFrame(() => {
+            setVisible(true)
+          })
+        }
       }
-    }
-    const handleHide = () => {
-      if (currentId != 'nav_setting') return
-      setVisible(false)
-    }
-    const handleConfigUpdated = (keys: Array<keyof LX.AppSetting>) => {
-      if (keys.some(k => hideKeys.includes(k))) handleHide()
-    }
-    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
-    global.state_event.on('themeUpdated', handleHide)
-    global.state_event.on('languageChanged', handleHide)
-    global.state_event.on('configUpdated', handleConfigUpdated)
-
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
-      global.state_event.off('themeUpdated', handleHide)
-      global.state_event.off('languageChanged', handleHide)
-      global.state_event.off('configUpdated', handleConfigUpdated)
-    }
-  }, [])
-
-  return visible ? component : null
-}
-const SongListPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_songlist')
-  const component = useMemo(() => <SongList />, [])
-  useEffect(() => {
-    let currentId: CommonState['navActiveId'] = commonState.navActiveId
-    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
-      currentId = id
-      if (id == 'nav_songlist') {
-        requestAnimationFrame(() => {
-          setVisible(true)
-        })
+      const handleHide = () => {
+        if (reloadOnSettingBack) {
+          if (currentId != 'nav_setting') return
+        }
+        setVisible(false)
       }
-    }
-    const handleHide = () => {
-      if (currentId != 'nav_setting') return
-      setVisible(false)
-    }
-    const handleConfigUpdated = (keys: Array<keyof LX.AppSetting>) => {
-      if (keys.some(k => hideKeys.includes(k))) handleHide()
-    }
-    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
-    global.state_event.on('themeUpdated', handleHide)
-    global.state_event.on('languageChanged', handleHide)
-    global.state_event.on('configUpdated', handleConfigUpdated)
-
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
-      global.state_event.off('themeUpdated', handleHide)
-      global.state_event.off('languageChanged', handleHide)
-      global.state_event.off('configUpdated', handleConfigUpdated)
-    }
-  }, [])
-
-  return visible ? component : null
-  // return activeId == 1 || activeId == 0  ? SongList : null
-}
-const LeaderboardPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_top')
-  const component = useMemo(() => <Leaderboard />, [])
-  useEffect(() => {
-    let currentId: CommonState['navActiveId'] = commonState.navActiveId
-    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
-      currentId = id
-      if (id == 'nav_top') {
-        requestAnimationFrame(() => {
-          setVisible(true)
-        })
+      const handleConfigUpdated = (keys: Array<keyof LX.AppSetting>) => {
+        if (keys.some(k => hideKeys.includes(k))) handleHide()
       }
-    }
-    const handleHide = () => {
-      if (currentId != 'nav_setting') return
-      setVisible(false)
-    }
-    const handleConfigUpdated = (keys: Array<keyof LX.AppSetting>) => {
-      if (keys.some(k => hideKeys.includes(k))) handleHide()
-    }
-    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
-    global.state_event.on('themeUpdated', handleHide)
-    global.state_event.on('languageChanged', handleHide)
-    global.state_event.on('configUpdated', handleConfigUpdated)
+      global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
+      global.state_event.on('themeUpdated', handleHide)
+      global.state_event.on('languageChanged', handleHide)
+      global.state_event.on('configUpdated', handleConfigUpdated)
 
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
-      global.state_event.off('themeUpdated', handleHide)
-      global.state_event.off('languageChanged', handleHide)
-      global.state_event.off('configUpdated', handleConfigUpdated)
-    }
-  }, [])
-
-  return visible ? component : null
-}
-const MylistPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_love')
-  const component = useMemo(() => <Mylist />, [])
-  useEffect(() => {
-    let currentId: CommonState['navActiveId'] = commonState.navActiveId
-    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
-      currentId = id
-      if (id == 'nav_love') {
-        requestAnimationFrame(() => {
-          setVisible(true)
-        })
+      return () => {
+        global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
+        global.state_event.off('themeUpdated', handleHide)
+        global.state_event.off('languageChanged', handleHide)
+        global.state_event.off('configUpdated', handleConfigUpdated)
       }
-    }
-    const handleHide = () => {
-      if (currentId != 'nav_setting') return
-      setVisible(false)
-    }
-    const handleConfigUpdated = (keys: Array<keyof LX.AppSetting>) => {
-      if (keys.some(k => hideKeys.includes(k))) handleHide()
-    }
-    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
-    global.state_event.on('themeUpdated', handleHide)
-    global.state_event.on('languageChanged', handleHide)
-    global.state_event.on('configUpdated', handleConfigUpdated)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
-      global.state_event.off('themeUpdated', handleHide)
-      global.state_event.off('languageChanged', handleHide)
-      global.state_event.off('configUpdated', handleConfigUpdated)
-    }
-  }, [])
-
-  return visible ? component : null
-}
-const SettingPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_setting')
-  const component = useMemo(() => <Setting />, [])
-  useEffect(() => {
-    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
-      if (id == 'nav_setting') {
-        requestAnimationFrame(() => {
-          setVisible(true)
-        })
-      }
-    }
-    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
-
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
-    }
-  }, [])
-  return visible ? component : null
+    return visible ? component : null
+  }
 }
 
-const viewMap = {
-  nav_search: 0,
-  nav_songlist: 1,
-  nav_top: 2,
-  nav_love: 3,
-  nav_setting: 4,
-}
+const HomePage = makePage(HomeView, 'nav_home')
+const PlayerPage = makePage(PlayerView, 'nav_player')
+const MinePage = makePage(MineView, 'nav_mine')
+const SearchPage = makePage(Search, 'nav_search', true)
+const SongListPage = makePage(SongList, 'nav_songlist', true)
+const LeaderboardPage = makePage(Leaderboard, 'nav_top', true)
+const MylistPage = makePage(Mylist, 'nav_love', true)
+const SettingPage = makePage(Setting, 'nav_setting')
+
+/**
+ * 页面顺序：前三个是底部 Tab（固定），后面是二级页。
+ * 二级页通过 setNavActiveId 切换过来，不走底部导航。
+ */
 const indexMap = [
+  'nav_home',
+  'nav_player',
+  'nav_mine',
   'nav_search',
   'nav_songlist',
   'nav_top',
@@ -193,60 +89,41 @@ const indexMap = [
   'nav_setting',
 ] as const
 
+const viewMap: Record<CommonState['navActiveId'], number> = {
+  nav_home: 0,
+  nav_player: 1,
+  nav_mine: 2,
+  nav_search: 3,
+  nav_songlist: 4,
+  nav_top: 5,
+  nav_love: 6,
+  nav_setting: 7,
+}
+
+/** 底部 Tab 对应的索引范围，用于决定是否允许左右滑动切页 */
+const TAB_PAGE_COUNT = 3
+
 const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
-  let activeIndexRef = useRef(viewMap[commonState.navActiveId])
+  const activeIndexRef = useRef(viewMap[commonState.navActiveId])
   const [scrollEnabled, setScrollEnabled] = useState(settingState.setting['common.homePageScroll'])
-  // const isScrollingRef = useRef(false)
-  // const scrollPositionRef = useRef(-1)
-
-  // const handlePageScroll = useCallback(({ nativeEvent }) => {
-  //   console.log(nativeEvent.offset, activeIndexRef.current)
-  //   // if (activeIndexRef.current == -1) return
-  //   // if (nativeEvent.offset == 0) {
-  //   //   isScrollingRef.current = false
-
-  //   //   const index = nativeEvent.position
-  //   //   if (activeIndexRef.current == index) return
-  //   //   activeIndexRef.current = index
-  //   //   setNavActiveIndex(index)
-  //   // } else if (!isScrollingRef.current) {
-  //   //   isScrollingRef.current = true
-  //   // }
-  // }, [setNavActiveIndex])
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
-    // console.log(nativeEvent)
     activeIndexRef.current = nativeEvent.position
     if (activeIndexRef.current != viewMap[commonState.navActiveId]) {
-      setNavActiveId(indexMap[activeIndexRef.current])
+      setNavActiveId(indexMap[activeIndexRef.current] ?? 'nav_home')
     }
   }, [])
 
   const onPageScrollStateChanged = useCallback(({ nativeEvent }: PageScrollStateChangedNativeEvent) => {
-    // console.log(nativeEvent)
     const idle = nativeEvent.pageScrollState == 'idle'
     if (global.lx.homePagerIdle != idle) global.lx.homePagerIdle = idle
-    // if (nativeEvent.pageScrollState != 'idle') return
-    // if (scrollPositionRef.current != commonState.navActiveIndex) {
-    //   setNavActiveIndex(scrollPositionRef.current)
-    // }
-    // if (activeIndexRef.current == -1) return
-    // if (nativeEvent.offset == 0) {
-    //   isScrollingRef.current = false
-
-    //   const index = nativeEvent.position
-    //   if (activeIndexRef.current == index) return
-    //   activeIndexRef.current = index
-    //   setNavActiveIndex(index)
-    // } else if (!isScrollingRef.current) {
-    //   isScrollingRef.current = true
-    // }
   }, [])
 
   useEffect(() => {
     const handleUpdate = (id: CommonState['navActiveId']) => {
       const index = viewMap[id]
+      if (index == null) return
       if (activeIndexRef.current == index) return
       activeIndexRef.current = index
       pagerViewRef.current?.setPageWithoutAnimation(index)
@@ -258,7 +135,6 @@ const Main = () => {
     const handleHomePageScrollEnabled = (enabled: boolean) => {
       setScrollEnabled(enabled ? settingState.setting['common.homePageScroll'] : false)
     }
-    // window.requestAnimationFrame(() => pagerViewRef.current && pagerViewRef.current.setPage(activeIndexRef.current))
     global.state_event.on('navActiveIdUpdated', handleUpdate)
     global.state_event.on('configUpdated', handleConfigUpdate)
     global.app_event.on('changeHomePageScrollEnabled', handleHomePageScrollEnabled)
@@ -269,17 +145,29 @@ const Main = () => {
     }
   }, [])
 
+  // 只有停留在底部 Tab 之间时才允许左右滑动；进入二级页后禁用，
+  // 避免用户从搜索结果页误滑回 Tab 造成困惑。
+  const isOnTab = activeIndexRef.current < TAB_PAGE_COUNT
+  const allowScroll = scrollEnabled && isOnTab
 
   const component = useMemo(() => (
     <PagerView ref={pagerViewRef}
       initialPage={activeIndexRef.current}
-      // onPageScroll={handlePageScroll}
       offscreenPageLimit={1}
       onPageSelected={onPageSelected}
       onPageScrollStateChanged={onPageScrollStateChanged}
-      scrollEnabled={scrollEnabled}
+      scrollEnabled={allowScroll}
       style={styles.pagerView}
     >
+      <View collapsable={false} key="nav_home" style={styles.pageStyle}>
+        <HomePage />
+      </View>
+      <View collapsable={false} key="nav_player" style={styles.pageStyle}>
+        <PlayerPage />
+      </View>
+      <View collapsable={false} key="nav_mine" style={styles.pageStyle}>
+        <MinePage />
+      </View>
       <View collapsable={false} key="nav_search" style={styles.pageStyle}>
         <SearchPage />
       </View>
@@ -295,23 +183,8 @@ const Main = () => {
       <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
         <SettingPage />
       </View>
-      {/* <View collapsable={false} key="nav_search" style={styles.pageStyle}>
-        <Search />
-      </View>
-      <View collapsable={false} key="nav_songlist" style={styles.pageStyle}>
-        <SongList />
-      </View>
-      <View collapsable={false} key="nav_top" style={styles.pageStyle}>
-        <Leaderboard />
-      </View>
-      <View collapsable={false} key="nav_love" style={styles.pageStyle}>
-        <Mylist />
-      </View>
-      <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
-        <Setting />
-      </View> */}
     </PagerView>
-  ), [onPageScrollStateChanged, onPageSelected, scrollEnabled])
+  ), [onPageScrollStateChanged, onPageSelected, allowScroll])
 
   return component
 }
@@ -330,4 +203,3 @@ const styles = createStyle({
 
 
 export default Main
-
