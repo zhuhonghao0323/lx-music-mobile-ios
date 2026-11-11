@@ -1,33 +1,48 @@
-import { memo, useMemo } from 'react'
-import { View, StyleSheet } from 'react-native'
+import { memo, useCallback, useMemo } from 'react'
+import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { useKeyboard } from '@/utils/hooks'
 
 import Pic from './components/Pic'
-import Title from './components/Title'
-import PlayInfo from './components/PlayInfo'
-import ControlBtn from './components/ControlBtn'
 import { createStyle } from '@/utils/tools'
-// import { useSettingValue } from '@/store/setting/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { useIsGlass } from '@/theme/glass'
+import { usePlayerMusicInfo } from '@/store/player/hook'
+import Text from '@/components/common/Text'
+import { useTheme } from '@/store/theme/hook'
+import { scaleSizeW } from '@/utils/pixelRatio'
+import { haptic } from '@/utils/haptics'
+import { setNavActiveId } from '@/core/common'
 
-
+/**
+ * 底部迷你条胶囊（对标波点）。
+ *
+ * 只显示：封面 + 歌名 + 歌手。不显示进度时间、不放播放/下一首按钮。
+ * 整条可点击进入「正在播放」Tab（点封面、点歌名、点任意区域行为一致）。
+ * 高度比之前更高，更接近波点的大胶囊。
+ */
 export default memo(({ isHome = false }: { isHome?: boolean }) => {
-  // const { onLayout, ...layout } = useLayout()
   const { keyboardShown } = useKeyboard()
   const isGlass = useIsGlass()
+  const theme = useTheme()
+  const musicInfo = usePlayerMusicInfo()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
 
+  const handlePressBar = useCallback(() => {
+    haptic.tap()
+    setNavActiveId('nav_player')
+  }, [])
+
   const playerComponent = useMemo(() => (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={handlePressBar}
       style={StyleSheet.compose(
         styles.container,
-        // 悬浮胶囊：无横框背景，靠半透明底 + 圆角 + 3D 立体阴影形成「浮起」质感
         {
-          backgroundColor: isGlass ? 'rgba(28,24,24,0.70)' : 'rgba(24,22,22,0.92)',
-          borderRadius: 24,
+          backgroundColor: isGlass ? 'rgba(28,24,24,0.72)' : 'rgba(24,22,22,0.94)',
+          borderRadius: 26,
           borderWidth: StyleSheet.hairlineWidth,
-          borderTopColor: 'rgba(255,255,255,0.30)',
+          borderTopColor: 'rgba(255,255,255,0.32)',
           borderLeftColor: 'rgba(255,255,255,0.18)',
           borderRightColor: 'rgba(255,255,255,0.12)',
           borderBottomColor: 'rgba(0,0,0,0.30)',
@@ -42,29 +57,27 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
     >
       {/* 顶部高光条：模拟玻璃受光，增强立体感 */}
       <View pointerEvents="none" style={styles.glassSheen} />
+      {/* 封面（点击同样进播放页） */}
       <Pic isHome={isHome} />
+      {/* 歌名 + 歌手 */}
       <View style={styles.center}>
-        <Title isHome={isHome} />
-        <PlayInfo isHome={isHome} />
+        <Text size={15} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+        <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
       </View>
-      <View style={styles.right}>
-        <ControlBtn />
-      </View>
-    </View>
-  ), [isHome, isGlass])
+    </TouchableOpacity>
+  ), [isHome, isGlass, theme, musicInfo.name, musicInfo.singer, handlePressBar])
 
   return autoHidePlayBar && keyboardShown ? null : playerComponent
 })
 
-
 const styles = createStyle({
   container: {
     width: '100%',
-    paddingVertical: 5,
-    paddingLeft: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    elevation: 10,
+    // 增高：更接近波点大胶囊
+    height: scaleSizeW(64),
+    paddingHorizontal: scaleSizeW(6),
   },
   // 顶部高光条：玻璃受光，3D 立体感
   glassSheen: {
@@ -72,37 +85,22 @@ const styles = createStyle({
     top: 0,
     left: 0,
     right: 0,
-    height: '50%',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  left: {
-    // borderRadius: 3,
-    flexGrow: 0,
-    flexShrink: 0,
+    height: '52%',
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
   },
   center: {
     flexDirection: 'column',
     flexGrow: 1,
     flexShrink: 1,
-    paddingLeft: 5,
-    height: '100%',
-    // justifyContent: 'space-evenly',
-    // height: 48,
-    // backgroundColor: 'rgba(0, 0, 0, .1)',
+    paddingLeft: scaleSizeW(10),
+    justifyContent: 'center',
   },
-  right: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexGrow: 0,
-    flexShrink: 0,
-    paddingLeft: 5,
-    paddingRight: 5,
+  songName: {
+    fontWeight: '600',
   },
-  // row: {
-  //   flexDirection: 'row',
-  //   flexGrow: 0,
-  //   flexShrink: 0,
-  // },
+  singer: {
+    marginTop: scaleSizeW(2),
+  },
 })

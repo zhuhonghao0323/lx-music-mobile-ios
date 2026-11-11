@@ -35,10 +35,10 @@ const SideButton = memo(({ icon, active, label, onPress }: {
     >
       <Animated.View style={[styles.sideCircle, { transform: [{ scale }] }]}>
         <View pointerEvents="none" style={styles.sideSheen} />
-        <Icon name={icon} size={20} color={active ? theme['c-primary-font'] : theme['c-font-label']} />
+        <Icon name={icon} size={24} color={active ? theme['c-primary-font'] : theme['c-font-label']} />
         <Text
           style={styles.sideLabel}
-          size={9}
+          size={10}
           color={active ? theme['c-primary-font'] : theme['c-font-label']}
           numberOfLines={1}
         >{label}</Text>
@@ -97,9 +97,9 @@ const styles = createStyle({
     marginHorizontal: scaleSizeW(8),
   },
   sideCircle: {
-    width: scaleSizeW(52),
-    height: scaleSizeW(52),
-    borderRadius: scaleSizeW(26),
+    width: scaleSizeW(58),
+    height: scaleSizeW(58),
+    borderRadius: scaleSizeW(29),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.10)',

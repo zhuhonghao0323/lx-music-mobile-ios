@@ -1,7 +1,7 @@
 import { StyleSheet, TouchableOpacity } from 'react-native'
 
 import { usePlayerMusicInfo } from '@/store/player/hook'
-import { scaleSizeH } from '@/utils/pixelRatio'
+import { scaleSizeW } from '@/utils/pixelRatio'
 
 import playerState from '@/store/player/state'
 import { LIST_IDS, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
@@ -10,13 +10,14 @@ import { useCallback } from 'react'
 import { setLoadErrorPicUrl, setMusicInfo } from '@/core/player/playInfo'
 import { setNavActiveId } from '@/core/common'
 
-const PIC_HEIGHT = scaleSizeH(46)
+// 封面尺寸加大，配合更高的胶囊（64 高），圆角更大更接近波点
+const PIC_HEIGHT = scaleSizeW(50)
 
 const styles = StyleSheet.create({
   image: {
     width: PIC_HEIGHT,
     height: PIC_HEIGHT,
-    borderRadius: 2,
+    borderRadius: scaleSizeW(14),
   },
 })
 

@@ -162,7 +162,9 @@ const PlaylistRow = ({ item, index, active, onPress }: {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={handleFavorite}
         >
-          <Icon name="love" size={17} color={favorited ? FAVORITE_COLOR : theme['c-font-label']} />
+          {favorited
+            ? <Text style={[styles.heartFilled, { color: FAVORITE_COLOR }]}>♥</Text>
+            : <Icon name="love" size={18} color={FAVORITE_COLOR} />}
         </TouchableOpacity>
       </TouchableOpacity>
     </Animated.View>
@@ -208,6 +210,11 @@ const styles = createStyle({
     height: scaleSizeW(32),
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heartFilled: {
+    fontSize: scaleSizeW(18),
+    lineHeight: scaleSizeW(22),
+    fontWeight: 'bold',
   },
   empty: {
     alignItems: 'center',

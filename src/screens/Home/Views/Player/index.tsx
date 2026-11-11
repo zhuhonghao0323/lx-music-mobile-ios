@@ -16,6 +16,7 @@ import LyricPreview from '@/screens/PlayDetail/Vertical/Player/components/LyricP
 import PlayInfo from '@/screens/PlayDetail/Vertical/Player/components/PlayInfo'
 import ControlBtn from '@/screens/PlayDetail/Vertical/Player/components/ControlBtn'
 import MoreBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn'
+import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
@@ -29,11 +30,16 @@ import { useTogglePlayMode } from './useTogglePlayMode'
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
  *
- * 与旧独立播放页的区别：
- * - 没有上一首/下一首按钮，只保留居中的主播放键
- * - 右上 ⋯ 收纳音效 / 播放模式 / 设置
- * - 右下 ☰ 弹出当前播放列表 Sheet
- * - 顶部显示当前音源来源
+ * 布局（自上而下）：
+ *   顶栏（当前来源 + ⋯ 更多）
+ *   → 封面
+ *   → 三行歌词
+ *   → 歌名 / 歌手 / 音质标签
+ *   → 进度条
+ *   → 次操作行（收藏 / 播放模式 / 评论 / 列表）
+ *   → 底部居中的大播放键（替代原胶囊位置）
+ *
+ * 上下滑切歌：包了 FullScreenSwipe，只切歌不导航（不会跳旧播放页）。
  */
 export default memo(() => {
   const theme = useTheme()
@@ -51,7 +57,6 @@ export default memo(() => {
   const quality = useCurrentPlayQuality()
   const playQuality = useSettingValue('player.playQuality')
 
-  // 进入时的淡入 + 上浮，保证 Tab 切换有过渡
   const fadeIn = useRef(new Animated.Value(0)).current
   const translateY = useRef(new Animated.Value(scaleSizeW(10))).current
   useMemo(() => {
@@ -100,47 +105,50 @@ export default memo(() => {
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
-      <StatusBar />
+    <FullScreenSwipe>
+      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
+        <StatusBar />
 
-      {/* 顶栏：当前来源 + ⋯ 更多 */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
-        <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.sourceName}>{sourceName}</Text>
-        <TouchableOpacity
-          ref={menuBtnRef}
-          style={[styles.moreBtn, { backgroundColor: circleBg }]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          onPress={showMore}
-        >
-          <Icon name="dots-vertical" size={16} color={theme['c-font']} />
-        </TouchableOpacity>
-      </View>
+        {/* 顶栏：当前来源 + ⋯ 更多 */}
+        <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
+          <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.sourceName}>{sourceName}</Text>
+          <TouchableOpacity
+            ref={menuBtnRef}
+            style={[styles.moreBtn, { backgroundColor: circleBg }]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={showMore}
+          >
+            <Icon name="dots-vertical" size={16} color={theme['c-font']} />
+          </TouchableOpacity>
+        </View>
 
-      {/* 封面 */}
-      <View style={styles.coverArea}>
-        <Pic componentId={commonState.componentIds.home ?? ''} />
-      </View>
+        {/* 封面 */}
+        <View style={styles.coverArea}>
+          <Pic componentId={commonState.componentIds.home ?? ''} />
+        </View>
 
-      {/* 三行歌词 */}
-      <View style={styles.lyricArea}>
-        <LyricPreview />
-      </View>
+        {/* 三行歌词 */}
+        <View style={styles.lyricArea}>
+          <LyricPreview />
+        </View>
 
-      {/* 歌名 / 歌手 / 音质 */}
-      <View style={styles.titleRow}>
-        <Text size={18} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
-        <Text size={12} color={theme['c-font-label']} numberOfLines={1}>{musicInfo.singer}</Text>
-        <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: circleBg }]}>
-            <Text size={10} color={theme['c-font-label']}>{qualityText}</Text>
+        {/* 歌名 / 歌手 / 音质 */}
+        <View style={styles.titleRow}>
+          <Text size={18} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+          <Text size={12} color={theme['c-font-label']} numberOfLines={1}>{musicInfo.singer}</Text>
+          <View style={styles.tagRow}>
+            <View style={[styles.tag, { backgroundColor: circleBg }]}>
+              <Text size={10} color={theme['c-font-label']}>{qualityText}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* 进度 + 主播放键（无上一首/下一首） */}
-      <View style={styles.bottomGroup}>
-        <PlayInfo />
-        <ControlBtn hideSkip />
+        {/* 进度条 */}
+        <View style={styles.progressArea}>
+          <PlayInfo />
+        </View>
+
+        {/* 次操作行：收藏 / 播放模式 / 评论 / 列表 */}
         <View style={styles.secondaryRow}>
           <View style={styles.secondaryLeft}>
             <MoreBtn />
@@ -153,11 +161,16 @@ export default memo(() => {
             <Icon name="menu" size={17} color={theme['c-font-label']} />
           </TouchableOpacity>
         </View>
-      </View>
 
-      <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} />
-      <PlaylistSheet ref={playlistSheetRef} />
-    </Animated.View>
+        {/* 底部居中的大播放键（替代原胶囊位置） */}
+        <View style={styles.playArea}>
+          <ControlBtn hideSkip />
+        </View>
+
+        <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} />
+        <PlaylistSheet ref={playlistSheetRef} />
+      </Animated.View>
+    </FullScreenSwipe>
   )
 })
 
@@ -185,10 +198,10 @@ const styles = createStyle({
   coverArea: {
     flexGrow: 1,
     flexShrink: 1,
-    minHeight: scaleSizeW(170),
+    minHeight: scaleSizeW(150),
   },
   lyricArea: {
-    height: scaleSizeW(68),
+    height: scaleSizeW(64),
   },
   titleRow: {
     paddingHorizontal: scaleSizeW(20),
@@ -199,20 +212,21 @@ const styles = createStyle({
   },
   tagRow: {
     flexDirection: 'row',
-    marginTop: scaleSizeW(5),
+    marginTop: scaleSizeW(4),
   },
   tag: {
     paddingHorizontal: scaleSizeW(7),
     paddingVertical: scaleSizeW(2),
     borderRadius: scaleSizeW(8),
   },
-  bottomGroup: {
-    paddingBottom: scaleSizeW(4),
+  progressArea: {
+    paddingHorizontal: scaleSizeW(16),
   },
   secondaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: scaleSizeW(14),
+    paddingTop: scaleSizeW(6),
   },
   secondaryLeft: {
     flex: 1,
@@ -224,5 +238,11 @@ const styles = createStyle({
     borderRadius: scaleSizeW(19),
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  playArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: scaleSizeW(10),
+    paddingTop: scaleSizeW(4),
   },
 })

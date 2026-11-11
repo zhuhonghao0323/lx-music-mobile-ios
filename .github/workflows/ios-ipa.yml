@@ -117,10 +117,14 @@ jobs:
           path: build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-ios-unsigned.ipa
 
       - name: Release unsigned IPA
-        if: startsWith(github.ref, 'refs/tags/v')
+        # 每次 push 到 ios-adaptation 或打 tag 都发布/更新 Release，
+        # 这样 .ipa 以原始格式（非 zip）供直接下载。
+        if: github.ref == 'refs/heads/ios-adaptation' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.PACKAGE_VERSION }}
+          # push 到分支时用 latest 滚动标签；打 v* tag 时用对应版本号
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && format('v{0}', env.PACKAGE_VERSION) || 'latest' }}
+          name: Lx Music iOS 未签名 IPA
           prerelease: false
           draft: false
           files: build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-ios-unsigned.ipa

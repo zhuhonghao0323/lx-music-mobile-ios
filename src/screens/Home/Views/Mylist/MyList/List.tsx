@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react'
 import { View, TouchableOpacity, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
+import Image from '@/components/common/Image'
 
 import { useTheme } from '@/store/theme/hook'
 import { useActiveListId, useListFetching, useMyList } from '@/store/list/hook'
@@ -12,12 +13,14 @@ import { setActiveList } from '@/core/list'
 import { setNavActiveId } from '@/core/common'
 import Text from '@/components/common/Text'
 import { type Position } from './ListMenu'
-import { scaleSizeH } from '@/utils/pixelRatio'
+import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
 import Loading from '@/components/common/Loading'
+import { useListCover } from '../useListCover'
+import { useIsGlass } from '@/theme/glass'
 
 type FlatListType = FlatListProps<LX.List.MyListInfo>
 
-const ITEM_HEIGHT = scaleSizeH(40)
+const ITEM_HEIGHT = scaleSizeH(56)
 
 const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
   onPress: (item: LX.List.MyListInfo) => void
@@ -27,8 +30,11 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
   onShowMenu: (item: LX.List.MyListInfo, index: number, position: { x: number, y: number, w: number, h: number }) => void
 }) => {
   const theme = useTheme()
+  const isGlass = useIsGlass()
   const moreButtonRef = useRef<TouchableOpacity>(null)
   const fetching = useListFetching(item.id)
+  // 歌单封面（第一首歌封面，带缓存）
+  const cover = useListCover(item.id)
 
   const active = activeId == item.id
 
@@ -53,6 +59,13 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
           : null
       }
       { fetching ? <Loading color={active ? theme['c-primary-font'] : theme['c-font']} style={styles.loading} /> : null }
+      {/* 歌单封面缩略图（迷你封面，卡片化） */}
+      <Image
+        url={cover}
+        style={[styles.cover, {
+          backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-500-alpha-800'],
+        }]}
+      />
       <TouchableOpacity style={styles.listName} onPress={handlePress}>
         <Text numberOfLines={1} color={active ? theme['c-primary-font'] : theme['c-font']}>{item.name}</Text>
       </TouchableOpacity>
@@ -155,6 +168,12 @@ const styles = createStyle({
     paddingRight: 5,
     paddingLeft: 5,
     // borderBottomWidth: BorderWidths.normal,
+  },
+  cover: {
+    width: scaleSizeW(42),
+    height: scaleSizeW(42),
+    borderRadius: scaleSizeW(10),
+    marginRight: scaleSizeW(8),
   },
   listActiveIcon: {
     // width: 18,

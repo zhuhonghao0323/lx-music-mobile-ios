@@ -202,7 +202,7 @@ export default forwardRef<PopupType, PopupProps>(({
         ...(glass.isGlass ? { paddingHorizontal: 12 } : {}),
       }}>
         <GlassView material="regular" radius={glass.isGlass ? 24 : 2} style={panelStyle} onStartShouldSetResponder={() => true}>
-          <View style={StyleSheet.compose(styles.header, glass.isGlass ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' } : {})}>
+          <View style={styles.header}>
             <Text size={glass.isGlass ? 15 : 13} color={glass.textColor()} style={styles.title} numberOfLines={1}>{title}</Text>
             {closeBtnComponent}
           </View>
