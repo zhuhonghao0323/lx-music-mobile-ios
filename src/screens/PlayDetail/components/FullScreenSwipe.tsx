@@ -25,11 +25,15 @@ const FLY_DURATION = 220
  * - 松手触发后界面朝拖动方向飞出淡出，再复位淡入
  * 横向滑动仍交给 PagerView 翻页，普通点击仍落到底下按钮。
  */
-export default ({ children, onSwiped }: {
+export default ({ children, onSwiped, disabled = false }: {
   children: React.ReactNode
   onSwiped?: (action: 'prev' | 'next') => void
+  /** 有二级弹窗/抽屉打开时禁用切歌手势，避免弹窗内滑动误切歌 */
+  disabled?: boolean
 }) => {
   const busyRef = useRef(false)
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
   const armedRef = useRef(false)
   const translateY = useRef(new Animated.Value(0)).current
   const scale = useRef(new Animated.Value(1)).current
@@ -66,7 +70,8 @@ export default ({ children, onSwiped }: {
     // 不抢按下事件：普通点击继续交给下面的按钮
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      if (busyRef.current) return false
+      // 弹窗/抽屉打开时完全不接管手势
+      if (disabledRef.current || busyRef.current) return false
       const ax = Math.abs(gs.dx)
       const ay = Math.abs(gs.dy)
       return ay > 8 && ay >= ax * AXIS_RATIO
@@ -76,7 +81,7 @@ export default ({ children, onSwiped }: {
       armedRef.current = false
     },
     onPanResponderMove: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      if (busyRef.current) return
+      if (disabledRef.current || busyRef.current) return
       const dy = gs.dy
       const ay = Math.abs(dy)
       const ax = Math.abs(gs.dx)
@@ -100,7 +105,7 @@ export default ({ children, onSwiped }: {
       const ay = Math.abs(gs.dy)
       const ax = Math.abs(gs.dx)
       const threshold = getSwipeThreshold(screenHeight())
-      if (ay < threshold || ay < ax * AXIS_RATIO) {
+      if (disabledRef.current || ay < threshold || ay < ax * AXIS_RATIO) {
         reset()
         return
       }

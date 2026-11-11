@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { View, TouchableOpacity, Animated } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -14,32 +14,37 @@ import Menu, { type MenuType, type Menus, type Position } from '@/components/com
 import Pic from '@/screens/PlayDetail/Vertical/Pic'
 import LyricPreview from '@/screens/PlayDetail/Vertical/Player/components/LyricPreview'
 import PlayInfo from '@/screens/PlayDetail/Vertical/Player/components/PlayInfo'
-import ControlBtn from '@/screens/PlayDetail/Vertical/Player/components/ControlBtn'
-import MoreBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn'
+import MusicAddBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/MusicAddBtn'
+import PlayModeBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/PlayModeBtn'
+import CommentBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/CommentBtn'
 import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { getSourceDisplayName } from '@/core/customSource'
+import { setApiSource } from '@/core/apiSource'
 import { useUserApiList } from '@/store/userApi'
-import { formatQualityShort, useCurrentPlayQuality } from '@/store/player/quality'
+import { formatQualityShort, formatQuality, useCurrentPlayQuality } from '@/store/player/quality'
+import { TRY_QUALITYS_LIST } from '@/core/music/utils'
+import { updateSetting, setNavActiveId } from '@/core/common'
+import { setMusicUrl } from '@/core/player/player'
+import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
-import { setNavActiveId } from '@/core/common'
 import { useTogglePlayMode } from './useTogglePlayMode'
 
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
  *
  * 布局（自上而下）：
- *   顶栏（当前来源 + ⋯ 更多）
+ *   顶栏（⋯ 更多）
  *   → 封面
- *   → 三行歌词
- *   → 歌名 / 歌手 / 音质标签
+ *   → 三行歌词（预留足够高度，不被下方内容遮挡）
+ *   → 歌名 / 歌手 / 可点击的 320k 小标签（切音质）
  *   → 进度条
- *   → 次操作行（收藏 / 播放模式 / 评论 / 列表）
- *   → 底部居中的大播放键（替代原胶囊位置）
+ *   → 五个操作：收藏 / 播放模式 / 评论 / 音源简写（点击切源） / 列表
  *
- * 上下滑切歌：包了 FullScreenSwipe，只切歌不导航（不会跳旧播放页）。
+ * 播放/暂停按钮在底部 BottomNavBar 的中间（与左右图标组成三按钮）。
+ * 上下滑切歌包 FullScreenSwipe，弹窗打开时禁用。
  */
 export default memo(() => {
   const theme = useTheme()
@@ -48,7 +53,11 @@ export default memo(() => {
   const isGlass = useIsGlass()
   const musicInfo = usePlayerMusicInfo()
   const menuRef = useRef<MenuType>(null)
-  const menuBtnRef = useRef<TouchableOpacity>(null)
+  const sourceMenuRef = useRef<MenuType>(null)
+  const qualityMenuRef = useRef<MenuType>(null)
+  const moreBtnRef = useRef<TouchableOpacity>(null)
+  const qualityBtnRef = useRef<TouchableOpacity>(null)
+  const sourceBtnRef = useRef<TouchableOpacity>(null)
   const playlistSheetRef = useRef<PlaylistSheetType>(null)
   const togglePlayMode = useTogglePlayMode()
 
@@ -56,6 +65,9 @@ export default memo(() => {
   const userApiList = useUserApiList()
   const quality = useCurrentPlayQuality()
   const playQuality = useSettingValue('player.playQuality')
+
+  // 任一二级弹窗/抽屉打开时禁用切歌手势
+  const [overlayVisible, setOverlayVisible] = useState(false)
 
   const fadeIn = useRef(new Animated.Value(0)).current
   const translateY = useRef(new Animated.Value(scaleSizeW(10))).current
@@ -67,12 +79,16 @@ export default memo(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const sourceName = useMemo(() => {
-    if (!userApiList.length) return musicInfo.singer ?? ''
-    return getSourceDisplayName(apiSource)
-  }, [userApiList, apiSource, musicInfo.singer])
-
   const qualityText = formatQualityShort(quality ?? playQuality)
+
+  /** 音源简写：中文取头两字，英文取首个单词 */
+  const sourceShort = useMemo(() => {
+    if (!userApiList.length) return '--'
+    const name = getSourceDisplayName(apiSource)
+    const cn = name.match(/[\u4e00-\u9fa5]/g)
+    if (cn) return cn.slice(0, 2).join('')
+    return name.trim().split(/\s+/)[0] || '--'
+  }, [userApiList, apiSource])
 
   const moreMenus = useMemo<Menus>(() => [
     { action: 'eq', label: t('setting_play_sound_effect') },
@@ -82,7 +98,8 @@ export default memo(() => {
 
   const showMore = useCallback(() => {
     haptic.tap()
-    menuBtnRef.current?.measure((_x, _y, w, h, px, py) => {
+    setOverlayVisible(true)
+    moreBtnRef.current?.measure((_x, _y, w, h, px, py) => {
       const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
       menuRef.current?.show(position, { width: 170, height: 44 })
     })
@@ -97,23 +114,70 @@ export default memo(() => {
     }
   }, [togglePlayMode])
 
+  // ---- 音质菜单（320k 小标签）----
+  const qualityMenus = useMemo<Menus>(() => {
+    const qualities = [...TRY_QUALITYS_LIST, '128k'].reverse() as LX.Quality[]
+    return qualities.map(q => ({ action: q, label: formatQuality(q) }))
+  }, [])
+
+  const showQualityMenu = useCallback(() => {
+    haptic.tap()
+    setOverlayVisible(true)
+    qualityBtnRef.current?.measure((_x, _y, w, h, px, py) => {
+      const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
+      qualityMenuRef.current?.show(position, { width: Math.max(Math.ceil(w), 110), height: 40 })
+    })
+  }, [])
+
+  const handleQualitySelect = useCallback((menu: Menus[number]) => {
+    const q = menu.action as LX.Quality
+    if (q == playQuality) return
+    haptic.select()
+    updateSetting({ 'player.playQuality': q })
+    const info = playerState.playMusicInfo.musicInfo
+    if (info) setMusicUrl(info, true)
+  }, [playQuality])
+
+  // ---- 音源菜单（简写按钮，恢复手动切源）----
+  const sourceMenus = useMemo<Menus>(() => userApiList.map(item => ({
+    action: item.id,
+    label: item.name,
+  })), [userApiList])
+
+  const showSourceMenu = useCallback(() => {
+    if (!userApiList.length) return
+    haptic.tap()
+    setOverlayVisible(true)
+    sourceBtnRef.current?.measure((_x, _y, w, h, px, py) => {
+      const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
+      sourceMenuRef.current?.show(position, { width: Math.max(Math.ceil(w), 130), height: 40 })
+    })
+  }, [userApiList])
+
+  const handleSourceSelect = useCallback((menu: Menus[number]) => {
+    if (menu.action == apiSource) return
+    haptic.select()
+    setApiSource(menu.action)
+  }, [apiSource])
+
   const openPlaylist = useCallback(() => {
     haptic.tap()
+    setOverlayVisible(true)
     playlistSheetRef.current?.show()
   }, [])
 
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
-    <FullScreenSwipe>
+    <FullScreenSwipe disabled={overlayVisible}>
       <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
-        {/* 顶栏：当前来源 + ⋯ 更多 */}
+        {/* 顶栏：右上 ⋯ 更多（音源信息已移到下方按钮行） */}
         <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
-          <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.sourceName}>{sourceName}</Text>
+          <View style={styles.headerSpacer} />
           <TouchableOpacity
-            ref={menuBtnRef}
+            ref={moreBtnRef}
             style={[styles.moreBtn, { backgroundColor: circleBg }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={showMore}
@@ -127,20 +191,20 @@ export default memo(() => {
           <Pic componentId={commonState.componentIds.home ?? ''} />
         </View>
 
-        {/* 三行歌词 */}
+        {/* 三行歌词：预留足够高度不被遮挡 */}
         <View style={styles.lyricArea}>
           <LyricPreview />
         </View>
 
-        {/* 歌名 / 歌手 / 音质 */}
+        {/* 歌名 / 歌手 / 可点 320k 小标签 */}
         <View style={styles.titleRow}>
-          <Text size={18} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
-          <Text size={12} color={theme['c-font-label']} numberOfLines={1}>{musicInfo.singer}</Text>
-          <View style={styles.tagRow}>
+          <Text size={19} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+          <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
+          <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7} style={styles.qualityTagWrap}>
             <View style={[styles.tag, { backgroundColor: circleBg }]}>
               <Text size={10} color={theme['c-font-label']}>{qualityText}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* 进度条 */}
@@ -148,13 +212,22 @@ export default memo(() => {
           <PlayInfo />
         </View>
 
-        {/* 次操作行：收藏 / 播放模式 / 评论 / 列表 */}
-        <View style={styles.secondaryRow}>
-          <View style={styles.secondaryLeft}>
-            <MoreBtn />
-          </View>
+        {/* 五个操作：收藏 / 播放模式 / 评论 / 音源简写 / 列表 */}
+        <View style={styles.actionsRow}>
+          <View style={styles.actionCell}><MusicAddBtn /></View>
+          <View style={styles.actionCell}><PlayModeBtn /></View>
+          <View style={styles.actionCell}><CommentBtn /></View>
+          {/* 音源简写按钮：点击弹菜单手动切源 */}
           <TouchableOpacity
-            style={[styles.listBtn, { backgroundColor: circleBg }]}
+            ref={sourceBtnRef}
+            style={[styles.actionCell, styles.sourceBtn, { backgroundColor: circleBg }]}
+            activeOpacity={0.7}
+            onPress={showSourceMenu}
+          >
+            <Text size={11} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionCell, styles.listBtn, { backgroundColor: circleBg }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={openPlaylist}
           >
@@ -162,13 +235,18 @@ export default memo(() => {
           </TouchableOpacity>
         </View>
 
-        {/* 底部居中的大播放键（替代原胶囊位置） */}
-        <View style={styles.playArea}>
-          <ControlBtn hideSkip />
-        </View>
-
-        <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} />
-        <PlaylistSheet ref={playlistSheetRef} />
+        {/* 弹窗 onHide 时恢复切歌手势 */}
+        <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} onHide={() => { setOverlayVisible(false) }} />
+        <Menu
+          ref={sourceMenuRef}
+          menus={sourceMenus}
+          activeId={apiSource}
+          center
+          onPress={handleSourceSelect}
+          onHide={() => { setOverlayVisible(false) }}
+        />
+        <Menu ref={qualityMenuRef} menus={qualityMenus} activeId={playQuality} center fontSize={12} onPress={handleQualitySelect} onHide={() => { setOverlayVisible(false) }} />
+        <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
       </Animated.View>
     </FullScreenSwipe>
   )
@@ -184,9 +262,8 @@ const styles = createStyle({
     paddingHorizontal: scaleSizeW(16),
     paddingBottom: scaleSizeW(4),
   },
-  sourceName: {
+  headerSpacer: {
     flex: 1,
-    marginRight: scaleSizeW(8),
   },
   moreBtn: {
     width: scaleSizeW(34),
@@ -198,51 +275,59 @@ const styles = createStyle({
   coverArea: {
     flexGrow: 1,
     flexShrink: 1,
-    minHeight: scaleSizeW(150),
+    minHeight: scaleSizeW(140),
   },
   lyricArea: {
-    height: scaleSizeW(64),
+    // 三行歌词预留充足高度，避免被歌名/进度挤到遮挡
+    height: scaleSizeW(84),
+    justifyContent: 'center',
   },
   titleRow: {
     paddingHorizontal: scaleSizeW(20),
+    paddingTop: scaleSizeW(6),
     paddingBottom: scaleSizeW(2),
   },
   songName: {
     fontWeight: '700',
   },
-  tagRow: {
-    flexDirection: 'row',
-    marginTop: scaleSizeW(4),
+  singerText: {
+    marginTop: scaleSizeW(2),
+  },
+  qualityTagWrap: {
+    alignSelf: 'flex-start',
+    marginTop: scaleSizeW(6),
   },
   tag: {
-    paddingHorizontal: scaleSizeW(7),
-    paddingVertical: scaleSizeW(2),
+    paddingHorizontal: scaleSizeW(8),
+    paddingVertical: scaleSizeW(3),
     borderRadius: scaleSizeW(8),
   },
   progressArea: {
     paddingHorizontal: scaleSizeW(16),
+    paddingTop: scaleSizeW(10),
   },
-  secondaryRow: {
+  actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scaleSizeW(14),
-    paddingTop: scaleSizeW(6),
+    justifyContent: 'center',
+    paddingHorizontal: scaleSizeW(10),
+    paddingTop: scaleSizeW(14),
+    paddingBottom: scaleSizeW(6),
   },
-  secondaryLeft: {
+  actionCell: {
     flex: 1,
-    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  listBtn: {
-    width: scaleSizeW(38),
+  sourceBtn: {
     height: scaleSizeW(38),
     borderRadius: scaleSizeW(19),
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginHorizontal: scaleSizeW(2),
   },
-  playArea: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: scaleSizeW(10),
-    paddingTop: scaleSizeW(4),
+  listBtn: {
+    height: scaleSizeW(38),
+    width: scaleSizeW(38),
+    maxWidth: scaleSizeW(38),
+    borderRadius: scaleSizeW(19),
   },
 })

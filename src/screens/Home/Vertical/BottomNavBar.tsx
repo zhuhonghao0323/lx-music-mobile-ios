@@ -1,18 +1,25 @@
 import { memo, useCallback, useRef } from 'react'
-import { View, TouchableOpacity, Animated, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, Animated, Image, StyleSheet } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useNavActiveId } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
-import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
+import { popToRoot } from '@/navigation/utils'
+import commonState from '@/store/common/state'
 
-/** 单个悬浮导航图标（主页 / 我的），带按压回弹与 3D 液态质感 */
-const SideButton = memo(({ icon, active, label, onPress }: {
-  icon: string
+// 图片资源：项目未声明 png 模块类型，沿用 require + eslint-disable 的既有写法
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const homeIcon = require('@/resources/images/nav_home.png')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mineIcon = require('@/resources/images/nav_mine.png')
+
+/** 单个悬浮导航图标（首页 / 我的），带按压回弹与 3D 液态质感 */
+const SideButton = memo(({ source, active, label, onPress }: {
+  source: number
   active: boolean
   label: string
   onPress: () => void
@@ -35,7 +42,11 @@ const SideButton = memo(({ icon, active, label, onPress }: {
     >
       <Animated.View style={[styles.sideCircle, { transform: [{ scale }] }]}>
         <View pointerEvents="none" style={styles.sideSheen} />
-        <Icon name={icon} size={24} color={active ? theme['c-primary-font'] : theme['c-font-label']} />
+        <Image
+          source={source}
+          style={[styles.icon, { tintColor: active ? theme['c-primary-font'] : theme['c-font-label'] }]}
+          resizeMode="contain"
+        />
         <Text
           style={styles.sideLabel}
           size={10}
@@ -48,35 +59,49 @@ const SideButton = memo(({ icon, active, label, onPress }: {
 })
 
 /**
- * 底部导航：左「主页」图标 + 中间插槽（迷你条胶囊）+ 右「我的」图标。
+ * 统一底部导航栏（主页 / 中间插槽 / 我的）。
  *
- * - 左右两个图标无背景、无横框，悬浮 + 3D 液态质感
- * - 中间插槽由父组件传入 PlayerBar（原迷你条改造的胶囊）
- * - 播放页时中间插槽为 null，只留左右图标
+ * - 除播放页外，所有界面（Home 三个 Tab、歌单详情等独立页）都用这一套三图标结构
+ * - 中间插槽由调用方传入：Home 非播放 Tab 传迷你条胶囊，播放 Tab 传 null（播放按钮在页面内部）
+ * - 独立页（歌单详情等）点「首页/我的」时，先 pop 回根页面再切 Tab
  */
-export default memo(({ children }: { children?: React.ReactNode }) => {
+export default memo(({ children, isOverlay = false }: {
+  children?: React.ReactNode
+  /** 是否为独立页（需要 pop 回根页再切 Tab） */
+  isOverlay?: boolean
+}) => {
   const t = useI18n()
   const activeId = useNavActiveId()
 
   const handlePress = useCallback((id: 'nav_home' | 'nav_mine') => {
-    if (id == activeId) return
     haptic.select()
-    setNavActiveId(id)
-  }, [activeId])
+    if (isOverlay) {
+      // 独立页：先退回根页，再切到目标 Tab
+      const homeId = commonState.componentIds.home
+      if (homeId) void popToRoot(homeId)
+      // 稍作延迟确保 pop 完成后切 Tab
+      setTimeout(() => { setNavActiveId(id) }, 60)
+    } else {
+      setNavActiveId(id)
+    }
+  }, [isOverlay])
+
+  const isHomeActive = !isOverlay && activeId == 'nav_home'
+  const isMineActive = !isOverlay && activeId == 'nav_mine'
 
   return (
     <View style={styles.wrap}>
       <SideButton
-        icon="home"
-        active={activeId == 'nav_home'}
+        source={homeIcon}
+        active={isHomeActive}
         label={t('nav_home')}
         onPress={() => { handlePress('nav_home') }}
       />
-      {/* 中间插槽：迷你条胶囊 */}
+      {/* 中间插槽：迷你条胶囊 / 播放按钮 / 空 */}
       <View style={styles.centerSlot}>{children}</View>
       <SideButton
-        icon="love"
-        active={activeId == 'nav_mine'}
+        source={mineIcon}
+        active={isMineActive}
         label={t('nav_mine')}
         onPress={() => { handlePress('nav_mine') }}
       />
@@ -122,6 +147,10 @@ const styles = createStyle({
     right: 0,
     height: '52%',
     backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  icon: {
+    width: scaleSizeW(26),
+    height: scaleSizeW(26),
   },
   sideLabel: {
     marginTop: scaleSizeW(1),

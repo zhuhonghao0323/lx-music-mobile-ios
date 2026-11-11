@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getListMusics } from '@/core/list'
+import { getMusicPicUrl } from '@/utils/musicCover'
 
 /**
  * 歌单封面缓存：歌单 id → 第一首歌的封面 url。
@@ -27,7 +28,7 @@ export const useListCover = (listId: string): string | null => {
       return
     }
     void getListMusics(listId).then(list => {
-      const pic = (list[0] as { pic?: string } | undefined)?.pic ?? null
+      const pic = getMusicPicUrl(list[0])
       coverCache.set(listId, pic)
       if (!cancelled) setCover(pic)
     }).catch(() => {

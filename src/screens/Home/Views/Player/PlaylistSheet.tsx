@@ -15,6 +15,7 @@ import { playList } from '@/core/player/player'
 import { useIsGlass } from '@/theme/glass'
 import { FAVORITE_COLOR } from '@/screens/PlayDetail/components/FavoriteIcon'
 import { isMusicFavorited, toggleFavorite } from '@/core/favorite'
+import { getMusicPicUrl } from '@/utils/musicCover'
 
 export interface PlaylistSheetType {
   show: () => void
@@ -143,7 +144,7 @@ const PlaylistRow = ({ item, index, active, onPress }: {
     <Animated.View style={{ opacity: anim, transform: [{ translateY }] }}>
       <TouchableOpacity style={styles.item} activeOpacity={0.65} onPress={onPress}>
         <Image
-          url={(item as { pic?: string }).pic}
+          url={getMusicPicUrl(item)}
           style={StyleSheet.compose(styles.thumb, {
             backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-500-alpha-800'],
           })}

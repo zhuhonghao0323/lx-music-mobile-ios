@@ -1,26 +1,27 @@
 import Content from './Content'
-import BottomTabs from './BottomTabs'
+import BottomNavBar from './BottomNavBar'
 import PlayerBar from '@/components/player/PlayerBar'
+import PlayPauseButton from './PlayPauseButton'
 import { useNavActiveId } from '@/store/common/hook'
 
 /**
  * 首页容器。
  *
- * 底部结构（对标波点）：
+ * 底部结构（对标波点，统一三按钮）：
  *   内容区
- *   → BottomTabs（左「主页」图标 + 中间迷你条胶囊 + 右「我的」图标）
+ *   → BottomNavBar（左「首页」图标 + 中间插槽 + 右「我的」图标）
  *
- * - 迷你条胶囊 = 原 PlayerBar，放在 BottomTabs 的中间插槽里
- * - 播放页（nav_player）时中间插槽为空，只留左右导航图标
+ * - 非播放 Tab：中间插槽 = 迷你条胶囊（点进播放页）
+ * - 播放 Tab：中间插槽 = 播放/暂停按钮（与左右图标组成「三个按钮」一行）
  */
 export default () => {
   const activeId = useNavActiveId()
   return (
     <>
       <Content />
-      <BottomTabs>
-        {activeId == 'nav_player' ? null : <PlayerBar isHome />}
-      </BottomTabs>
+      <BottomNavBar>
+        {activeId == 'nav_player' ? <PlayPauseButton /> : <PlayerBar isHome />}
+      </BottomNavBar>
     </>
   )
 }

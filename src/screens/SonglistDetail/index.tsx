@@ -7,6 +7,7 @@ import { setComponentId } from '@/core/common'
 import { COMPONENT_IDS } from '@/config/constant'
 import { type ListInfoItem } from '@/store/songlist/state'
 import PlayerBar from '@/components/player/PlayerBar'
+import BottomNavBar from '@/screens/Home/Vertical/BottomNavBar'
 import { ListInfoContext } from './state'
 
 
@@ -35,7 +36,10 @@ export default ({ componentId, info }: { componentId: string, info: ListInfoItem
       <ListInfoContext.Provider value={info}>
         <MusicList ref={musicListRef} componentId={componentId} />
       </ListInfoContext.Provider>
-      <PlayerBar />
+      {/* 独立页也用统一的三图标底部栏（除播放页外所有界面一致） */}
+      <BottomNavBar isOverlay>
+        <PlayerBar />
+      </BottomNavBar>
     </PageContent>
   )
 }
