@@ -59,14 +59,16 @@ export default memo(() => {
 
   const openLove = useCallback(() => {
     haptic.tap()
-    global.app_event.changeLoveListVisible(true)
     setNavActiveId('nav_love')
   }, [])
 
-  // MyList 组件默认要收到 changeLoveListVisible 才挂载，
-  // 在「我的」页里它是常驻内容，所以挂载时就主动触发一次。
+  // 说明：不再在这里触发 changeLoveListVisible。
+  // Mylist 页内部本身就是「列表抽屉 + 歌曲列表」的双栏结构，
+  // 在「我的」Tab 里打开它只会让抽屉挡住内容，正确做法是直接切到该页。
   useEffect(() => {
-    global.app_event.changeLoveListVisible(true)
+    // 进入「我的」时确保 Mylist 页的抽屉处于收起状态，
+    // 否则从别的入口残留的打开状态会带过来。
+    global.app_event.changeLoveListVisible(false)
   }, [])
 
   return (

@@ -1,13 +1,14 @@
 import { StyleSheet, TouchableOpacity } from 'react-native'
-import { navigations } from '@/navigation'
+
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { scaleSizeH } from '@/utils/pixelRatio'
-import commonState from '@/store/common/state'
+
 import playerState from '@/store/player/state'
 import { LIST_IDS, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import Image from '@/components/common/Image'
 import { useCallback } from 'react'
 import { setLoadErrorPicUrl, setMusicInfo } from '@/core/player/playInfo'
+import { setNavActiveId } from '@/core/common'
 
 const PIC_HEIGHT = scaleSizeH(46)
 
@@ -22,10 +23,10 @@ const styles = StyleSheet.create({
 export default ({ isHome }: { isHome: boolean }) => {
   const musicInfo = usePlayerMusicInfo()
   const handlePress = () => {
-    // console.log('')
-    // console.log(playMusicInfo)
     if (!musicInfo.id) return
-    navigations.pushPlayDetailScreen(commonState.componentIds.home!)
+    // 布局重构后播放页是底部 Tab 之一，不再 push 独立的全屏播放页。
+    // 直接切到「正在播放」Tab，与点击中间导航按钮行为一致。
+    setNavActiveId('nav_player')
 
     // toast(global.i18n.t('play_detail_todo_tip'), 'long')
   }

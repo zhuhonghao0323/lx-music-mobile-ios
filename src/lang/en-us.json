@@ -637,5 +637,7 @@
   "nav_my_lists": "My Lists",
   "nav_home": "Home",
   "play_list": "Play List",
-  "nav_mine": "Mine"
+  "nav_mine": "Mine",
+  "play_list_count": "{{count}} songs",
+  "play_list_empty": "Playlist is empty"
 }

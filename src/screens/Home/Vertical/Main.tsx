@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
-import { View } from 'react-native'
+import { View, Animated, Easing } from 'react-native'
 import Search from '../Views/Search'
 import SongList from '../Views/SongList'
 import Mylist from '../Views/Mylist'
@@ -23,11 +23,15 @@ const hideKeys = [
 /**
  * 页面骨架：首次进入时才挂载，之后保持挂载（避免切 Tab 丢滚动位置）。
  * 二级页额外支持「从设置页返回时重新可见」的刷新逻辑。
+ *
+ * 每个页面被激活时都播放一次淡入 + 轻微上浮，保证 Tab 切换不是硬切。
  */
 const makePage = (PageComponent: React.ComponentType, navId: CommonState['navActiveId'], reloadOnSettingBack = false) => {
   return () => {
     const [visible, setVisible] = useState(commonState.navActiveId == navId)
     const component = useMemo(() => <PageComponent />, [])
+    const enter = useRef(new Animated.Value(visible ? 1 : 0)).current
+    const translateY = useRef(new Animated.Value(visible ? 0 : 8)).current
     useEffect(() => {
       let currentId: CommonState['navActiveId'] = commonState.navActiveId
       const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
@@ -35,6 +39,13 @@ const makePage = (PageComponent: React.ComponentType, navId: CommonState['navAct
         if (id == navId) {
           requestAnimationFrame(() => {
             setVisible(true)
+            // 每次切到本页都重放一次入场动画
+            enter.setValue(0)
+            translateY.setValue(8)
+            Animated.parallel([
+              Animated.timing(enter, { toValue: 1, duration: 200, useNativeDriver: true }),
+              Animated.timing(translateY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ]).start()
           })
         }
       }
@@ -61,7 +72,12 @@ const makePage = (PageComponent: React.ComponentType, navId: CommonState['navAct
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    return visible ? component : null
+    if (!visible) return null
+    return (
+      <Animated.View style={{ flex: 1, opacity: enter, transform: [{ translateY }] }}>
+        {component}
+      </Animated.View>
+    )
   }
 }
 

@@ -9,6 +9,7 @@ import { createStyle } from '@/utils/tools'
 import { LIST_SCROLL_POSITION_KEY } from '@/config/constant'
 import { getListPosition, saveListPosition } from '@/utils/data'
 import { setActiveList } from '@/core/list'
+import { setNavActiveId } from '@/core/common'
 import Text from '@/components/common/Text'
 import { type Position } from './ListMenu'
 import { scaleSizeH } from '@/utils/pixelRatio'
@@ -78,10 +79,13 @@ export default ({ onShowMenu }: {
   const activeListId = useActiveListId()
 
   const handleToggleList = (item: LX.List.MyListInfo) => {
-    // setVisiblePanel(false)
+    // 收起列表抽屉，并切换到带歌曲列表的页面
     global.app_event.changeLoveListVisible(false)
     requestAnimationFrame(() => {
       setActiveList(item.id)
+      // 布局重构后，列表在「我的」Tab 里、歌曲在 nav_love 页里，
+      // 点击列表必须同时切页，否则只会收起抽屉、页面看起来「打不开」。
+      setNavActiveId('nav_love')
     })
   }
 

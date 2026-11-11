@@ -134,16 +134,27 @@ const TogglePlayBtn = ({ size }: { size: number }) => {
 const MAX_SIZE = BTN_WIDTH * 1.6
 const MIN_SIZE = BTN_WIDTH * 1.2
 
-export default () => {
+export default ({ hideSkip = false }: { hideSkip?: boolean } = {}) => {
   const winSize = useWindowSize()
   const maxHeight = Math.max(winSize.height * 0.11, MIN_SIZE)
   const containerStyle = useMemo(() => {
     return {
       ...styles.conatiner,
       maxHeight,
+      // 只保留主播放键时不需要三按钮的横向铺开高度
+      ...(hideSkip ? { paddingVertical: 8 } : {}),
     }
-  }, [maxHeight])
+  }, [maxHeight, hideSkip])
   const size = Math.min(Math.max(winSize.width * 0.33 * global.lx.fontSize * 0.4, MIN_SIZE), MAX_SIZE, maxHeight)
+
+  // 对标波点：中间主播放键居中，上一首/下一首收起来
+  if (hideSkip) {
+    return (
+      <View style={containerStyle}>
+        <TogglePlayBtn size={size} />
+      </View>
+    )
+  }
 
   return (
     <View style={containerStyle}>

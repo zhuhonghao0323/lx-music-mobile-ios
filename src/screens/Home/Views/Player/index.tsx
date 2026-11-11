@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { View, TouchableOpacity } from 'react-native'
+import { memo, useCallback, useMemo, useRef } from 'react'
+import { View, TouchableOpacity, Animated } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
@@ -16,7 +16,7 @@ import LyricPreview from '@/screens/PlayDetail/Vertical/Player/components/LyricP
 import PlayInfo from '@/screens/PlayDetail/Vertical/Player/components/PlayInfo'
 import ControlBtn from '@/screens/PlayDetail/Vertical/Player/components/ControlBtn'
 import MoreBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn'
-import PlaylistSheet from './PlaylistSheet'
+import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { getSourceDisplayName } from '@/core/customSource'
@@ -27,16 +27,13 @@ import { setNavActiveId } from '@/core/common'
 import { useTogglePlayMode } from './useTogglePlayMode'
 
 /**
- * Tab 2 · 正在播放（精简版全屏播放器）。
- *
- * 结构对标波点音乐：
- *   顶栏（当前来源 + ⋯ 更多菜单）
- *   → 封面 → 歌词区 → 进度区 → 主操作行 → 次操作行（含右下角 ☰ 列表按钮）
+ * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
  *
  * 与旧独立播放页的区别：
- * - 不再有返回键（由底部 Tab 切换离开）
- * - 音效/均衡器、设置等低频入口收进右上角 ⋯ 更多菜单
- * - 右下角新增 ☰ 按钮，弹出当前播放列表半屏 Sheet
+ * - 没有上一首/下一首按钮，只保留居中的主播放键
+ * - 右上 ⋯ 收纳音效 / 播放模式 / 设置
+ * - 右下 ☰ 弹出当前播放列表 Sheet
+ * - 顶部显示当前音源来源
  */
 export default memo(() => {
   const theme = useTheme()
@@ -46,8 +43,7 @@ export default memo(() => {
   const musicInfo = usePlayerMusicInfo()
   const menuRef = useRef<MenuType>(null)
   const menuBtnRef = useRef<TouchableOpacity>(null)
-  const playlistSheetRef = useRef<{ show: () => void }>(null)
-  const [sheetVisible, setSheetVisible] = useState(false)
+  const playlistSheetRef = useRef<PlaylistSheetType>(null)
   const togglePlayMode = useTogglePlayMode()
 
   const apiSource = useSettingValue('common.apiSource')
@@ -55,7 +51,17 @@ export default memo(() => {
   const quality = useCurrentPlayQuality()
   const playQuality = useSettingValue('player.playQuality')
 
-  /** 当前来源名（音源名），对标波点左上角的「当前歌单 / 来源」 */
+  // 进入时的淡入 + 上浮，保证 Tab 切换有过渡
+  const fadeIn = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(scaleSizeW(10))).current
+  useMemo(() => {
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 240, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 260, useNativeDriver: true }),
+    ]).start()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const sourceName = useMemo(() => {
     if (!userApiList.length) return musicInfo.singer ?? ''
     return getSourceDisplayName(apiSource)
@@ -63,58 +69,46 @@ export default memo(() => {
 
   const qualityText = formatQualityShort(quality ?? playQuality)
 
-  // ⋯ 更多菜单：收纳原播放页右上角的音效 / 播放设置等次要入口
   const moreMenus = useMemo<Menus>(() => [
     { action: 'eq', label: t('setting_play_sound_effect') },
-    { action: 'setting', label: t('nav_setting') },
     { action: 'toggleMode', label: t('play_list_loop') },
+    { action: 'setting', label: t('nav_setting') },
   ], [t])
 
   const showMore = useCallback(() => {
     haptic.tap()
     menuBtnRef.current?.measure((_x, _y, w, h, px, py) => {
       const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
-      menuRef.current?.show(position, { width: 160, height: 40 })
+      menuRef.current?.show(position, { width: 170, height: 44 })
     })
   }, [])
 
   const handleMoreSelect = useCallback((menu: Menus[number]) => {
     haptic.select()
     switch (menu.action) {
-      case 'setting':
-        setNavActiveId('nav_setting')
-        break
-      case 'toggleMode':
-        togglePlayMode()
-        break
-      default:
-        break
+      case 'setting': setNavActiveId('nav_setting'); break
+      case 'toggleMode': togglePlayMode(); break
+      default: break
     }
   }, [togglePlayMode])
 
   const openPlaylist = useCallback(() => {
     haptic.tap()
-    setSheetVisible(true)
-    requestAnimationFrame(() => {
-      playlistSheetRef.current?.show()
-    })
+    playlistSheetRef.current?.show()
   }, [])
 
+  const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
       <StatusBar />
 
-      {/* 顶栏：当前来源 + 更多菜单 */}
+      {/* 顶栏：当前来源 + ⋯ 更多 */}
       <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
-        <View style={styles.headerLeft}>
-          <Text size={12} color={theme['c-font-label']} numberOfLines={1}>{sourceName}</Text>
-        </View>
+        <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.sourceName}>{sourceName}</Text>
         <TouchableOpacity
           ref={menuBtnRef}
-          style={[
-            styles.moreBtn,
-            { backgroundColor: isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800'] },
-          ]}
+          style={[styles.moreBtn, { backgroundColor: circleBg }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={showMore}
         >
@@ -127,36 +121,32 @@ export default memo(() => {
         <Pic componentId={commonState.componentIds.home ?? ''} />
       </View>
 
-      {/* 歌词区 */}
+      {/* 三行歌词 */}
       <View style={styles.lyricArea}>
         <LyricPreview />
       </View>
 
-      {/* 歌名歌手 + 音质/音源标识 */}
+      {/* 歌名 / 歌手 / 音质 */}
       <View style={styles.titleRow}>
-        <Text size={17} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+        <Text size={18} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
         <Text size={12} color={theme['c-font-label']} numberOfLines={1}>{musicInfo.singer}</Text>
         <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: isGlass ? 'rgba(255,255,255,0.10)' : theme['c-primary-light-500-alpha-800'] }]}>
+          <View style={[styles.tag, { backgroundColor: circleBg }]}>
             <Text size={10} color={theme['c-font-label']}>{qualityText}</Text>
           </View>
         </View>
       </View>
 
-      {/* 进度 + 控制 + 次操作 */}
+      {/* 进度 + 主播放键（无上一首/下一首） */}
       <View style={styles.bottomGroup}>
         <PlayInfo />
-        <ControlBtn />
+        <ControlBtn hideSkip />
         <View style={styles.secondaryRow}>
           <View style={styles.secondaryLeft}>
             <MoreBtn />
           </View>
-          {/* 右下角：当前播放列表 */}
           <TouchableOpacity
-            style={[
-              styles.listBtn,
-              { backgroundColor: isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800'] },
-            ]}
+            style={[styles.listBtn, { backgroundColor: circleBg }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={openPlaylist}
           >
@@ -166,12 +156,8 @@ export default memo(() => {
       </View>
 
       <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} />
-      <PlaylistSheet
-        ref={playlistSheetRef}
-        visible={sheetVisible}
-        onHide={() => { setSheetVisible(false) }}
-      />
-    </View>
+      <PlaylistSheet ref={playlistSheetRef} />
+    </Animated.View>
   )
 })
 
@@ -185,8 +171,9 @@ const styles = createStyle({
     paddingHorizontal: scaleSizeW(16),
     paddingBottom: scaleSizeW(4),
   },
-  headerLeft: {
+  sourceName: {
     flex: 1,
+    marginRight: scaleSizeW(8),
   },
   moreBtn: {
     width: scaleSizeW(34),
@@ -198,17 +185,17 @@ const styles = createStyle({
   coverArea: {
     flexGrow: 1,
     flexShrink: 1,
-    minHeight: scaleSizeW(180),
+    minHeight: scaleSizeW(170),
   },
   lyricArea: {
-    height: scaleSizeW(72),
+    height: scaleSizeW(68),
   },
   titleRow: {
     paddingHorizontal: scaleSizeW(20),
     paddingBottom: scaleSizeW(2),
   },
   songName: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   tagRow: {
     flexDirection: 'row',

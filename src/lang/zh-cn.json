@@ -637,5 +637,7 @@
   "nav_my_lists": "我的歌单",
   "nav_home": "主页",
   "play_list": "当前播放列表",
-  "nav_mine": "我的"
+  "nav_mine": "我的",
+  "play_list_count": "共 {{count}} 首",
+  "play_list_empty": "播放列表还是空的"
 }
