@@ -113,18 +113,22 @@ const styles = createStyle({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: scaleSizeW(12),
+    // 左右按钮往中间收：外边距给足，让整排视觉更紧凑
+    justifyContent: 'center',
+    paddingHorizontal: scaleSizeW(26),
     paddingBottom: scaleSizeW(4),
   },
   centerSlot: {
-    flex: 1,
-    marginHorizontal: scaleSizeW(8),
+    flexShrink: 1,
+    // 胶囊不铺满：限制最大宽度，避免大片无用空间
+    maxWidth: '68%',
+    marginHorizontal: scaleSizeW(12),
   },
   sideCircle: {
-    width: scaleSizeW(58),
-    height: scaleSizeW(58),
-    borderRadius: scaleSizeW(29),
+    width: scaleSizeW(54),
+    height: scaleSizeW(54),
+    // 圆形（灵动岛级别的圆角弧度）
+    borderRadius: scaleSizeW(27),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.10)',
@@ -149,8 +153,8 @@ const styles = createStyle({
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   icon: {
-    width: scaleSizeW(26),
-    height: scaleSizeW(26),
+    width: scaleSizeW(24),
+    height: scaleSizeW(24),
   },
   sideLabel: {
     marginTop: scaleSizeW(1),

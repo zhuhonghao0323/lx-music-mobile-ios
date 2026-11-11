@@ -13,12 +13,15 @@ import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 
+/** 胶囊高度（圆角取一半，得到灵动岛式的半圆端头） */
+const PILL_HEIGHT = scaleSizeW(52)
+
 /**
- * 底部迷你条胶囊（对标波点）。
+ * 底部迷你条胶囊（对标波点 / 灵动岛）。
  *
- * 只显示：封面 + 歌名 + 歌手。不显示进度时间、不放播放/下一首按钮。
- * 整条可点击进入「正在播放」Tab（点封面、点歌名、点任意区域行为一致）。
- * 高度比之前更高，更接近波点的大胶囊。
+ * 只显示：封面 + 歌名 + 歌手。
+ * 宽度不再铺满（由父容器限制 maxWidth），圆角接近半圆（灵动岛弧度），
+ * 整条可点击进入「正在播放」Tab。
  */
 export default memo(({ isHome = false }: { isHome?: boolean }) => {
   const { keyboardShown } = useKeyboard()
@@ -40,7 +43,8 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
         styles.container,
         {
           backgroundColor: isGlass ? 'rgba(28,24,24,0.72)' : 'rgba(24,22,22,0.94)',
-          borderRadius: 26,
+          // 胶囊高度的一半作为圆角 = 完美的半圆端头（灵动岛圆弧）
+          borderRadius: PILL_HEIGHT / 2,
           borderWidth: StyleSheet.hairlineWidth,
           borderTopColor: 'rgba(255,255,255,0.32)',
           borderLeftColor: 'rgba(255,255,255,0.18)',
@@ -56,13 +60,13 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       )}
     >
       {/* 顶部高光条：模拟玻璃受光，增强立体感 */}
-      <View pointerEvents="none" style={styles.glassSheen} />
+      <View pointerEvents="none" style={[styles.glassSheen, { borderTopLeftRadius: PILL_HEIGHT / 2, borderTopRightRadius: PILL_HEIGHT / 2 }]} />
       {/* 封面（点击同样进播放页） */}
       <Pic isHome={isHome} />
       {/* 歌名 + 歌手 */}
       <View style={styles.center}>
-        <Text size={15} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
-        <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
+        <Text size={14} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+        <Text size={11} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
       </View>
     </TouchableOpacity>
   ), [isHome, isGlass, theme, musicInfo.name, musicInfo.singer, handlePressBar])
@@ -75,9 +79,9 @@ const styles = createStyle({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    // 增高：更接近波点大胶囊
-    height: scaleSizeW(64),
-    paddingHorizontal: scaleSizeW(6),
+    height: PILL_HEIGHT,
+    paddingLeft: scaleSizeW(5),
+    paddingRight: scaleSizeW(12),
   },
   // 顶部高光条：玻璃受光，3D 立体感
   glassSheen: {
@@ -87,20 +91,18 @@ const styles = createStyle({
     right: 0,
     height: '52%',
     backgroundColor: 'rgba(255,255,255,0.09)',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
   },
   center: {
     flexDirection: 'column',
     flexGrow: 1,
     flexShrink: 1,
-    paddingLeft: scaleSizeW(10),
+    paddingLeft: scaleSizeW(9),
     justifyContent: 'center',
   },
   songName: {
     fontWeight: '600',
   },
   singer: {
-    marginTop: scaleSizeW(2),
+    marginTop: scaleSizeW(1),
   },
 })

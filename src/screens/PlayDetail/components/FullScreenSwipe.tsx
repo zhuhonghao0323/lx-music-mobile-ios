@@ -11,8 +11,10 @@ import { haptic } from '@/utils/haptics'
  * 这里按屏幕高度约 1/9（iPhone 14 PM 上约 100px）动态计算，并夹在 68~120 之间。
  */
 const getSwipeThreshold = (height: number) => Math.max(68, Math.min(120, height / 9))
-/** 判定为「竖直」的轴比，斜向/横向不处理，避免与翻页冲突 */
+/** 判定为「竖直」的轴比：竖直位移需达到水平的 1.4 倍以上才接管 */
 const AXIS_RATIO = 1.4
+/** 接管手势的最小竖直位移：避免横向翻页时的微小竖直抖动被误判 */
+const MIN_VERTICAL_DELTA = 14
 /** 跟手位移的阻尼：手指移动 1px，界面只跟随 0.55px，避免拖拽过度 */
 const DRAG_DAMPING = 0.55
 /** 达到阈值后松手，界面飞出动画时长 */
@@ -74,7 +76,8 @@ export default ({ children, onSwiped, disabled = false }: {
       if (disabledRef.current || busyRef.current) return false
       const ax = Math.abs(gs.dx)
       const ay = Math.abs(gs.dy)
-      return ay > 8 && ay >= ax * AXIS_RATIO
+      // 必须明确是竖直滑动：绝对位移够大 + 明显比水平大
+      return ay > MIN_VERTICAL_DELTA && ay >= ax * AXIS_RATIO
     },
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: () => {

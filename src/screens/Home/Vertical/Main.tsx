@@ -9,6 +9,7 @@ import HomeView from '../Views/Home'
 import PlayerView from '../Views/Player'
 import MineView from '../Views/Mine'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
+import { useNavActiveId } from '@/store/common/hook'
 import { createStyle } from '@/utils/tools'
 import PagerView, { type PageScrollStateChangedNativeEvent, type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { setNavActiveId } from '@/core/common'
@@ -24,7 +25,9 @@ const hideKeys = [
  * 页面骨架：首次进入时才挂载，之后保持挂载（避免切 Tab 丢滚动位置）。
  * 二级页额外支持「从设置页返回时重新可见」的刷新逻辑。
  *
- * 每个页面被激活时都播放一次淡入 + 轻微上浮，保证 Tab 切换不是硬切。
+ * 入场动画只在「首次挂载」时播放一次。
+ * 注意：不要在每次 navActiveId 变化时重放动画 —— PagerView 左右滑动本身
+ * 已有过渡，重放会让被滑入的页面突然淡入+上浮一次，表现为页面抖动。
  */
 const makePage = (PageComponent: React.ComponentType, navId: CommonState['navActiveId'], reloadOnSettingBack = false) => {
   return () => {
@@ -32,21 +35,27 @@ const makePage = (PageComponent: React.ComponentType, navId: CommonState['navAct
     const component = useMemo(() => <PageComponent />, [])
     const enter = useRef(new Animated.Value(visible ? 1 : 0)).current
     const translateY = useRef(new Animated.Value(visible ? 0 : 8)).current
+    // 是否已经播过入场动画（仅首帧播一次，之后不再重放）
+    const enteredRef = useRef(visible)
+
+    if (!enteredRef.current && visible) {
+      // 从「隐藏」首次变为可见时才播放入场
+      enteredRef.current = true
+      enter.setValue(0)
+      translateY.setValue(8)
+      Animated.parallel([
+        Animated.timing(enter, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start()
+    }
+
     useEffect(() => {
       let currentId: CommonState['navActiveId'] = commonState.navActiveId
       const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
         currentId = id
         if (id == navId) {
-          requestAnimationFrame(() => {
-            setVisible(true)
-            // 每次切到本页都重放一次入场动画
-            enter.setValue(0)
-            translateY.setValue(8)
-            Animated.parallel([
-              Animated.timing(enter, { toValue: 1, duration: 200, useNativeDriver: true }),
-              Animated.timing(translateY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            ]).start()
-          })
+          // 只负责挂载，不重放动画（避免左右滑动时页面抖动）
+          setVisible(true)
         }
       }
       const handleHide = () => {
@@ -123,6 +132,8 @@ const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId])
   const [scrollEnabled, setScrollEnabled] = useState(settingState.setting['common.homePageScroll'])
+  // 响应式订阅当前导航 id（ref 变化不会触发重渲染，必须用 hook）
+  const navActiveId = useNavActiveId()
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -163,7 +174,8 @@ const Main = () => {
 
   // 只有停留在底部 Tab 之间时才允许左右滑动；进入二级页后禁用，
   // 避免用户从搜索结果页误滑回 Tab 造成困惑。
-  const isOnTab = activeIndexRef.current < TAB_PAGE_COUNT
+  // 注意：这里必须跟随 navActiveId 响应式变化，不能读 ref（ref 变化不触发重渲染）
+  const isOnTab = viewMap[navActiveId] < TAB_PAGE_COUNT
   const allowScroll = scrollEnabled && isOnTab
 
   const component = useMemo(() => (

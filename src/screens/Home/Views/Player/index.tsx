@@ -46,6 +46,11 @@ import { useTogglePlayMode } from './useTogglePlayMode'
  * 播放/暂停按钮在底部 BottomNavBar 的中间（与左右图标组成三按钮）。
  * 上下滑切歌包 FullScreenSwipe，弹窗打开时禁用。
  */
+/** 音质/音源标签的字号（两者统一） */
+const TAG_FONT_SIZE = 11
+/** 音质/音源弹出菜单的字号（两者统一，比标签略大以保证可读） */
+const MENU_FONT_SIZE = 13
+
 export default memo(() => {
   const theme = useTheme()
   const t = useI18n()
@@ -196,15 +201,22 @@ export default memo(() => {
           <LyricPreview />
         </View>
 
-        {/* 歌名 / 歌手 / 可点 320k 小标签 */}
+        {/* 歌名 / 歌手 / 音质 + 音源（并排、样式统一、可点击切换） */}
         <View style={styles.titleRow}>
           <Text size={19} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
           <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
-          <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7} style={styles.qualityTagWrap}>
-            <View style={[styles.tag, { backgroundColor: circleBg }]}>
-              <Text size={10} color={theme['c-font-label']}>{qualityText}</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.tagRow}>
+            <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7}>
+              <View style={[styles.tag, { backgroundColor: circleBg }]}>
+                <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{qualityText}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity ref={sourceBtnRef} onPress={showSourceMenu} activeOpacity={0.7}>
+              <View style={[styles.tag, styles.tagGap, { backgroundColor: circleBg }]}>
+                <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 进度条 */}
@@ -212,27 +224,20 @@ export default memo(() => {
           <PlayInfo />
         </View>
 
-        {/* 五个操作：收藏 / 播放模式 / 评论 / 音源简写 / 列表 */}
+        {/* 四个操作：收藏 / 播放模式 / 评论 / 列表（等间距） */}
         <View style={styles.actionsRow}>
           <View style={styles.actionCell}><MusicAddBtn /></View>
           <View style={styles.actionCell}><PlayModeBtn /></View>
           <View style={styles.actionCell}><CommentBtn /></View>
-          {/* 音源简写按钮：点击弹菜单手动切源 */}
-          <TouchableOpacity
-            ref={sourceBtnRef}
-            style={[styles.actionCell, styles.sourceBtn, { backgroundColor: circleBg }]}
-            activeOpacity={0.7}
-            onPress={showSourceMenu}
-          >
-            <Text size={11} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionCell, styles.listBtn, { backgroundColor: circleBg }]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={openPlaylist}
-          >
-            <Icon name="menu" size={17} color={theme['c-font-label']} />
-          </TouchableOpacity>
+          <View style={styles.actionCell}>
+            <TouchableOpacity
+              style={[styles.listBtn, { backgroundColor: circleBg }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={openPlaylist}
+            >
+              <Icon name="menu" size={17} color={theme['c-font-label']} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 弹窗 onHide 时恢复切歌手势 */}
@@ -242,10 +247,19 @@ export default memo(() => {
           menus={sourceMenus}
           activeId={apiSource}
           center
+          fontSize={MENU_FONT_SIZE}
           onPress={handleSourceSelect}
           onHide={() => { setOverlayVisible(false) }}
         />
-        <Menu ref={qualityMenuRef} menus={qualityMenus} activeId={playQuality} center fontSize={12} onPress={handleQualitySelect} onHide={() => { setOverlayVisible(false) }} />
+        <Menu
+          ref={qualityMenuRef}
+          menus={qualityMenus}
+          activeId={playQuality}
+          center
+          fontSize={MENU_FONT_SIZE}
+          onPress={handleQualitySelect}
+          onHide={() => { setOverlayVisible(false) }}
+        />
         <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
       </Animated.View>
     </FullScreenSwipe>
@@ -293,14 +307,22 @@ const styles = createStyle({
   singerText: {
     marginTop: scaleSizeW(2),
   },
-  qualityTagWrap: {
-    alignSelf: 'flex-start',
-    marginTop: scaleSizeW(6),
+  // 音质 + 音源并排：统一样式、水平对齐、保持适当间距
+  tagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: scaleSizeW(7),
   },
   tag: {
-    paddingHorizontal: scaleSizeW(8),
-    paddingVertical: scaleSizeW(3),
-    borderRadius: scaleSizeW(8),
+    height: scaleSizeW(22),
+    minWidth: scaleSizeW(46),
+    paddingHorizontal: scaleSizeW(9),
+    borderRadius: scaleSizeW(11),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagGap: {
+    marginLeft: scaleSizeW(8),
   },
   progressArea: {
     paddingHorizontal: scaleSizeW(16),
@@ -310,7 +332,7 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: scaleSizeW(10),
+    paddingHorizontal: scaleSizeW(16),
     paddingTop: scaleSizeW(14),
     paddingBottom: scaleSizeW(6),
   },
@@ -319,15 +341,9 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sourceBtn: {
-    height: scaleSizeW(38),
-    borderRadius: scaleSizeW(19),
-    marginHorizontal: scaleSizeW(2),
-  },
   listBtn: {
     height: scaleSizeW(38),
     width: scaleSizeW(38),
-    maxWidth: scaleSizeW(38),
     borderRadius: scaleSizeW(19),
   },
 })
