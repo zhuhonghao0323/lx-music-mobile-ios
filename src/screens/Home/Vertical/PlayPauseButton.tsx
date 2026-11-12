@@ -63,8 +63,8 @@ export default memo(() => {
 const styles = createStyle({
   pill: {
     width: '100%',
-    height: scaleSizeW(58),
-    borderRadius: scaleSizeW(29),
+    height: scaleSizeW(56),
+    borderRadius: scaleSizeW(28),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,

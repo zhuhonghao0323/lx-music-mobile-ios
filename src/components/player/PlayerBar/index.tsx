@@ -18,7 +18,7 @@ import { popToRoot } from '@/navigation/utils'
 import commonState from '@/store/common/state'
 
 /** 胶囊高度（圆角取一半，得到灵动岛式的半圆端头） */
-const PILL_HEIGHT = scaleSizeW(52)
+const PILL_HEIGHT = scaleSizeW(56)
 
 /**
  * 底部迷你条胶囊（对标波点 / 灵动岛）。
@@ -88,12 +88,15 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       {pillWidth > 0
         ? <PillProgressRing progress={progress} height={PILL_HEIGHT} width={pillWidth} />
         : null}
-      {/* 封面（点击同样进播放页） */}
-      <Pic isHome={isHome} />
-      {/* 歌名 + 歌手（歌名过长时横向慢速滚动） */}
-      <View style={styles.center}>
-        <MarqueeText text={musicInfo.name} size={14} color={theme['c-font']} style={styles.songName} />
-        <Text size={11} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
+      {/* 内部内容整体不接收触摸，保证点胶囊任何部位都由外层统一处理 */}
+      <View pointerEvents="none" style={styles.content}>
+        {/* 封面 */}
+        <Pic isHome={isHome} />
+        {/* 歌名 + 歌手（歌名过长时横向慢速滚动） */}
+        <View style={styles.center}>
+          <MarqueeText text={musicInfo.name} size={14} color={theme['c-font']} style={styles.songName} />
+          <Text size={11} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
+        </View>
       </View>
     </TouchableOpacity>
   ), [isHome, isGlass, theme, musicInfo.name, musicInfo.singer, handlePressBar, progress, pillWidth, handleLayout])
@@ -110,6 +113,12 @@ const styles = createStyle({
     // 内容整体右移：左侧留出足够空间，保证半圆端头内是空的
     paddingLeft: scaleSizeW(14),
     paddingRight: scaleSizeW(14),
+  },
+  content: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: '100%',
   },
   // 顶部高光条：玻璃受光，3D 立体感
   glassSheen: {

@@ -131,10 +131,10 @@ const styles = createStyle({
     marginHorizontal: scaleSizeW(24),
   },
   sideCircle: {
-    width: scaleSizeW(54),
-    height: scaleSizeW(54),
+    width: scaleSizeW(56),
+    height: scaleSizeW(56),
     // 圆形（灵动岛级别的圆角弧度）
-    borderRadius: scaleSizeW(27),
+    borderRadius: scaleSizeW(28),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.10)',

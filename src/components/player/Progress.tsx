@@ -44,8 +44,12 @@ const PreassBar = memo(({ onDragState, setDragProgress, onSetProgress }: {
 
   const panResponder = useRef(
     PanResponder.create({
+      // 进度条优先接管手势：父容器（播放页右滑歌词）会监听 Move，
+      // 若不在这里用 Capture 抢下，横向拖动会被父级抢走，
+      // 表现为「进度条动了但歌曲没跳」。
       onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
       onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => true,
 
       // onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (evt, gestureState) => {
@@ -58,9 +62,10 @@ const PreassBar = memo(({ onDragState, setDragProgress, onSetProgress }: {
       onPanResponderRelease: () => {
         onDragEnd()
       },
-      // onPanResponderTerminate: (evt, gestureState) => {
-      //   onDragEnd()
-      // },
+      onPanResponderTerminate: (evt, gestureState) => {
+        onDragEnd()
+      },
+      onPanResponderTerminationRequest: () => false,
     }),
   ).current
 

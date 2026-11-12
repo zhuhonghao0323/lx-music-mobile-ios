@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { View, TouchableOpacity, Animated } from 'react-native'
+import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
@@ -17,10 +18,11 @@ import PlayInfo from '@/screens/PlayDetail/Vertical/Player/components/PlayInfo'
 import MusicAddBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/MusicAddBtn'
 import PlayModeBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/PlayModeBtn'
 import CommentBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/CommentBtn'
+import Lyric from '@/screens/PlayDetail/Vertical/Lyric'
 import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import PlaylistBtn from './PlaylistBtn'
-import { useLyricOverlay, LyricLayer } from './LyricOverlay'
+import CommentSheet, { type CommentSheetType } from './CommentSheet'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { getSourceDisplayName } from '@/core/customSource'
@@ -37,13 +39,16 @@ import { useTogglePlayMode } from './useTogglePlayMode'
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
  *
- * 布局（自上而下）：
+ * 横滑切换（与原项目一致，用 PagerView 原生翻页）：
+ *   左滑 → 全屏歌词页；歌词页右滑 → 回到播放页
+ *
+ * 播放页布局（自上而下）：
  *   顶栏（⋯ 更多）
  *   → 封面
- *   → 三行歌词（预留足够高度，不被下方内容遮挡）
- *   → 歌名 / 歌手 / 可点击的 320k 小标签（切音质）
+ *   → 三行歌词预览
+ *   → 歌名 / 歌手 / 音质 + 音源小标签
  *   → 进度条
- *   → 五个操作：收藏 / 播放模式 / 评论 / 音源简写（点击切源） / 列表
+ *   → 四个操作：收藏 / 播放模式 / 评论 / 列表
  *
  * 播放/暂停按钮在底部 BottomNavBar 的中间（与左右图标组成三按钮）。
  * 上下滑切歌包 FullScreenSwipe，弹窗打开时禁用。
@@ -66,6 +71,7 @@ export default memo(() => {
   const qualityBtnRef = useRef<TouchableOpacity>(null)
   const sourceBtnRef = useRef<TouchableOpacity>(null)
   const playlistSheetRef = useRef<PlaylistSheetType>(null)
+  const commentSheetRef = useRef<CommentSheetType>(null)
   const togglePlayMode = useTogglePlayMode()
 
   const apiSource = useSettingValue('common.apiSource')
@@ -75,8 +81,8 @@ export default memo(() => {
 
   // 任一二级弹窗/抽屉打开时禁用切歌手势
   const [overlayVisible, setOverlayVisible] = useState(false)
-  // 右滑展开全屏歌词（手势挂在根容器上，不额外叠捕获层，保证按钮可点）
-  const lyric = useLyricOverlay({ disabled: overlayVisible })
+  // 横向翻页：0 = 播放页，1 = 全屏歌词（与原项目一致）
+  const [pageIndex, setPageIndex] = useState(0)
 
   const fadeIn = useRef(new Animated.Value(0)).current
   const translateY = useRef(new Animated.Value(scaleSizeW(10))).current
@@ -175,72 +181,101 @@ export default memo(() => {
     playlistSheetRef.current?.show()
   }, [])
 
+  const openComment = useCallback(() => {
+    haptic.tap()
+    setOverlayVisible(true)
+    commentSheetRef.current?.show()
+  }, [])
+
+  const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
+    setPageIndex(nativeEvent.position)
+  }, [])
+
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
-    <FullScreenSwipe disabled={overlayVisible || lyric.opened}>
-      <Animated.View
-        style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}
-        {...lyric.panHandlers}
-      >
+    <FullScreenSwipe disabled={overlayVisible || pageIndex == 1}>
+      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
-        {/* 顶栏：右上 ⋯ 更多（音源信息已移到下方按钮行） */}
-        <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
-          <View style={styles.headerSpacer} />
-          <TouchableOpacity
-            ref={moreBtnRef}
-            style={[styles.moreBtn, { backgroundColor: circleBg }]}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            onPress={showMore}
-          >
-            <Icon name="dots-vertical" size={16} color={theme['c-font']} />
-          </TouchableOpacity>
-        </View>
-
-        {/* 封面 */}
-        <View style={styles.coverArea}>
-          <Pic componentId={commonState.componentIds.home ?? ''} />
-        </View>
-
-        {/* 三行歌词：预留足够高度不被遮挡 */}
-        <View style={styles.lyricArea}>
-          <LyricPreview />
-        </View>
-
-        {/* 歌名 / 歌手 / 音质 + 音源（并排、样式统一、可点击切换） */}
-        <View style={styles.titleRow}>
-          <Text size={19} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
-          <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
-          <View style={styles.tagRow}>
-            <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7}>
-              <View style={[styles.tag, { backgroundColor: circleBg }]}>
-                <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{qualityText}</Text>
+        {/* 横滑翻页：0 播放页 / 1 全屏歌词（左滑看歌词，右滑回播放页） */}
+        <PagerView
+          style={styles.pagerView}
+          initialPage={0}
+          onPageSelected={onPageSelected}
+          // 弹窗打开时禁止翻页，避免与弹窗手势冲突
+          scrollEnabled={!overlayVisible}
+        >
+          <View collapsable={false} style={styles.page}>
+            <View style={styles.playerPage}>
+              {/* 顶栏：右上 ⋯ 更多（音源信息已移到下方按钮行） */}
+              <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
+                <View style={styles.headerSpacer} />
+                <TouchableOpacity
+                  ref={moreBtnRef}
+                  style={[styles.moreBtn, { backgroundColor: circleBg }]}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  onPress={showMore}
+                >
+                  <Icon name="dots-vertical" size={16} color={theme['c-font']} />
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-            <TouchableOpacity ref={sourceBtnRef} onPress={showSourceMenu} activeOpacity={0.7}>
-              <View style={[styles.tag, styles.tagGap, { backgroundColor: circleBg }]}>
-                <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
+
+              {/* 封面 */}
+              <View style={styles.coverArea}>
+                <Pic componentId={commonState.componentIds.home ?? ''} />
               </View>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* 进度条 */}
-        <View style={styles.progressArea}>
-          <PlayInfo />
-        </View>
+              {/* 三行歌词：预留足够高度不被遮挡 */}
+              <View style={styles.lyricArea}>
+                <LyricPreview />
+              </View>
 
-        {/* 四个操作：收藏 / 播放模式 / 评论 / 列表（等间距、尺寸统一） */}
-        <View style={styles.actionsRow}>
-          <View style={styles.actionCell}><MusicAddBtn /></View>
-          <View style={styles.actionCell}><PlayModeBtn /></View>
-          <View style={styles.actionCell}><CommentBtn /></View>
-          <View style={styles.actionCell}>
-            {/* 与其它三个按钮共用 Btn 组件，保证样式、尺寸、对齐完全一致 */}
-            <PlaylistBtn onPress={openPlaylist} />
+              {/* 歌名 / 歌手 / 音质 + 音源（并排、样式统一、可点击切换） */}
+              <View style={styles.titleRow}>
+                <Text size={19} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+                <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
+                <View style={styles.tagRow}>
+                  <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7}>
+                    <View style={[styles.tag, { backgroundColor: circleBg }]}>
+                      <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{qualityText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity ref={sourceBtnRef} onPress={showSourceMenu} activeOpacity={0.7}>
+                    <View style={[styles.tag, styles.tagGap, { backgroundColor: circleBg }]}>
+                      <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* 进度条 */}
+              <View style={styles.progressArea}>
+                <PlayInfo />
+              </View>
+
+              {/* 四个操作：收藏 / 播放模式 / 评论 / 列表（等间距、尺寸统一） */}
+              <View style={styles.actionsRow}>
+                <View style={styles.actionCell}><MusicAddBtn /></View>
+                <View style={styles.actionCell}><PlayModeBtn /></View>
+                <View style={styles.actionCell}>
+                  <CommentBtn onPress={openComment} />
+                </View>
+                <View style={styles.actionCell}>
+                  {/* 与其它三个按钮共用 Btn 组件，保证样式、尺寸、对齐完全一致 */}
+                  <PlaylistBtn onPress={openPlaylist} />
+                </View>
+              </View>
+            </View>
           </View>
-        </View>
+
+          {/* 第二页：全屏歌词 */}
+          <View collapsable={false} style={styles.page}>
+            <View style={styles.lyricPage}>
+              <Lyric />
+            </View>
+          </View>
+        </PagerView>
 
         {/* 弹窗 onHide 时恢复切歌手势 */}
         <Menu ref={menuRef} menus={moreMenus} onPress={handleMoreSelect} onHide={() => { setOverlayVisible(false) }} />
@@ -263,9 +298,7 @@ export default memo(() => {
           onHide={() => { setOverlayVisible(false) }}
         />
         <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
-
-        {/* 全屏歌词层：仅展开时渲染，不展开时完全不存在（不挡按钮） */}
-        {lyric.opened ? <LyricLayer translateX={lyric.translateX} onCloseHandlers={lyric.panHandlers} /> : null}
+        <CommentSheet ref={commentSheetRef} onHide={() => { setOverlayVisible(false) }} />
       </Animated.View>
     </FullScreenSwipe>
   )
@@ -274,6 +307,19 @@ export default memo(() => {
 const styles = createStyle({
   container: {
     flex: 1,
+  },
+  pagerView: {
+    flex: 1,
+  },
+  page: {
+    flex: 1,
+  },
+  playerPage: {
+    flex: 1,
+  },
+  lyricPage: {
+    flex: 1,
+    paddingTop: scaleSizeW(40),
   },
   header: {
     flexDirection: 'row',
