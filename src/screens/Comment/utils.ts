@@ -23,6 +23,18 @@ export interface CommentInfo {
   maxPage: number
 }
 
+/**
+ * 判断某个源是否支持评论。
+ *
+ * 不看 source 字符串白名单，而是直接探测 SDK 是否带 comment 能力，
+ * 这样自定义源、特殊源等情况都能正确判断，不会误报「不支持评论」。
+ */
+export const isCommentSupported = (source: string | null | undefined): boolean => {
+  if (!source) return false
+  const sdk = (music as Record<string, { comment?: unknown } | undefined>)[source]
+  return !!sdk?.comment
+}
+
 export const getNewComment = async(musicInfo: LX.Music.MusicInfoOnline, page: number, limit: number, retryNum = 0): Promise<CommentInfo> => {
   // 源不存在时（本地/下载等无评论接口的来源）直接抛出可读错误，
   // 避免 music[source] 为 undefined 后取 .comment 造成 "Cannot read property 'comment' of undefined" 崩溃

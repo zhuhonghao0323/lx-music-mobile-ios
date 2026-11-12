@@ -4,12 +4,13 @@ import Popup, { type PopupType } from '@/components/common/Popup'
 import Text from '@/components/common/Text'
 import { useI18n } from '@/lang'
 import { useTheme } from '@/store/theme/hook'
-import { usePlayerMusicInfo } from '@/store/player/hook'
+import { usePlayMusicInfo, usePlayerMusicInfo } from '@/store/player/hook'
 import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
 import CommentHot from '@/screens/Comment/CommentHot'
 import CommentNew from '@/screens/Comment/CommentNew'
+import { isCommentSupported } from '@/screens/Comment/utils'
 
 export interface CommentSheetType {
   show: () => void
@@ -17,9 +18,6 @@ export interface CommentSheetType {
 }
 
 type TabId = 'hot' | 'new'
-
-/** 支持评论的在线源（与 LX.OnlineSource 一致；local/download 等无评论接口） */
-const ONLINE_SOURCES: LX.OnlineSource[] = ['kw', 'kg', 'tx', 'wy', 'mg']
 
 /**
  * 播放页「评论」底部抽屉。
@@ -49,14 +47,14 @@ export default forwardRef<CommentSheetType, { onHide?: () => void }>(({ onHide }
     setTab(id)
   }, [])
 
-  // 评论只支持在线源。
-  // 注意不能只判断 musicInfo.id：本地歌曲也有 id，但其 source 为 'local'，
-  // music['local'] 不存在，取 .comment 时会抛
-  // "Cannot read property 'comment' of undefined" 直接崩溃。
-  const source = musicInfo.id ? (musicInfo as unknown as LX.Music.MusicInfoOnline).source : null
-  const onlineMusicInfo = source && ONLINE_SOURCES.includes(source)
-    ? (musicInfo as unknown as LX.Music.MusicInfoOnline)
-    : null
+  // 评论需要「真实歌曲对象」而不是播放器快照：
+  // LX.Player.MusicInfo 只有 id/pic/name/singer/album，**没有 source**，
+  // 用它判断在线源会永远失败（全部误报「不支持评论」）。
+  // playMusicInfo.musicInfo 才是带 source 的 LX.Music.MusicInfo。
+  // 是否支持评论用运行时探测 SDK 能力，而不是 source 白名单。
+  const playMusicInfo = usePlayMusicInfo()
+  const rawMusicInfo = playMusicInfo.musicInfo as unknown as LX.Music.MusicInfoOnline | undefined
+  const onlineMusicInfo = isCommentSupported(rawMusicInfo?.source) ? rawMusicInfo : null
 
   return (
     <Popup ref={popupRef} title={t('comment_title', { name: musicInfo.name })} closeBtn position="bottom" onHide={onHide} plain>
@@ -74,8 +72,9 @@ export default forwardRef<CommentSheetType, { onHide?: () => void }>(({ onHide }
         <View style={styles.content}>
           {onlineMusicInfo
             ? (tab == 'hot'
-                ? <CommentHot musicInfo={onlineMusicInfo} onUpdateTotal={() => {}} />
-                : <CommentNew musicInfo={onlineMusicInfo} onUpdateTotal={() => {}} />)
+                // key 带上歌曲 id：切歌后强制重新挂载，重新拉取新歌的评论
+                ? <CommentHot key={`hot_${onlineMusicInfo.id}`} musicInfo={onlineMusicInfo} onUpdateTotal={() => {}} />
+                : <CommentNew key={`new_${onlineMusicInfo.id}`} musicInfo={onlineMusicInfo} onUpdateTotal={() => {}} />)
             : (
                 <View style={styles.empty}>
                   <Text size={13} color={theme['c-font-label']}>{t('comment_not support')}</Text>
