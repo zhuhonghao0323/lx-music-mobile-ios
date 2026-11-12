@@ -13,6 +13,7 @@ import { registerCoverSource, clearCoverSource } from '@/screens/PlayDetail/comp
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 import { useIsGlass } from '@/theme/glass'
+import { getMusicPicUrl } from '@/utils/musicCover'
 
 
 export default ({ componentId }: { componentId: string }) => {
@@ -21,14 +22,17 @@ export default ({ componentId }: { componentId: string }) => {
   const statusBarHeight = useStatusbarHeight()
   const isGlass = useIsGlass()
   const containerRef = useRef<ViewType>(null)
-  const picRef = useRef<string | null>(musicInfo.pic ?? null)
+
+  // 封面地址：歌曲封面在 meta.picUrl（顶层 pic 是播放器快照字段，切歌后不更新）
+  const coverUrl = getMusicPicUrl(musicInfo)
+  const picRef = useRef<string | null>(coverUrl)
 
   const [animated, setAnimated] = useState(!!commonState.componentIds.playDetail)
-  const [pic, setPic] = useState(musicInfo.pic)
+  const [pic, setPic] = useState(coverUrl)
   useEffect(() => {
-    if (animated) setPic(musicInfo.pic)
-    picRef.current = musicInfo.pic ?? null
-  }, [musicInfo.pic, animated])
+    if (animated) setPic(coverUrl)
+    picRef.current = coverUrl
+  }, [coverUrl, animated])
 
   // 把封面位置与图片注册给收藏动画，用运行时测量避免机型差异
   useEffect(() => {

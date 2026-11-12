@@ -6,21 +6,20 @@ import { haptic } from '@/utils/haptics'
 /**
  * 右滑展开全屏歌词。
  *
- * 播放页原本右滑会被外层 PagerView 抢走切成「我的」Tab；
- * 现在 Main 已对播放页禁用横滑，由此组件接管：
- * - 右滑超过阈值 → 歌词页从右侧滑入并铺满
- * - 在歌词页上左滑（或点返回）→ 收回
+ * 手势策略：
+ * - 透明层用 onStartShouldSetPanResponder=true 抢占开始，
+ *   然后在移动阶段判定：是横滑才接管（开始拖拽 translateX），否则立即释放
+ *   并把事件放回，保证不影响上下滑切歌和点击。
+ * - 展开后：歌词层自己接管左滑收回。
  */
 const SCREEN_WIDTH = Dimensions.get('window').width
-/** 触发展开的最小水平位移 */
-const OPEN_THRESHOLD = 60
-/** 判定为「横向」的轴比 */
-const AXIS_RATIO = 1.2
+const OPEN_THRESHOLD = 70
+const AXIS_RATIO = 1.1
 
 export default memo(({ disabled = false }: { disabled?: boolean }) => {
   const [opened, setOpened] = useState(false)
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current
-  const draggingRef = useRef(false)
+  const capturingRef = useRef(false)
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
 
@@ -29,7 +28,7 @@ export default memo(({ disabled = false }: { disabled?: boolean }) => {
     setOpened(true)
     Animated.timing(translateX, {
       toValue: 0,
-      duration: 260,
+      duration: 240,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start()
@@ -38,57 +37,69 @@ export default memo(({ disabled = false }: { disabled?: boolean }) => {
   const close = useCallback(() => {
     Animated.timing(translateX, {
       toValue: SCREEN_WIDTH,
-      duration: 220,
+      duration: 200,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => { setOpened(false) })
   }, [translateX])
 
-  /** 只在「未展开」时监听右滑；展开后由歌词层的左滑监听负责收回 */
+  /** 未展开时的右滑捕获层：onStart 不抢点击，onMove 判定明确右滑才接管 */
   const openResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      if (disabledRef.current || opened) return false
+      if (disabledRef.current) return false
       const ax = Math.abs(gs.dx)
       const ay = Math.abs(gs.dy)
-      // 仅接管明确的右滑
-      return gs.dx > 16 && ax >= ay * AXIS_RATIO
+      if (gs.dx > 24 && ax > ay * AXIS_RATIO) {
+        return true
+      }
+      return false
+    },
+    onPanResponderGrant: () => {
+      capturingRef.current = true
+    },
+    onPanResponderMove: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
+      const offset = Math.max(0, Math.min(SCREEN_WIDTH, SCREEN_WIDTH - gs.dx))
+      translateX.setValue(offset)
     },
     onPanResponderRelease: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      const ax = Math.abs(gs.dx)
-      const ay = Math.abs(gs.dy)
-      if (gs.dx >= OPEN_THRESHOLD && ax >= ay * AXIS_RATIO) open()
+      capturingRef.current = false
+      if (gs.dx >= OPEN_THRESHOLD) {
+        open()
+      } else {
+        Animated.spring(translateX, { toValue: SCREEN_WIDTH, friction: 8, tension: 90, useNativeDriver: true }).start()
+      }
     },
+    onPanResponderTerminate: () => {
+      capturingRef.current = false
+      Animated.spring(translateX, { toValue: SCREEN_WIDTH, friction: 8, tension: 90, useNativeDriver: true }).start()
+    },
+    onPanResponderTerminationRequest: () => true,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [open, opened])
+  }), [open, translateX])
 
+  /** 展开后歌词层的左滑收回 */
   const closeResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
       if (!opened) return false
       const ax = Math.abs(gs.dx)
       const ay = Math.abs(gs.dy)
-      return gs.dx < -16 && ax >= ay * AXIS_RATIO
+      return gs.dx < -12 && ax > ay * AXIS_RATIO
     },
     onPanResponderMove: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      if (!draggingRef.current) draggingRef.current = true
-      // 跟手：只允许往右拖（dx<0 时向右位移）
-      const next = Math.min(SCREEN_WIDTH, Math.max(0, -gs.dx))
-      translateX.setValue(next)
+      const offset = Math.max(0, Math.min(SCREEN_WIDTH, -gs.dx))
+      translateX.setValue(offset)
     },
     onPanResponderRelease: (_e: GestureResponderEvent, gs: PanResponderGestureState) => {
-      draggingRef.current = false
-      const ax = Math.abs(gs.dx)
-      if (ax > OPEN_THRESHOLD) {
+      if (-gs.dx > OPEN_THRESHOLD) {
         haptic.tap()
         close()
       } else {
-        // 回弹
         Animated.spring(translateX, { toValue: 0, friction: 8, tension: 90, useNativeDriver: true }).start()
       }
     },
     onPanResponderTerminate: () => {
-      draggingRef.current = false
       Animated.spring(translateX, { toValue: 0, friction: 8, tension: 90, useNativeDriver: true }).start()
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,17 +107,19 @@ export default memo(({ disabled = false }: { disabled?: boolean }) => {
 
   return (
     <>
-      {/* 未展开：铺一层透明层只用来捕获右滑（不拦截点击） */}
-      {!opened ? <View style={StyleSheet.absoluteFill} pointerEvents="box-none" {...openResponder.panHandlers} /> : null}
+      {/* 未展开：透明捕获层（最高 zIndex），只接管明确右滑 */}
+      {!opened
+        ? <View style={[StyleSheet.absoluteFill, styles.captureLayer]} {...openResponder.panHandlers} />
+        : null}
 
-      {/* 歌词层：展开后才渲染，节省歌词列表开销 */}
+      {/* 歌词层：从右侧滑入 */}
       {opened
         ? (
-            <Animated.View style={[styles.lyricLayer, { transform: [{ translateX }] }]} {...closeResponder.panHandlers}>
-              <View style={styles.lyricInner}>
+            <Animated.View style={[styles.lyricLayer, { transform: [{ translateX }] }]}>
+              <View style={styles.lyricInner} {...closeResponder.panHandlers}>
                 <Lyric />
               </View>
-              {/* 右上角关闭提示 */}
+              {/* 顶部提示 */}
               <View style={styles.hintBar} pointerEvents="none">
                 <View style={styles.hintPill} />
               </View>
@@ -118,6 +131,9 @@ export default memo(({ disabled = false }: { disabled?: boolean }) => {
 })
 
 const styles = StyleSheet.create({
+  captureLayer: {
+    zIndex: 90,
+  },
   lyricLayer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(12,10,10,0.98)',

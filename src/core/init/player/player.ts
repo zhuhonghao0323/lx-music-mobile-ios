@@ -102,6 +102,8 @@ export default async(setting: LX.AppSetting) => {
       if (!settingState.setting['player.isPlayWithOtherApps']) return
       if (!playerState.isPlay || !playerState.playMusicInfo.musicInfo) return
       if (global.lx.isPlayedStop) return
+      // 用户主动点过暂停：绝不自动恢复（否则暂停键会失效）
+      if (global.lx.isUserPauseIntent) return
       recovering = true
       // 延迟一点，避开音频会话恢复瞬间的抖动
       setTimeout(() => {

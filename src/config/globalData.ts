@@ -41,6 +41,16 @@ global.lx = {
   // 是否播放完后退出应用
   isPlayedStop: false,
 
+  /**
+   * 用户主动暂停的意图标记。
+   *
+   * 混音模式（与其他应用同时播放）下有一个「底层停了自动恢复」的守护，
+   * 但用户主动点暂停时底层会先变 Paused 而 UI 状态尚未更新，
+   * 守护会把它误恢复。此标记在 pause/stop 时置 true，play 时清掉，
+   * 守护看到它就不会恢复，保证暂停键始终有效。
+   */
+  isUserPauseIntent: false,
+
   // prevListPlayIndex: -1,
 
   // syncKeyInfo: {},

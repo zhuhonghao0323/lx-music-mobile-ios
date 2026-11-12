@@ -252,6 +252,9 @@ export function useBufferProgress() {
         //   break
       }
     })
+    // 切歌时立即重置缓冲条，避免新歌刚开始就显示旧歌的缓冲进度
+    const resetOnToggle = () => { resetBuffer() }
+    global.app_event.on('musicToggled', resetOnToggle)
     const removeNativeFlacListener = onNativeFlacPlayerEvent((event) => {
       switch (event.type) {
         case 'state':
@@ -292,6 +295,7 @@ export function useBufferProgress() {
     return () => {
       isUnmounted = true
       sub.remove()
+      global.app_event.off('musicToggled', resetOnToggle)
       removeNativeFlacListener()
       clearItv()
     }

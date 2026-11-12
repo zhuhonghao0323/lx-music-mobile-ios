@@ -318,6 +318,8 @@ const handlePlay = async() => {
   }
 
   global.lx.isPlayedStop &&= false
+  // 主动播放：清除「用户暂停意图」，恢复守护的可用性
+  global.lx.isUserPauseIntent = false
   resetRandomNextMusicInfo()
 
   if (global.lx.restorePlayInfo) {
@@ -687,6 +689,8 @@ export const play = () => {
  * 暂停播放
  */
 export const pause = async() => {
+  // 标记为用户主动暂停，避免混音模式守护把暂停误恢复
+  global.lx.isUserPauseIntent = true
   await setPause()
 }
 

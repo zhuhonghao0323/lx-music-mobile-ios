@@ -31,6 +31,11 @@ interface GlobalData {
   restorePlayInfo: LX.Player.SavedPlayInfo | null
   isScreenKeepAwake: boolean
   isPlayedStop: boolean
+  /**
+   * 用户主动暂停意图标记：pause/stop 置 true，play 置 false。
+   * 混音模式守护（底层意外停播自动恢复）检查此标记，避免把用户主动暂停误恢复。
+   */
+  isUserPauseIntent: boolean
   isEnableSyncLog: boolean
   isEnableUserApiLog: boolean
   playerTrackId: string

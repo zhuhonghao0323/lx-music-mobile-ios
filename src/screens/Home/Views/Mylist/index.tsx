@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import BackToMine from './BackToMine'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
 import MyList from './MyList'
@@ -64,6 +65,7 @@ export default () => {
       drawerBackgroundColor={theme['c-content-background']}
       style={{ elevation: 1 }}
     >
+      <BackToMine />
       <MusicList />
     </DrawerLayoutFixed>
   )
