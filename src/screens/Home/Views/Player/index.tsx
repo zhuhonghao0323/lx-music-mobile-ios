@@ -17,8 +17,11 @@ import PlayInfo from '@/screens/PlayDetail/Vertical/Player/components/PlayInfo'
 import MusicAddBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/MusicAddBtn'
 import PlayModeBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/PlayModeBtn'
 import CommentBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/CommentBtn'
+import { BTN_ICON_SIZE } from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/Btn'
+import { GLASS_CIRCLE_SIZE, glassCircleStyle } from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/glassButton'
 import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
+import LyricOverlay from './LyricOverlay'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { getSourceDisplayName } from '@/core/customSource'
@@ -224,18 +227,19 @@ export default memo(() => {
           <PlayInfo />
         </View>
 
-        {/* 四个操作：收藏 / 播放模式 / 评论 / 列表（等间距） */}
+        {/* 四个操作：收藏 / 播放模式 / 评论 / 列表（等间距、尺寸统一） */}
         <View style={styles.actionsRow}>
           <View style={styles.actionCell}><MusicAddBtn /></View>
           <View style={styles.actionCell}><PlayModeBtn /></View>
           <View style={styles.actionCell}><CommentBtn /></View>
           <View style={styles.actionCell}>
+            {/* 用与其它三个按钮完全相同的圆形玻璃底，保证对齐 */}
             <TouchableOpacity
-              style={[styles.listBtn, { backgroundColor: circleBg }]}
+              style={glassCircleStyle(GLASS_CIRCLE_SIZE)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               onPress={openPlaylist}
             >
-              <Icon name="menu" size={17} color={theme['c-font-label']} />
+              <Icon name="menu" size={BTN_ICON_SIZE - 5} color={theme['c-font-label']} />
             </TouchableOpacity>
           </View>
         </View>
@@ -261,6 +265,9 @@ export default memo(() => {
           onHide={() => { setOverlayVisible(false) }}
         />
         <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
+
+        {/* 右滑展开全屏歌词（弹窗打开时禁用） */}
+        <LyricOverlay disabled={overlayVisible} />
       </Animated.View>
     </FullScreenSwipe>
   )

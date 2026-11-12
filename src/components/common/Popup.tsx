@@ -47,6 +47,12 @@ const styles = createStyle({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // 纯色面板：单层不透明底 + 圆角，无任何叠加层
+  plainPanel: {
+    backgroundColor: 'rgba(34,30,30,0.98)',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
 })
 
 export interface PopupProps {
@@ -56,6 +62,11 @@ export interface PopupProps {
   closeBtn?: boolean
   position?: 'top' | 'left' | 'right' | 'bottom'
   title?: string
+  /**
+   * 纯色面板模式：不叠毛玻璃/描边/高光层。
+   * 适合内容多的列表弹层（层级更干净、滚动性能更好）。
+   */
+  plain?: boolean
   children: React.ReactNode
 }
 
@@ -70,6 +81,7 @@ export default forwardRef<PopupType, PopupProps>(({
   closeBtn = true,
   position = 'bottom',
   title = '',
+  plain = false,
   children,
 }: PopupProps, ref) => {
   const theme = useTheme()
@@ -196,18 +208,35 @@ export default forwardRef<PopupType, PopupProps>(({
       <View style={{
         ...styles.centeredView,
         ...centeredViewStyle,
-        paddingBottom: keyboardShown ? keyboardHeight : 0,
         // 玻璃主题：左右留白加在容器上（而不是弹层面板），
         // 这样 width:'100%' 的弹层会自动收缩到 屏幕宽 - 24，不会溢出屏幕。
-        ...(glass.isGlass ? { paddingHorizontal: 12 } : {}),
+        ...(plain
+          ? { paddingHorizontal: 10, paddingBottom: Math.max(keyboardShown ? keyboardHeight : 0, 10) }
+          : {
+              paddingBottom: keyboardShown ? keyboardHeight : 0,
+              ...(glass.isGlass ? { paddingHorizontal: 12 } : {}),
+            }),
       }}>
-        <GlassView material="regular" radius={glass.isGlass ? 24 : 2} style={panelStyle} onStartShouldSetResponder={() => true}>
-          <View style={styles.header}>
-            <Text size={glass.isGlass ? 15 : 13} color={glass.textColor()} style={styles.title} numberOfLines={1}>{title}</Text>
-            {closeBtnComponent}
-          </View>
-          {children}
-        </GlassView>
+        {plain
+          // plain 模式：纯色面板，不叠 BlurView / 描边 / 高光，避免出现多余的层级背景框
+          ? (
+              <View style={[panelStyle, styles.plainPanel]} onStartShouldSetResponder={() => true}>
+                <View style={styles.header}>
+                  <Text size={16} color={theme['c-font']} style={styles.title} numberOfLines={1}>{title}</Text>
+                  {closeBtnComponent}
+                </View>
+                {children}
+              </View>
+            )
+          : (
+              <GlassView material="regular" radius={glass.isGlass ? 24 : 2} style={panelStyle} onStartShouldSetResponder={() => true}>
+                <View style={styles.header}>
+                  <Text size={glass.isGlass ? 15 : 13} color={glass.textColor()} style={styles.title} numberOfLines={1}>{title}</Text>
+                  {closeBtnComponent}
+                </View>
+                {children}
+              </GlassView>
+            )}
       </View>
     </Modal>
   )

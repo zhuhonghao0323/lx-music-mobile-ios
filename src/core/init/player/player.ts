@@ -9,6 +9,7 @@ import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onHeadphonesDisconnected } from '@/utils/nativeModules/utils'
 import { AppState, Platform } from 'react-native'
+import TrackPlayer, { Event as TPEvent, State } from 'react-native-track-player'
 
 
 export default async(setting: LX.AppSetting) => {
@@ -85,17 +86,39 @@ export default async(setting: LX.AppSetting) => {
       void pause()
     })
 
-    // 「与其他应用同时播放」模式下，锁屏 / 进入后台时系统的音频中断有可能
-    // 让底层播放器进入 paused，但 JS 侧 UI 状态仍是「播放中」。
-    // 回到前台时，如果 UI 认为在播而底层确实停了，就主动恢复一次，
-    // 保证锁屏 / 后台都不会导致音乐停止。
-    AppState.addEventListener('change', (state) => {
-      if (state != 'active') return
+    // 「与其他应用同时播放」模式的守护：
+    //
+    // 现象：开了混音后，App 长时间在后台（或锁屏很久），其它 App 以独占方式
+    // 启动音频会让系统 deactivate 我们的 AVAudioSession，底层 AVPlayer 被停住，
+    // 但 JS 侧 UI / NowPlaying 仍认为「正在播放」，于是锁屏控件存在却点不动。
+    //
+    // 处理：
+    // 1) 监听底层播放状态，若「UI 认为在播」而底层已 paused/stopped，自动恢复一次
+    // 2) 回到前台时也补一次恢复
+    // 都只在混音模式下生效，避免影响正常的用户暂停。
+    let recovering = false
+    const recoverIfStalled = () => {
+      if (recovering) return
       if (!settingState.setting['player.isPlayWithOtherApps']) return
       if (!playerState.isPlay || !playerState.playMusicInfo.musicInfo) return
       if (global.lx.isPlayedStop) return
-      // 延迟一点，避开系统恢复音频会话时的抖动
-      setTimeout(() => { void setPlay() }, 180)
+      recovering = true
+      // 延迟一点，避开音频会话恢复瞬间的抖动
+      setTimeout(() => {
+        void setPlay().finally(() => { recovering = false })
+      }, 220)
+    }
+
+    // 底层状态变化：故意停了就不管，只有「UI 说在播、底层说停了」才恢复
+    TrackPlayer.addEventListener(TPEvent.PlaybackState, ({ state }: { state: State }) => {
+      if (state == State.Paused || state == State.Stopped) {
+        recoverIfStalled()
+      }
+    })
+
+    AppState.addEventListener('change', (state) => {
+      if (state != 'active') return
+      recoverIfStalled()
     })
   }
 }

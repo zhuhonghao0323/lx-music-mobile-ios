@@ -172,10 +172,10 @@ const Main = () => {
     }
   }, [])
 
-  // 只有停留在底部 Tab 之间时才允许左右滑动；进入二级页后禁用，
-  // 避免用户从搜索结果页误滑回 Tab 造成困惑。
-  // 注意：这里必须跟随 navActiveId 响应式变化，不能读 ref（ref 变化不触发重渲染）
-  const isOnTab = viewMap[navActiveId] < TAB_PAGE_COUNT
+  // 只有停留在「主页 / 我的」之间时才允许左右滑动：
+  // - 播放页自己接管右滑（用于展开全屏歌词），不能交给 PagerView 切成「我的」
+  // - 进入二级页后也禁用，避免误滑回 Tab
+  const isOnTab = viewMap[navActiveId] < TAB_PAGE_COUNT && navActiveId != 'nav_player'
   const allowScroll = scrollEnabled && isOnTab
 
   const component = useMemo(() => (

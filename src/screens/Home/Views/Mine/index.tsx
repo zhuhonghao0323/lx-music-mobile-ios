@@ -12,7 +12,8 @@ import { HEADER_HEIGHT } from '@/config/constant'
 import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
-import MyList from '../Mylist/MyList'
+import { setActiveList } from '@/core/list'
+import ListGrid from './ListGrid'
 
 /** 快捷入口图标按钮 */
 const QuickEntry = ({ icon, label, onPress }: { icon: string, label: string, onPress: () => void }) => {
@@ -59,6 +60,12 @@ export default memo(() => {
 
   const openLove = useCallback(() => {
     haptic.tap()
+    setNavActiveId('nav_love')
+  }, [])
+
+  /** 点歌单图标：设为当前列表并进入列表歌曲页（那里有播放列表、添加到播放列表等全部功能） */
+  const handleSelectList = useCallback((info: LX.List.MyListInfo) => {
+    setActiveList(info.id)
     setNavActiveId('nav_love')
   }, [])
 
@@ -110,9 +117,9 @@ export default memo(() => {
         <Text size={15} color={theme['c-font']}>{t('nav_my_lists')}</Text>
       </View>
 
-      {/* 歌单区：复用现有 MyList（自建/收藏歌单 + 全部管理操作） */}
+      {/* 歌单图标网格：点图标进入该列表的歌曲页（复用现有 MusicList 全部能力） */}
       <View style={styles.listArea}>
-        <MyList />
+        <ListGrid onSelectList={handleSelectList} />
       </View>
     </View>
   )

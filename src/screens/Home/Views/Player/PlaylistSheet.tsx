@@ -74,7 +74,7 @@ export default forwardRef<PlaylistSheetType, {
       )
 
       return (
-    <Popup ref={popupRef} onHide={onHide} title={t('play_list')} closeBtn position="bottom">
+    <Popup ref={popupRef} onHide={onHide} title={t('play_list')} closeBtn position="bottom" plain>
       <View style={styles.sheetBody}>
         <View style={styles.countRow}>
           <Text size={11} color={theme['c-font-label']}>{t('play_list_count', { count: list.length })}</Text>

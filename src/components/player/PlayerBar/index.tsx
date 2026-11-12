@@ -8,6 +8,7 @@ import { useSettingValue } from '@/store/setting/hook'
 import { useIsGlass } from '@/theme/glass'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import Text from '@/components/common/Text'
+import MarqueeText from '@/components/common/MarqueeText'
 import { useTheme } from '@/store/theme/hook'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
@@ -63,9 +64,9 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       <View pointerEvents="none" style={[styles.glassSheen, { borderTopLeftRadius: PILL_HEIGHT / 2, borderTopRightRadius: PILL_HEIGHT / 2 }]} />
       {/* 封面（点击同样进播放页） */}
       <Pic isHome={isHome} />
-      {/* 歌名 + 歌手 */}
+      {/* 歌名 + 歌手（歌名过长时横向慢速滚动） */}
       <View style={styles.center}>
-        <Text size={14} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+        <MarqueeText text={musicInfo.name} size={14} color={theme['c-font']} style={styles.songName} />
         <Text size={11} color={theme['c-font-label']} numberOfLines={1} style={styles.singer}>{musicInfo.singer}</Text>
       </View>
     </TouchableOpacity>

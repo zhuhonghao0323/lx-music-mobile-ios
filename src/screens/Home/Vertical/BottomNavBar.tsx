@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import { View, TouchableOpacity, Animated, Image, StyleSheet } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useNavActiveId } from '@/store/common/hook'
@@ -6,6 +6,7 @@ import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { scaleSizeW } from '@/utils/pixelRatio'
+import { useWindowSize } from '@/utils/hooks'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { popToRoot } from '@/navigation/utils'
@@ -72,6 +73,10 @@ export default memo(({ children, isOverlay = false }: {
 }) => {
   const t = useI18n()
   const activeId = useNavActiveId()
+  const windowSize = useWindowSize()
+
+  // 中间胶囊固定为屏幕宽度的 1/3，不随内容长度变化
+  const centerWidth = useMemo(() => Math.round(windowSize.width / 3), [windowSize.width])
 
   const handlePress = useCallback((id: 'nav_home' | 'nav_mine') => {
     haptic.select()
@@ -97,8 +102,8 @@ export default memo(({ children, isOverlay = false }: {
         label={t('nav_home')}
         onPress={() => { handlePress('nav_home') }}
       />
-      {/* 中间插槽：迷你条胶囊 / 播放按钮 / 空 */}
-      <View style={styles.centerSlot}>{children}</View>
+      {/* 中间插槽：固定宽度（屏幕 1/3），不随内容变化 */}
+      <View style={[styles.centerSlot, { width: centerWidth }]}>{children}</View>
       <SideButton
         source={mineIcon}
         active={isMineActive}
@@ -119,9 +124,9 @@ const styles = createStyle({
     paddingBottom: scaleSizeW(4),
   },
   centerSlot: {
-    flexShrink: 1,
-    // 胶囊不铺满：限制最大宽度，避免大片无用空间
-    maxWidth: '68%',
+    // 宽度由内联样式固定为屏幕 1/3
+    flexShrink: 0,
+    flexGrow: 0,
     marginHorizontal: scaleSizeW(12),
   },
   sideCircle: {
