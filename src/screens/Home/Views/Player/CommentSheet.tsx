@@ -18,6 +18,9 @@ export interface CommentSheetType {
 
 type TabId = 'hot' | 'new'
 
+/** 支持评论的在线源（与 LX.OnlineSource 一致；local/download 等无评论接口） */
+const ONLINE_SOURCES: LX.OnlineSource[] = ['kw', 'kg', 'tx', 'wy', 'mg']
+
 /**
  * 播放页「评论」底部抽屉。
  *
@@ -46,8 +49,12 @@ export default forwardRef<CommentSheetType, { onHide?: () => void }>(({ onHide }
     setTab(id)
   }, [])
 
-  // 评论只支持在线歌曲（需要 source/songId 等字段）
-  const onlineMusicInfo = musicInfo.id
+  // 评论只支持在线源。
+  // 注意不能只判断 musicInfo.id：本地歌曲也有 id，但其 source 为 'local'，
+  // music['local'] 不存在，取 .comment 时会抛
+  // "Cannot read property 'comment' of undefined" 直接崩溃。
+  const source = musicInfo.id ? (musicInfo as unknown as LX.Music.MusicInfoOnline).source : null
+  const onlineMusicInfo = source && ONLINE_SOURCES.includes(source)
     ? (musicInfo as unknown as LX.Music.MusicInfoOnline)
     : null
 

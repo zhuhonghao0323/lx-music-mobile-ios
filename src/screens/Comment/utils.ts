@@ -24,9 +24,13 @@ export interface CommentInfo {
 }
 
 export const getNewComment = async(musicInfo: LX.Music.MusicInfoOnline, page: number, limit: number, retryNum = 0): Promise<CommentInfo> => {
+  // 源不存在时（本地/下载等无评论接口的来源）直接抛出可读错误，
+  // 避免 music[source] 为 undefined 后取 .comment 造成 "Cannot read property 'comment' of undefined" 崩溃
+  const sdk = music[musicInfo?.source as LX.OnlineSource]
+  if (!sdk?.comment) throw new Error('comment_not_support')
   let resp
   try {
-    resp = await (music[musicInfo.source].comment.getComment(toOldMusicInfo(musicInfo), page, limit) as Promise<CommentInfo>)
+    resp = await (sdk.comment.getComment(toOldMusicInfo(musicInfo), page, limit) as Promise<CommentInfo>)
   } catch (error: any) {
     console.log(error.message)
     if (error.message == '取消请求' || ++retryNum > 2) throw error
@@ -36,9 +40,11 @@ export const getNewComment = async(musicInfo: LX.Music.MusicInfoOnline, page: nu
 }
 
 export const getHotComment = async(musicInfo: LX.Music.MusicInfoOnline, page: number, limit: number, retryNum = 0): Promise<CommentInfo> => {
+  const sdk = music[musicInfo?.source as LX.OnlineSource]
+  if (!sdk?.comment) throw new Error('comment_not_support')
   let resp
   try {
-    resp = await (music[musicInfo.source].comment.getHotComment(toOldMusicInfo(musicInfo), page, limit) as Promise<CommentInfo>)
+    resp = await (sdk.comment.getHotComment(toOldMusicInfo(musicInfo), page, limit) as Promise<CommentInfo>)
   } catch (error: any) {
     console.log(error.message)
     if (error.message == '取消请求' || ++retryNum > 2) throw error
