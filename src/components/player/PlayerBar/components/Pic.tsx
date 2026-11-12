@@ -8,29 +8,21 @@ import { LIST_IDS, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import Image from '@/components/common/Image'
 import { useCallback } from 'react'
 import { setLoadErrorPicUrl, setMusicInfo } from '@/core/player/playInfo'
-import { setNavActiveId } from '@/core/common'
+import { getMusicPicUrl } from '@/utils/musicCover'
 
-// 封面尺寸加大，配合更高的胶囊（64 高），圆角更大更接近波点
-const PIC_HEIGHT = scaleSizeW(50)
+// 封面尺寸：比胶囊高度再小一圈，缩进圆弧内避免被裁切
+const PIC_HEIGHT = scaleSizeW(40)
 
 const styles = StyleSheet.create({
   image: {
     width: PIC_HEIGHT,
     height: PIC_HEIGHT,
-    borderRadius: scaleSizeW(14),
+    borderRadius: scaleSizeW(11),
   },
 })
 
 export default ({ isHome }: { isHome: boolean }) => {
   const musicInfo = usePlayerMusicInfo()
-  const handlePress = () => {
-    if (!musicInfo.id) return
-    // 布局重构后播放页是底部 Tab 之一，不再 push 独立的全屏播放页。
-    // 直接切到「正在播放」Tab，与点击中间导航按钮行为一致。
-    setNavActiveId('nav_player')
-
-    // toast(global.i18n.t('play_detail_todo_tip'), 'long')
-  }
 
   const handleLongPress = () => {
     if (!isHome) return
@@ -47,8 +39,8 @@ export default ({ isHome }: { isHome: boolean }) => {
   }, [])
 
   return (
-    <TouchableOpacity onLongPress={handleLongPress} onPress={handlePress} activeOpacity={0.7} >
-      <Image url={musicInfo.pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={styles.image} onError={handleError} />
+    <TouchableOpacity onLongPress={handleLongPress} activeOpacity={1}>
+      <Image url={getMusicPicUrl(musicInfo)} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={styles.image} onError={handleError} />
     </TouchableOpacity>
   )
 }

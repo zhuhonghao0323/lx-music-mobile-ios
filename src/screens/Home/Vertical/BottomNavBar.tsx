@@ -118,16 +118,17 @@ const styles = createStyle({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    // 左右按钮往中间收：外边距给足，让整排视觉更紧凑
     justifyContent: 'center',
-    paddingHorizontal: scaleSizeW(26),
+    // 左右按钮不再贴边，靠「主页/我的 与胶囊的间隙」撑开布局
+    paddingHorizontal: scaleSizeW(10),
     paddingBottom: scaleSizeW(4),
   },
   centerSlot: {
     // 宽度由内联样式固定为屏幕 1/3
     flexShrink: 0,
     flexGrow: 0,
-    marginHorizontal: scaleSizeW(12),
+    // 与左右按钮的横向间隙扩大一倍（12 → 24），主页左移、我的右移
+    marginHorizontal: scaleSizeW(24),
   },
   sideCircle: {
     width: scaleSizeW(54),

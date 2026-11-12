@@ -20,7 +20,7 @@ import CommentBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/
 import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import PlaylistBtn from './PlaylistBtn'
-import LyricOverlay from './LyricOverlay'
+import { useLyricOverlay, LyricLayer } from './LyricOverlay'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { getSourceDisplayName } from '@/core/customSource'
@@ -75,6 +75,8 @@ export default memo(() => {
 
   // 任一二级弹窗/抽屉打开时禁用切歌手势
   const [overlayVisible, setOverlayVisible] = useState(false)
+  // 右滑展开全屏歌词（手势挂在根容器上，不额外叠捕获层，保证按钮可点）
+  const lyric = useLyricOverlay({ disabled: overlayVisible })
 
   const fadeIn = useRef(new Animated.Value(0)).current
   const translateY = useRef(new Animated.Value(scaleSizeW(10))).current
@@ -176,8 +178,11 @@ export default memo(() => {
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
-    <FullScreenSwipe disabled={overlayVisible}>
-      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
+    <FullScreenSwipe disabled={overlayVisible || lyric.opened}>
+      <Animated.View
+        style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}
+        {...lyric.panHandlers}
+      >
         <StatusBar />
 
         {/* 顶栏：右上 ⋯ 更多（音源信息已移到下方按钮行） */}
@@ -259,8 +264,8 @@ export default memo(() => {
         />
         <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
 
-        {/* 右滑展开全屏歌词（弹窗打开时禁用） */}
-        <LyricOverlay disabled={overlayVisible} />
+        {/* 全屏歌词层：仅展开时渲染，不展开时完全不存在（不挡按钮） */}
+        {lyric.opened ? <LyricLayer translateX={lyric.translateX} onCloseHandlers={lyric.panHandlers} /> : null}
       </Animated.View>
     </FullScreenSwipe>
   )
