@@ -1,12 +1,12 @@
 import { memo, useCallback, useMemo, useRef } from 'react'
 import { View, TouchableOpacity, Animated, Image, StyleSheet } from 'react-native'
-import { useTheme } from '@/store/theme/hook'
 import { useNavActiveId } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { useWindowSize } from '@/utils/hooks'
+import { useBeansColors, useBeansAccent } from '@/theme/beans'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { popToRoot } from '@/navigation/utils'
@@ -25,7 +25,8 @@ const SideButton = memo(({ source, active, label, onPress }: {
   label: string
   onPress: () => void
 }) => {
-  const theme = useTheme()
+  const colors = useBeansColors()
+  const accent = useBeansAccent()
   const scale = useRef(new Animated.Value(1)).current
 
   const animateTo = (to: number) => {
@@ -41,17 +42,21 @@ const SideButton = memo(({ source, active, label, onPress }: {
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Animated.View style={[styles.sideCircle, { transform: [{ scale }] }]}>
-        <View pointerEvents="none" style={styles.sideSheen} />
+      <Animated.View style={[styles.sideCircle, {
+        transform: [{ scale }],
+        backgroundColor: active ? accent : colors.glass,
+        borderColor: active ? 'transparent' : colors.border,
+      }]}>
+        <View pointerEvents="none" style={[styles.sideSheen, { backgroundColor: colors.highlight }]} />
         <Image
           source={source}
-          style={[styles.icon, { tintColor: active ? theme['c-primary-font'] : theme['c-font-label'] }]}
+          style={[styles.icon, { tintColor: active ? '#1C1A1A' : colors.textSecondary }]}
           resizeMode="contain"
         />
         <Text
           style={styles.sideLabel}
           size={10}
-          color={active ? theme['c-primary-font'] : theme['c-font-label']}
+          color={active ? '#1C1A1A' : colors.textSecondary}
           numberOfLines={1}
         >{label}</Text>
       </Animated.View>
@@ -93,9 +98,13 @@ export default memo(({ children, isOverlay = false }: {
 
   const isHomeActive = !isOverlay && activeId == 'nav_home'
   const isMineActive = !isOverlay && activeId == 'nav_mine'
+  const colors = useBeansColors()
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, {
+      backgroundColor: colors.glass,
+      borderColor: colors.border,
+    }]}>
       <SideButton
         source={homeIcon}
         active={isHomeActive}
@@ -119,9 +128,13 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    // 左右按钮不再贴边，靠「主页/我的 与胶囊的间隙」撑开布局
-    paddingHorizontal: scaleSizeW(10),
-    paddingBottom: scaleSizeW(4),
+    // Beans 悬浮玻璃底栏：与左右留白 + 大圆角 + 细描边
+    marginHorizontal: scaleSizeW(12),
+    marginBottom: scaleSizeW(8),
+    paddingVertical: scaleSizeW(8),
+    paddingHorizontal: scaleSizeW(6),
+    borderRadius: scaleSizeW(30),
+    borderWidth: StyleSheet.hairlineWidth,
   },
   centerSlot: {
     // 宽度由内联样式固定为屏幕 1/3
@@ -137,17 +150,12 @@ const styles = createStyle({
     borderRadius: scaleSizeW(28),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.10)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.40)',
-    borderLeftColor: 'rgba(255,255,255,0.22)',
-    borderRightColor: 'rgba(255,255,255,0.14)',
-    borderBottomColor: 'rgba(0,0,0,0.25)',
     shadowColor: 'rgba(0,0,0,0.45)',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
     overflow: 'hidden',
   },
   sideSheen: {

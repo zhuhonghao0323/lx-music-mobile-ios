@@ -65,12 +65,13 @@ export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, c
   const glass = useGlass()
 
   const inputGlassStyle = useMemo(() => glass.isGlass ? {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    // Beans 玻璃输入框：冷黑半透底 + 细描边 + 14 圆角
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.32)',
-    borderRadius: 12,
-    paddingLeft: 10,
-    paddingRight: 8,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 14,
+    paddingLeft: 12,
+    paddingRight: 10,
   } : {}, [glass.isGlass])
   // const scaleClearBtn = useRef(new Animated.Value(0)).current
 

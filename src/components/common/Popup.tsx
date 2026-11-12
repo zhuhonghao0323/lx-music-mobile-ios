@@ -47,10 +47,12 @@ const styles = createStyle({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // 纯色面板：单层不透明底 + 圆角，无任何叠加层
+  // 纯色面板：Beans 冷黑玻璃底 + 大圆角，无任何叠加层
   plainPanel: {
-    backgroundColor: 'rgba(34,30,30,0.98)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(28, 28, 30, 0.98)',
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.10)',
     overflow: 'hidden',
   },
 })

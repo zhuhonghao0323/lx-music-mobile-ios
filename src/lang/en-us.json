@@ -1,4 +1,5 @@
 {
+  "home_discover_hint": "Discover good music", "home_daily_recommend": "Daily Recommend", "home_view_all": "View all",
   "user_api_priority_title": "Source priority",
   "user_api_priority_desc": "Drag to reorder. First is default; auto-switches to next on failure; each song restarts from the first.",
   "user_api_priority_default": "Default",

@@ -19,20 +19,18 @@ export const useIsGlassLight = () => useTheme().id == LIQUID_GLASS_LIGHT_ID
 export const useIsMd3 = () => useTheme().id == MD3_ID
 
 /**
- * 统一圆角 token。
- *
- * 玻璃主题下全站统一大圆角（弹窗 24 / 面板 18 / 控件 14），
- * 其它主题沿用项目原来的紧凑风格，避免影响既有主题观感。
+ * 统一圆角 token —— 对齐 Beans Music（Components.swift GlassCard 默认 24）。
+ * 玻璃主题下全站统一大圆角，其它主题沿用项目原来的紧凑风格。
  */
 export const RADIUS = {
-  /** 模态弹窗（Dialog / Popup） */
+  /** 模态弹窗 / 大卡片（GlassCard 默认） */
   dialog: 24,
-  /** 浮层面板（下拉面板、菜单） */
-  panel: 18,
+  /** 浮层面板（下拉面板、榜单卡片） */
+  panel: 20,
   /** 控件（按钮、输入框、列表项） */
   control: 14,
   /** 小元素（徽标、缩略图） */
-  small: 8,
+  small: 10,
 } as const
 
 /** 按当前主题取圆角：玻璃主题用统一大圆角，其它主题回落到传入的默认值 */
@@ -102,45 +100,45 @@ export const useMd3 = () => {
 export const isNativeBlurAvailable = Platform.OS == 'ios'
 
 /**
- * 液态玻璃调色板（按设计交付说明还原）。
- * 背景模糊由原生 BlurView 提供；这里只负责描边、高光、阴影、文字色等光学层。
- * 数值来源：音乐播放器_iOS27_LiquidGlass 开发交付说明 §3 视觉规范。
+ * 液态玻璃调色板 —— 对齐 Beans Music 深色态。
+ * 冷黑 #0A0A0C 底 + 琥珀暖金 #F5B359 强调色 + 纯白主文字。
+ * 数值来自 Beans-Music/Beans/Theme.swift。
  */
 const GLASS = {
-  // 面板降级底色（非 iOS 或降低透明度时）——暖黑
-  surface: 'rgba(18, 14, 14, 0.62)',
-  surfaceStrong: 'rgba(18, 14, 14, 0.78)',
-  surfaceDim: 'rgba(18, 14, 14, 0.44)',
+  // 面板降级底色 —— 冷黑（Beans card #1C1C1E）
+  surface: 'rgba(28, 28, 30, 0.62)',
+  surfaceStrong: 'rgba(28, 28, 30, 0.78)',
+  surfaceDim: 'rgba(28, 28, 30, 0.44)',
   control: 'rgba(255, 255, 255, 0.08)',
   controlActive: 'rgba(255, 255, 255, 0.16)',
-  // 玻璃描边 rgba(255,255,255,0.22)，1px 以内
-  border: 'rgba(255, 255, 255, 0.22)',
-  borderSoft: 'rgba(255, 255, 255, 0.12)',
-  // 玻璃高光 rgba(255,255,255,0.12)
+  // 玻璃描边
+  border: 'rgba(255, 255, 255, 0.14)',
+  borderSoft: 'rgba(255, 255, 255, 0.08)',
+  // 玻璃高光
   highlight: 'rgba(255, 255, 255, 0.12)',
-  shadow: 'rgba(6, 4, 4, 0.55)',
-  scrim: 'rgba(11, 9, 10, 0.46)',
-  // 强调色 #F27868
-  tint: 'rgba(242, 120, 104, 0.95)',
-  // 主文字 #F5F2F1 / 次级文字 #B8B0B0
-  text: '#F5F2F1',
-  textDim: '#B8B0B0',
+  shadow: 'rgba(0, 0, 0, 0.55)',
+  scrim: 'rgba(10, 10, 12, 0.46)',
+  // 强调色：琥珀暖金
+  tint: '#F5B359',
+  // 主文字纯白 / 次级文字 #98989F
+  text: '#FFFFFF',
+  textDim: '#98989F',
 } as const
 
 /**
- * 环境背景光斑：设计稿要求由「封面放大模糊 + 黑色遮罩」形成环境底色，
- * 这里保留一组暖色光斑作为封面上色前的兜底层，色相与暖黑基调一致。
+ * 环境背景光斑：Beans 播放页由「封面放大模糊 + 遮罩」形成环境底色，
+ * 这里保留一组偏冷的低饱和光斑作为封面上色前的兜底层。
  */
 export const GLASS_AURORA = [
-  { color: 'rgba(242, 120, 104, 0.28)', size: 0.9, top: -0.12, left: -0.18 },
-  { color: 'rgba(232, 178, 125, 0.22)', size: 0.75, top: 0.08, left: 0.55 },
-  { color: 'rgba(155, 176, 196, 0.16)', size: 0.8, top: 0.48, left: -0.12 },
-  { color: 'rgba(242, 120, 104, 0.18)', size: 0.7, top: 0.66, left: 0.5 },
-  { color: 'rgba(120, 90, 80, 0.20)', size: 0.6, top: 0.82, left: 0.1 },
+  { color: 'rgba(242, 163, 60, 0.22)', size: 0.9, top: -0.12, left: -0.18 },
+  { color: 'rgba(120, 140, 180, 0.18)', size: 0.75, top: 0.08, left: 0.55 },
+  { color: 'rgba(155, 176, 196, 0.14)', size: 0.8, top: 0.48, left: -0.12 },
+  { color: 'rgba(198, 130, 60, 0.16)', size: 0.7, top: 0.66, left: 0.5 },
+  { color: 'rgba(90, 100, 120, 0.18)', size: 0.6, top: 0.82, left: 0.1 },
 ] as const
 
-export const GLASS_BASE = '#0B090A'
-export const GLASS_DEEP = '#070505'
+export const GLASS_BASE = '#0A0A0C'
+export const GLASS_DEEP = '#000000'
 
 /**
  * 面板样式占位：原生毛玻璃的描边/高光/阴影/圆角全部由 GlassView 提供，
