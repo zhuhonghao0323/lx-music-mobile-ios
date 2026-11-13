@@ -1,22 +1,24 @@
 import { memo, useCallback, useEffect } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { scaleSizeW } from '@/utils/pixelRatio'
+import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { HEADER_HEIGHT } from '@/config/constant'
+import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { setActiveList } from '@/core/list'
 import ListGrid from './ListGrid'
-import { useBeansColors, useBeansAccent, beansCircleButton, BEANS_RADIUS, beansCard, beansSheen } from '@/theme/beans'
 
-/** 快捷入口图标按钮（Beans 玻璃圆钮） */
+/** 快捷入口图标按钮 */
 const QuickEntry = ({ icon, label, onPress }: { icon: string, label: string, onPress: () => void }) => {
-  const colors = useBeansColors()
-  const accent = useBeansAccent()
+  const theme = useTheme()
+  const isGlass = useIsGlass()
   return (
     <TouchableOpacity
       style={styles.quickEntry}
@@ -24,12 +26,11 @@ const QuickEntry = ({ icon, label, onPress }: { icon: string, label: string, onP
       onPress={() => { haptic.tap(); onPress() }}
     >
       <View style={StyleSheet.compose(styles.quickIcon, {
-        backgroundColor: colors.glass,
-        borderColor: colors.border,
+        backgroundColor: isGlass ? 'rgba(255,255,255,0.10)' : theme['c-primary-light-500-alpha-800'],
       })}>
-        <Icon name={icon} size={18} color={accent} />
+        <Icon name={icon} size={18} color={theme['c-primary-font']} />
       </View>
-      <Text style={styles.quickLabel} size={11} color={colors.textSecondary} numberOfLines={1}>{label}</Text>
+      <Text style={styles.quickLabel} size={11} color={theme['c-font-label']} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   )
 }
@@ -47,11 +48,10 @@ const QuickEntry = ({ icon, label, onPress }: { icon: string, label: string, onP
  * 同步等既有能力全部保留，不因布局重构而丢失。
  */
 export default memo(() => {
+  const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
-  const colors = useBeansColors()
-  const accent = useBeansAccent()
-  const settingBtnStyle = beansCircleButton(colors, scaleSizeW(44))
+  const isGlass = useIsGlass()
 
   const openSetting = useCallback(() => {
     haptic.tap()
@@ -79,31 +79,33 @@ export default memo(() => {
   }, [])
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <StatusBar />
       <View
         style={StyleSheet.compose(styles.header, {
-          paddingTop: statusBarHeight + scaleSizeW(16),
+          height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
+          paddingTop: statusBarHeight,
         })}
       >
-        <Text style={styles.title} size={30} color={colors.text}>{t('nav_mine')}</Text>
+        <Text style={styles.title} size={20} color={theme['c-font']}>{t('nav_mine')}</Text>
         <TouchableOpacity
-          style={settingBtnStyle}
+          style={styles.settingBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={openSetting}
         >
-          <Icon name="setting" size={20} color={accent} />
+          <Icon name="setting" size={19} color={theme['c-font']} />
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.profileCard, beansCard(colors, BEANS_RADIUS.card)]}>
-        <View pointerEvents="none" style={[styles.cardSheen, beansSheen(colors, BEANS_RADIUS.card)]} />
-        <View style={StyleSheet.compose(styles.avatar, { backgroundColor: accent })}>
-          <Icon name="logo" size={24} color="#1C1A1A" />
+      <View style={StyleSheet.compose(styles.profileCard, {
+        backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-500-alpha-800'],
+      })}>
+        <View style={StyleSheet.compose(styles.avatar, { backgroundColor: theme['c-primary-font'] })}>
+          <Icon name="logo" size={24} color={theme['c-main-background']} />
         </View>
         <View style={styles.profileInfo}>
-          <Text size={16} color={colors.text}>{t('user_api_local')}</Text>
-          <Text style={styles.profileSub} size={12} color={colors.textSecondary}>{t('nav_mine_subtitle')}</Text>
+          <Text size={16} color={theme['c-font']}>{t('user_api_local')}</Text>
+          <Text style={styles.profileSub} size={11} color={theme['c-font-label']}>{t('nav_mine_subtitle')}</Text>
         </View>
       </View>
 
@@ -112,7 +114,7 @@ export default memo(() => {
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text size={22} color={colors.text} style={styles.sectionTitle}>{t('nav_my_lists')}</Text>
+        <Text size={15} color={theme['c-font']}>{t('nav_my_lists')}</Text>
       </View>
 
       {/* 歌单图标网格：点图标进入该列表的歌曲页（复用现有 MusicList 全部能力） */}
@@ -130,30 +132,31 @@ const styles = createStyle({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scaleSizeW(18),
-    paddingBottom: scaleSizeW(10),
+    paddingHorizontal: scaleSizeW(16),
     zIndex: 10,
   },
   title: {
     flex: 1,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+  },
+  settingBtn: {
+    width: scaleSizeW(36),
+    height: scaleSizeW(36),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: scaleSizeW(18),
-    marginTop: scaleSizeW(8),
-    padding: scaleSizeW(16),
-    overflow: 'hidden',
-  },
-  cardSheen: {
-    position: 'absolute',
+    marginHorizontal: scaleSizeW(16),
+    marginTop: scaleSizeW(6),
+    padding: scaleSizeW(14),
+    borderRadius: scaleSizeW(16),
   },
   avatar: {
-    width: scaleSizeW(52),
-    height: scaleSizeW(52),
-    borderRadius: scaleSizeW(26),
+    width: scaleSizeW(48),
+    height: scaleSizeW(48),
+    borderRadius: scaleSizeW(24),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -186,12 +189,9 @@ const styles = createStyle({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scaleSizeW(18),
-    marginTop: scaleSizeW(22),
-    marginBottom: scaleSizeW(8),
-  },
-  sectionTitle: {
-    fontWeight: '800',
+    paddingHorizontal: scaleSizeW(16),
+    marginTop: scaleSizeW(18),
+    marginBottom: scaleSizeW(4),
   },
   listArea: {
     flex: 1,

@@ -46,13 +46,15 @@ export default memo(() => {
     >
       <Animated.View style={[styles.pill, {
         transform: [{ scale }],
-        // Beans 风格：琥珀暖金渐变感的半透明底 + 细亮边
-        backgroundColor: isGlass ? 'rgba(242, 163, 60, 0.22)' : theme['c-primary-light-500-alpha-800'],
-        borderColor: 'rgba(245, 179, 89, 0.45)',
+        backgroundColor: isGlass ? 'rgba(255,255,255,0.14)' : theme['c-primary-light-500-alpha-800'],
+        borderTopColor: 'rgba(255,255,255,0.38)',
+        borderLeftColor: 'rgba(255,255,255,0.22)',
+        borderRightColor: 'rgba(255,255,255,0.16)',
+        borderBottomColor: 'rgba(0,0,0,0.28)',
       }]}>
-        {/* 顶部高光：玻璃受光 */}
+        {/* 顶部高光：3D 液态质感 */}
         <View pointerEvents="none" style={styles.sheen} />
-        <Icon name={isPlay ? 'pause' : 'play'} size={26} color={isGlass ? '#F5B359' : theme['c-font']} />
+        <Icon name={isPlay ? 'pause' : 'play'} size={26} color={theme['c-font']} />
       </Animated.View>
     </TouchableOpacity>
   )

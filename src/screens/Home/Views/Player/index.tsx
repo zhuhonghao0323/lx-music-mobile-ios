@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { View, TouchableOpacity, Animated, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, Animated } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
+import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
@@ -8,6 +9,7 @@ import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { scaleSizeW } from '@/utils/pixelRatio'
+import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
 import Pic from '@/screens/PlayDetail/Vertical/Pic'
@@ -33,7 +35,6 @@ import { setMusicUrl } from '@/core/player/player'
 import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
 import { useTogglePlayMode } from './useTogglePlayMode'
-import { useBeansColors, BEANS_SPACING, beansCircleButton } from '@/theme/beans'
 
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
@@ -58,8 +59,10 @@ const TAG_FONT_SIZE = 11
 const MENU_FONT_SIZE = 13
 
 export default memo(() => {
+  const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
+  const isGlass = useIsGlass()
   const musicInfo = usePlayerMusicInfo()
   const menuRef = useRef<MenuType>(null)
   const sourceMenuRef = useRef<MenuType>(null)
@@ -188,9 +191,7 @@ export default memo(() => {
     setPageIndex(nativeEvent.position)
   }, [])
 
-  const beansColors = useBeansColors()
-  // Beans 风格圆形玻璃按钮
-  const roundBtn = beansCircleButton(beansColors, scaleSizeW(44))
+  const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
     <FullScreenSwipe disabled={overlayVisible || pageIndex == 1}>
@@ -207,24 +208,17 @@ export default memo(() => {
         >
           <View collapsable={false} style={styles.page}>
             <View style={styles.playerPage}>
-              {/* 顶栏（Beans 布局）：左收起箭头 / 中「正在播放 + 歌名」/ 右收藏 + 更多 */}
+              {/* 顶栏：右上 ⋯ 更多（音源信息已移到下方按钮行） */}
               <View style={[styles.header, { paddingTop: statusBarHeight + scaleSizeW(6) }]}>
+                <View style={styles.headerSpacer} />
                 <TouchableOpacity
-                  style={roundBtn}
-                  onPress={() => { haptic.tap(); setNavActiveId('nav_home') }}
-                  activeOpacity={0.7}
+                  ref={moreBtnRef}
+                  style={[styles.moreBtn, { backgroundColor: circleBg }]}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  onPress={showMore}
                 >
-                  <Icon name="chevron-left" size={20} color={beansColors.text} />
+                  <Icon name="dots-vertical" size={16} color={theme['c-font']} />
                 </TouchableOpacity>
-                <View style={styles.headerTitle}>
-                  <Text size={15} color={beansColors.text} numberOfLines={1} style={styles.headerTitleMain}>{t('nav_player')}</Text>
-                  <Text size={12} color={beansColors.textSecondary} numberOfLines={1}>{musicInfo.name}</Text>
-                </View>
-                <View style={styles.headerRight}>
-                  <TouchableOpacity ref={moreBtnRef} style={[roundBtn, styles.headerRightBtn]} onPress={showMore} activeOpacity={0.7}>
-                    <Icon name="dots-vertical" size={18} color={beansColors.text} />
-                  </TouchableOpacity>
-                </View>
               </View>
 
               {/* 封面 */}
@@ -237,19 +231,19 @@ export default memo(() => {
                 <LyricPreview />
               </View>
 
-              {/* 歌名 / 歌手（Beans 大字号居中） + 音质/音源玻璃胶囊 */}
+              {/* 歌名 / 歌手 / 音质 + 音源（并排、样式统一、可点击切换） */}
               <View style={styles.titleRow}>
-                <Text size={26} color={beansColors.text} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
-                <Text size={15} color={beansColors.textSecondary} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
+                <Text size={19} color={theme['c-font']} numberOfLines={1} style={styles.songName}>{musicInfo.name}</Text>
+                <Text size={12} color={theme['c-font-label']} numberOfLines={1} style={styles.singerText}>{musicInfo.singer}</Text>
                 <View style={styles.tagRow}>
                   <TouchableOpacity ref={qualityBtnRef} onPress={showQualityMenu} activeOpacity={0.7}>
-                    <View style={[styles.tag, { backgroundColor: beansColors.glass, borderColor: beansColors.border }]}>
-                      <Text size={TAG_FONT_SIZE} color={beansColors.textSecondary} numberOfLines={1}>{qualityText}</Text>
+                    <View style={[styles.tag, { backgroundColor: circleBg }]}>
+                      <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{qualityText}</Text>
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity ref={sourceBtnRef} onPress={showSourceMenu} activeOpacity={0.7}>
-                    <View style={[styles.tag, styles.tagGap, { backgroundColor: beansColors.glass, borderColor: beansColors.border }]}>
-                      <Text size={TAG_FONT_SIZE} color={beansColors.textSecondary} numberOfLines={1}>{sourceShort}</Text>
+                    <View style={[styles.tag, styles.tagGap, { backgroundColor: circleBg }]}>
+                      <Text size={TAG_FONT_SIZE} color={theme['c-font-label']} numberOfLines={1}>{sourceShort}</Text>
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -330,25 +324,18 @@ const styles = createStyle({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: BEANS_SPACING.page,
-    paddingBottom: scaleSizeW(8),
+    paddingHorizontal: scaleSizeW(16),
+    paddingBottom: scaleSizeW(4),
   },
-  headerTitle: {
+  headerSpacer: {
     flex: 1,
+  },
+  moreBtn: {
+    width: scaleSizeW(34),
+    height: scaleSizeW(34),
+    borderRadius: scaleSizeW(17),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: scaleSizeW(8),
-  },
-  headerTitleMain: {
-    fontWeight: '600',
-    marginBottom: scaleSizeW(2),
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerRightBtn: {
-    marginLeft: scaleSizeW(8),
   },
   coverArea: {
     flexGrow: 1,
@@ -356,38 +343,34 @@ const styles = createStyle({
     minHeight: scaleSizeW(140),
   },
   lyricArea: {
-    // 三行歌词预览（Beans 播放页封面下方的歌词预览区）
-    height: scaleSizeW(96),
+    // 三行歌词预留充足高度，避免被歌名/进度挤到遮挡
+    height: scaleSizeW(84),
     justifyContent: 'center',
   },
   titleRow: {
-    alignItems: 'center',
     paddingHorizontal: scaleSizeW(20),
-    paddingTop: scaleSizeW(4),
+    paddingTop: scaleSizeW(6),
     paddingBottom: scaleSizeW(2),
   },
   songName: {
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: '700',
   },
   singerText: {
-    marginTop: scaleSizeW(4),
-    textAlign: 'center',
+    marginTop: scaleSizeW(2),
   },
   // 音质 + 音源并排：统一样式、水平对齐、保持适当间距
   tagRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: scaleSizeW(10),
+    marginTop: scaleSizeW(7),
   },
   tag: {
-    height: scaleSizeW(24),
-    minWidth: scaleSizeW(48),
-    paddingHorizontal: scaleSizeW(10),
-    borderRadius: scaleSizeW(12),
+    height: scaleSizeW(22),
+    minWidth: scaleSizeW(46),
+    paddingHorizontal: scaleSizeW(9),
+    borderRadius: scaleSizeW(11),
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
   },
   tagGap: {
     marginLeft: scaleSizeW(8),

@@ -1,5 +1,4 @@
 {
-  "home_discover_hint": "發現好音樂", "home_daily_recommend": "每日推薦", "home_view_all": "查看全部",
   "user_api_priority_title": "音源切換優先順序",
   "user_api_priority_desc": "拖動調整順序，第一個為預設音源；目前音源失效時自動切換下一個，每次切歌從第一個重新開始",
   "user_api_priority_default": "預設",

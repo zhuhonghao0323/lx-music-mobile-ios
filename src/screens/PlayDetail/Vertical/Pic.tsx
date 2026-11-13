@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, View, type View as ViewType } from 'react-native'
+import { Animated, Easing, StyleSheet, View, type View as ViewType } from 'react-native'
 // import { useLayout } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
 import { usePlayerMusicInfo } from '@/store/player/hook'
@@ -78,13 +78,14 @@ export default ({ componentId }: { componentId: string }) => {
     return {
       width: imgWidth,
       height: imgWidth,
-      // Beans Music 风格：圆形唱片封面（与原项目黑胶唱片一致）
-      borderRadius: isGlass ? imgWidth / 2 : 2,
+      // 设计规范：封面圆角 18–22，保持清晰完整、不叠加玻璃蒙层
+      borderRadius: isGlass ? 20 : 2,
       ...(isGlass ? {
-        // 唱片外圈：细亮边 + 柔和投影，让封面从模糊背景中浮起
-        borderWidth: 3,
-        borderColor: 'rgba(255,255,255,0.18)',
-        shadowColor: 'rgba(0, 0, 0, 0.62)',
+        // 仅极细受光描边，避免厚重边框；封面本体保持清晰不加模糊
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.24)',
+        // 暖黑基调下的柔和投影，让封面从模糊背景中浮起
+        shadowColor: 'rgba(6, 4, 4, 0.62)',
         shadowOffset: { width: 0, height: 18 },
         shadowOpacity: 0.55,
         shadowRadius: 30,

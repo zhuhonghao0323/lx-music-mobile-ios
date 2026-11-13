@@ -1,15 +1,17 @@
 import { memo, useCallback, useState } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { scaleSizeW } from '@/utils/pixelRatio'
+import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { HEADER_HEIGHT } from '@/config/constant'
+import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
-import { useBeansColors, useBeansAccent, BEANS_NETEASE_RED, BEANS_SPACING, BEANS_RADIUS, beansCard, beansSheen } from '@/theme/beans'
 import SongList from '../SongList'
 import Leaderboard from '../Leaderboard'
 
@@ -17,23 +19,20 @@ import Leaderboard from '../Leaderboard'
 type Channel = 'songlist' | 'top'
 
 /**
- * Tab 1 · 主页「发现」—— 对齐 Beans Music 首页布局。
+ * Tab 1 · 主页（发现 + 搜索入口）。
  *
- * Beans 结构（自上而下）：
- *   问候语（晚上好 / 发现好音乐）+ 右上刷新圆钮
- *   → 平台切换胶囊（选中态网易云红，未选中玻璃）
- *   → 分区标题（每日推荐 / 查看全部）
- *   → 频道切换 + 搜索
- *   → 内容卡片（复用现有 SongList / Leaderboard，保留全部功能）
+ * 结构对标波点音乐：
+ *   顶部栏（品牌名 + 频道 Tab + 搜索框）
+ *   → 内容区（歌单网格 / 榜单列表，按频道切换）
  *
- * 头部固定、内容区 flex 铺满：避免 ScrollView 与内部 FlatList 嵌套滚动冲突。
- * 底部三大图标逻辑保持不变，由外层 BottomNavBar 承载。
+ * 歌单与榜单都直接复用现有的 SongList / Leaderboard 页面组件，
+ * 因此排序、音源筛选、单曲菜单等能力全部原样保留。
  */
 export default memo(() => {
+  const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
-  const colors = useBeansColors()
-  const accent = useBeansAccent()
+  const isGlass = useIsGlass()
   const [channel, setChannel] = useState<Channel>('songlist')
 
   const switchChannel = useCallback((next: Channel) => {
@@ -42,240 +41,109 @@ export default memo(() => {
     setChannel(next)
   }, [channel])
 
-  const refresh = useCallback(() => {
-    haptic.tap()
-    global.app_event.focus()
-  }, [])
-
   const openSearch = useCallback(() => {
     haptic.tap()
     setNavActiveId('nav_search')
   }, [])
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <StatusBar />
-
-      {/* 固定头部区 */}
-      <View style={[styles.head, { paddingTop: statusBarHeight + scaleSizeW(12) }]}>
-        {/* 问候语 + 刷新 */}
-        <View style={styles.greetingRow}>
-          <View style={styles.greetingText}>
-            <Text size={28} color={colors.text} style={styles.greeting}>{greeting()}</Text>
-            <Text size={13} color={colors.textSecondary} style={styles.subGreeting}>{t('home_discover_hint')}</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.refreshBtn, { backgroundColor: colors.glass, borderColor: colors.border }]}
-            onPress={refresh}
-            activeOpacity={0.7}
-          >
-            <Icon name="available_updates" size={20} color={colors.text} />
-          </TouchableOpacity>
+      <View
+        style={StyleSheet.compose(styles.header, {
+          height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
+          paddingTop: statusBarHeight,
+        })}
+      >
+        {/* 品牌名 + 频道 Tab */}
+        <View style={styles.headerLeft}>
+          <Text style={styles.brand} size={19} color={theme['c-font']}>Music</Text>
+          <ChannelTab label={t('nav_songlist')} active={channel == 'songlist'} onPress={() => { switchChannel('songlist') }} />
+          <ChannelTab label={t('nav_top')} active={channel == 'top'} onPress={() => { switchChannel('top') }} />
         </View>
-
-        {/* 平台切换胶囊 */}
-        <View style={[styles.platformBar, { backgroundColor: colors.glass, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.platformActive, { backgroundColor: BEANS_NETEASE_RED.primary }]}
-            onPress={() => { switchChannel('songlist') }}
-            activeOpacity={0.8}
-          >
-            <Icon name="music_time" size={15} color="#FFFFFF" />
-            <Text size={15} color="#FFFFFF" style={styles.platformLabel}>{t('nav_songlist')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.platformInactive}
-            onPress={() => { switchChannel('top') }}
-            activeOpacity={0.8}
-          >
-            <Icon name="play" size={14} color={colors.textSecondary} />
-            <Text size={15} color={colors.textSecondary} style={styles.platformLabel}>{t('nav_top')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 分区标题 + 查看全部 */}
-        <View style={styles.sectionHeader}>
-          <Text size={21} color={colors.text} style={styles.sectionTitle}>{t('home_daily_recommend')}</Text>
-          <TouchableOpacity style={styles.sectionMore} onPress={openSearch} activeOpacity={0.7}>
-            <Text size={13} color={colors.textSecondary}>{t('home_view_all')}</Text>
-            <Icon name="chevron-right" size={13} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* 频道切换 + 搜索 */}
-        <View style={styles.channelRow}>
-          <ChannelPill
-            label={t('nav_songlist')}
-            active={channel == 'songlist'}
-            colors={colors}
-            accent={accent}
-            onPress={() => { switchChannel('songlist') }}
-          />
-          <ChannelPill
-            label={t('nav_top')}
-            active={channel == 'top'}
-            colors={colors}
-            accent={accent}
-            onPress={() => { switchChannel('top') }}
-          />
-          <View style={styles.channelSpacer} />
-          <TouchableOpacity
-            style={[styles.searchBtn, { backgroundColor: colors.glass, borderColor: colors.border }]}
-            onPress={openSearch}
-            activeOpacity={0.7}
-          >
-            <Icon name="search-2" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        {/* 搜索入口：胶囊形搜索框，点击进入搜索二级页 */}
+        <TouchableOpacity
+          style={StyleSheet.compose(styles.searchBox, {
+            backgroundColor: isGlass ? 'rgba(255,255,255,0.10)' : theme['c-primary-light-500-alpha-800'],
+          })}
+          activeOpacity={0.7}
+          onPress={openSearch}
+        >
+          <Icon name="search-2" size={14} color={theme['c-font-label']} />
+          <Text style={styles.searchText} size={12} color={theme['c-font-label']} numberOfLines={1}>{t('search_input_placeholder')}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* 内容区：Beans 玻璃大卡片，flex 铺满，内部组件自带滚动 */}
-      <View style={[styles.contentCard, beansCard(colors, BEANS_RADIUS.card)]}>
-        <View pointerEvents="none" style={[styles.cardSheen, beansSheen(colors, BEANS_RADIUS.card)]} />
-        <View style={styles.content}>
-          {channel == 'songlist' ? <SongList /> : <Leaderboard />}
-        </View>
+      {/* 内容区 */}
+      <View style={styles.content}>
+        {channel == 'songlist' ? <SongList /> : <Leaderboard />}
       </View>
     </View>
   )
 })
 
-/** 按时段返回问候语（Beans 首页「晚上好 / 早上好」） */
-const greeting = () => {
-  const h = new Date().getHours()
-  if (h < 6) return '夜深了'
-  if (h < 11) return '早上好'
-  if (h < 14) return '中午好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+const ChannelTab = ({ label, active, onPress }: { label: string, active: boolean, onPress: () => void }) => {
+  const theme = useTheme()
+  return (
+    <TouchableOpacity style={styles.channelTab} onPress={onPress} activeOpacity={0.7}>
+      <Text
+        size={active ? 17 : 15}
+        color={active ? theme['c-font'] : theme['c-font-label']}
+        style={active ? styles.channelTabActiveText : undefined}
+      >{label}</Text>
+      {active ? <View style={[styles.channelIndicator, { backgroundColor: theme['c-primary-font'] }]} /> : null}
+    </TouchableOpacity>
+  )
 }
-
-const ChannelPill = ({ label, active, colors, accent, onPress }: {
-  label: string
-  active: boolean
-  colors: ReturnType<typeof useBeansColors>
-  accent: string
-  onPress: () => void
-}) => (
-  <TouchableOpacity
-    style={[styles.channelPill, {
-      backgroundColor: active ? accent : colors.glass,
-      borderColor: active ? 'transparent' : colors.border,
-    }]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <Text size={13} color={active ? '#1C1A1A' : colors.textSecondary} style={styles.channelPillText}>{label}</Text>
-  </TouchableOpacity>
-)
 
 const styles = createStyle({
   container: {
     flex: 1,
   },
-  head: {
-    paddingHorizontal: BEANS_SPACING.page,
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  greetingText: {
-    flex: 1,
-  },
-  greeting: {
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  subGreeting: {
-    marginTop: scaleSizeW(3),
-  },
-  refreshBtn: {
-    width: scaleSizeW(44),
-    height: scaleSizeW(44),
-    borderRadius: scaleSizeW(22),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  platformBar: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: scaleSizeW(50),
-    borderRadius: scaleSizeW(25),
-    marginTop: scaleSizeW(14),
-    padding: scaleSizeW(3),
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingRight: scaleSizeW(10),
+    zIndex: 10,
   },
-  platformActive: {
+  headerLeft: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: scaleSizeW(16),
+  },
+  brand: {
+    fontWeight: '700',
+    marginRight: scaleSizeW(14),
+  },
+  channelTab: {
+    paddingHorizontal: scaleSizeW(6),
     height: '100%',
-    borderRadius: scaleSizeW(22),
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-  },
-  platformInactive: {
-    flex: 1,
-    height: '100%',
-    borderRadius: scaleSizeW(22),
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  platformLabel: {
-    marginLeft: scaleSizeW(7),
+  channelTabActiveText: {
     fontWeight: '600',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: scaleSizeW(20),
-    marginBottom: scaleSizeW(10),
-  },
-  sectionTitle: {
-    fontWeight: '800',
-  },
-  sectionMore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  channelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: scaleSizeW(12),
-  },
-  channelPill: {
-    paddingHorizontal: scaleSizeW(14),
-    paddingVertical: scaleSizeW(7),
-    borderRadius: BEANS_RADIUS.pill,
-    marginRight: scaleSizeW(8),
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  channelPillText: {
-    fontWeight: '600',
-  },
-  channelSpacer: {
-    flex: 1,
-  },
-  searchBtn: {
-    width: scaleSizeW(34),
-    height: scaleSizeW(34),
-    borderRadius: scaleSizeW(17),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  contentCard: {
-    flex: 1,
-    marginHorizontal: BEANS_SPACING.page,
-    marginBottom: scaleSizeW(8),
-    overflow: 'hidden',
-  },
-  cardSheen: {
+  channelIndicator: {
     position: 'absolute',
+    bottom: scaleSizeW(14),
+    width: scaleSizeW(16),
+    height: 2,
+    borderRadius: 1,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: scaleSizeW(32),
+    paddingHorizontal: scaleSizeW(10),
+    borderRadius: scaleSizeW(16),
+    maxWidth: scaleSizeW(150),
+    minWidth: scaleSizeW(96),
+  },
+  searchText: {
+    marginLeft: scaleSizeW(5),
+    flexShrink: 1,
   },
   content: {
     flex: 1,

@@ -65,15 +65,17 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       style={StyleSheet.compose(
         styles.container,
         {
-          // Beans 玻璃底：冷黑半透明 + 细描边
-          backgroundColor: isGlass ? 'rgba(44, 44, 48, 0.72)' : 'rgba(24,22,22,0.94)',
-          // 胶囊高度的一半作为圆角 = 完美的半圆端头
+          backgroundColor: isGlass ? 'rgba(28,24,24,0.72)' : 'rgba(24,22,22,0.94)',
+          // 胶囊高度的一半作为圆角 = 完美的半圆端头（灵动岛圆弧）
           borderRadius: PILL_HEIGHT / 2,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: isGlass ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.32)',
+          borderTopColor: 'rgba(255,255,255,0.32)',
+          borderLeftColor: 'rgba(255,255,255,0.18)',
+          borderRightColor: 'rgba(255,255,255,0.12)',
+          borderBottomColor: 'rgba(0,0,0,0.30)',
           overflow: 'hidden',
           shadowColor: 'rgba(0,0,0,0.55)',
-          shadowOffset: { width: 0, height: 8 },
+          shadowOffset: { width: 0, height: 10 },
           shadowOpacity: 0.5,
           shadowRadius: 18,
           elevation: 10,
@@ -84,7 +86,7 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       <View pointerEvents="none" style={[styles.glassSheen, { borderTopLeftRadius: PILL_HEIGHT / 2, borderTopRightRadius: PILL_HEIGHT / 2 }]} />
       {/* 胶囊边缘进度条：细发光线、无圆点，播完一圈换下一首 */}
       {pillWidth > 0
-        ? <PillProgressRing progress={progress} height={PILL_HEIGHT} width={pillWidth} color="#F5B359" />
+        ? <PillProgressRing progress={progress} height={PILL_HEIGHT} width={pillWidth} />
         : null}
       {/* 内部内容整体不接收触摸，保证点胶囊任何部位都由外层统一处理 */}
       <View pointerEvents="none" style={styles.content}>
