@@ -15,17 +15,16 @@ const getSwipeThreshold = (height: number) => Math.max(68, Math.min(120, height 
 const AXIS_RATIO = 1.4
 /** 接管手势的最小竖直位移：避免横向翻页时的微小竖直抖动被误判 */
 const MIN_VERTICAL_DELTA = 14
-/** 跟手位移的阻尼：手指移动 1px，界面只跟随 0.55px，避免拖拽过度 */
-const DRAG_DAMPING = 0.55
 /** 达到阈值后松手，界面飞出动画时长 */
 const FLY_DURATION = 220
 
 /**
- * 全屏上下轻滑切歌，带跟手拖动效果：
- * - 拖动时播放界面整体跟随手指上/下位移，并轻微缩小 + 顶部露出一角
- * - 达到阈值时给一次「咔哒」触感，提示松手会切歌
- * - 松手触发后界面朝拖动方向飞出淡出，再复位淡入
- * 横向滑动仍交给 PagerView 翻页，普通点击仍落到底下按钮。
+ * 全屏上下轻滑切歌，带跟手拖动效果。
+ *
+ * 丝滑要点（对齐歌词翻页的手感）：
+ * - 所有动画走 useNativeDriver（原生驱动），避免 JS 线程抖动导致卡顿
+ * - 跟手位移用 1:1 映射（不再乘阻尼），手指与内容完全同步
+ * - 松手后用 spring 曲线回弹/飞出，而不是固定时长的 timing
  */
 export default ({ children, onSwiped, disabled = false }: {
   children: React.ReactNode
@@ -43,9 +42,9 @@ export default ({ children, onSwiped, disabled = false }: {
 
   const reset = useCallback(() => {
     Animated.parallel([
-      Animated.spring(translateY, { toValue: 0, friction: 8, tension: 90, useNativeDriver: false }),
-      Animated.spring(scale, { toValue: 1, friction: 8, tension: 90, useNativeDriver: false }),
-      Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: false }),
+      Animated.spring(translateY, { toValue: 0, friction: 9, tension: 120, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 9, tension: 120, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
     ]).start()
   }, [translateY, scale, opacity])
 
@@ -53,17 +52,17 @@ export default ({ children, onSwiped, disabled = false }: {
     markTimeoutExitInteraction()
     haptic.trackChange()
     Animated.parallel([
-      Animated.timing(translateY, { toValue: flyY, duration: FLY_DURATION, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(opacity, { toValue: 0, duration: FLY_DURATION, useNativeDriver: false }),
+      Animated.timing(translateY, { toValue: flyY, duration: FLY_DURATION, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: FLY_DURATION, useNativeDriver: true }),
     ]).start(() => {
       if (action == 'next') void playNext()
       else void playPrev()
       onSwiped?.(action)
-      // 复位后淡入新页面
+      // 复位后淡入新页面（瞬时置位，避免看到回弹）
       translateY.setValue(0)
       scale.setValue(1)
       opacity.setValue(1)
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: false }).start()
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start()
       setTimeout(() => { busyRef.current = false }, 320)
     })
   }, [onSwiped, translateY, scale, opacity])
@@ -89,12 +88,12 @@ export default ({ children, onSwiped, disabled = false }: {
       const ay = Math.abs(dy)
       const ax = Math.abs(gs.dx)
       if (ay <= ax * AXIS_RATIO) return
-      // 阻尼跟手
-      translateY.setValue(dy * DRAG_DAMPING)
-      // 拖得越远缩得越小（最多缩到 0.96），制造「整页被推走」的层次感
-      const ratio = Math.min(1, ay / 260)
-      scale.setValue(1 - ratio * 0.04)
-      opacity.setValue(1 - ratio * 0.18)
+      // 1:1 跟手（与歌词翻页手感一致，不做阻尼拖拽）
+      translateY.setValue(dy)
+      // 拖得越远缩得越小（最多缩到 0.94），制造「整页被推走」的层次感
+      const ratio = Math.min(1, ay / 320)
+      scale.setValue(1 - ratio * 0.06)
+      opacity.setValue(1 - ratio * 0.22)
       // 越过阈值只提示一次，避免连续震动
       const threshold = getSwipeThreshold(screenHeight())
       if (ay >= threshold && !armedRef.current) {

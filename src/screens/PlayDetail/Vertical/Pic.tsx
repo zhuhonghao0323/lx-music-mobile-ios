@@ -11,7 +11,6 @@ import Image from '@/components/common/Image'
 import CoverGesture from '@/screens/PlayDetail/components/CoverGesture'
 import { registerCoverSource, clearCoverSource } from '@/screens/PlayDetail/components/FavoriteBtn'
 import { useStatusbarHeight } from '@/store/common/hook'
-import commonState from '@/store/common/state'
 import { useIsGlass } from '@/theme/glass'
 import { getMusicPicUrl } from '@/utils/musicCover'
 
@@ -27,12 +26,17 @@ export default ({ componentId }: { componentId: string }) => {
   const coverUrl = getMusicPicUrl(musicInfo)
   const picRef = useRef<string | null>(coverUrl)
 
-  const [animated, setAnimated] = useState(!!commonState.componentIds.playDetail)
-  const [pic, setPic] = useState(coverUrl)
+  // 封面必须始终跟随当前歌曲。
+  // 之前用 animated 开关控制 setPic，但新版播放页是 Home 的 Tab，
+  // 永远不会触发 navigationComponentDidAppear，导致 animated 恒为 false、
+  // 封面在切歌后完全不刷新。这里直接用 coverUrl。
+  const pic = coverUrl
   useEffect(() => {
-    if (animated) setPic(coverUrl)
     picRef.current = coverUrl
-  }, [coverUrl, animated])
+  }, [coverUrl])
+
+  // 仅用于封面 elevation 的过渡（与封面地址刷新解耦）
+  const [animated, setAnimated] = useState(true)
 
   // 把封面位置与图片注册给收藏动画，用运行时测量避免机型差异
   useEffect(() => {

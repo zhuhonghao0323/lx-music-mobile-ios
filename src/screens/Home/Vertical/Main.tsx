@@ -9,11 +9,9 @@ import HomeView from '../Views/Home'
 import PlayerView from '../Views/Player'
 import MineView from '../Views/Mine'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
-import { useNavActiveId } from '@/store/common/hook'
 import { createStyle } from '@/utils/tools'
 import PagerView, { type PageScrollStateChangedNativeEvent, type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { setNavActiveId } from '@/core/common'
-import settingState from '@/store/setting/state'
 
 const hideKeys = [
   'list.isShowAlbumName',
@@ -130,9 +128,6 @@ const viewMap: Record<CommonState['navActiveId'], number> = {
 const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId])
-  const [scrollEnabled, setScrollEnabled] = useState(settingState.setting['common.homePageScroll'])
-  // 响应式订阅当前导航 id（ref 变化不会触发重渲染，必须用 hook）
-  const navActiveId = useNavActiveId()
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -154,29 +149,15 @@ const Main = () => {
       activeIndexRef.current = index
       pagerViewRef.current?.setPageWithoutAnimation(index)
     }
-    const handleConfigUpdate = (keys: Array<keyof LX.AppSetting>, setting: Partial<LX.AppSetting>) => {
-      if (!keys.includes('common.homePageScroll')) return
-      setScrollEnabled(setting['common.homePageScroll']!)
-    }
-    const handleHomePageScrollEnabled = (enabled: boolean) => {
-      setScrollEnabled(enabled ? settingState.setting['common.homePageScroll'] : false)
-    }
     global.state_event.on('navActiveIdUpdated', handleUpdate)
-    global.state_event.on('configUpdated', handleConfigUpdate)
-    global.app_event.on('changeHomePageScrollEnabled', handleHomePageScrollEnabled)
     return () => {
       global.state_event.off('navActiveIdUpdated', handleUpdate)
-      global.state_event.off('configUpdated', handleConfigUpdate)
-      global.app_event.off('changeHomePageScrollEnabled', handleHomePageScrollEnabled)
     }
   }, [])
 
-  // 横滑策略：
-  // - 主页(0) ↔ 播放页(1) 之间允许左右滑动：
-  //   主页右滑 = 去播放页；播放页左滑 = 回主页
-  // - 播放页自身还有「封面 ↔ 歌词」的内部翻页，以及「封面页右滑回主页」手势
-  // - 「我的」页与其它二级页不参与横滑，避免误滑到搜索页（问题6）
-  const allowScroll = scrollEnabled && (navActiveId == 'nav_home' || navActiveId == 'nav_player')
+  // 横滑策略：主页 ↔ 播放页之间不再允许手势切屏（按需求取消），
+  // 主 PagerView 一律禁用横滑。页面切换只通过底部三大图标与代码跳转。
+  // 播放页内部的「封面 ↔ 歌词」由播放页自己的 PagerView 处理，与此无关。
 
   const component = useMemo(() => (
     <PagerView ref={pagerViewRef}
@@ -184,7 +165,7 @@ const Main = () => {
       offscreenPageLimit={1}
       onPageSelected={onPageSelected}
       onPageScrollStateChanged={onPageScrollStateChanged}
-      scrollEnabled={allowScroll}
+      scrollEnabled={false}
       style={styles.pagerView}
     >
       <View collapsable={false} key="nav_home" style={styles.pageStyle}>
@@ -212,7 +193,7 @@ const Main = () => {
         <SettingPage />
       </View>
     </PagerView>
-  ), [onPageScrollStateChanged, onPageSelected, allowScroll])
+  ), [onPageScrollStateChanged, onPageSelected])
 
   return component
 }

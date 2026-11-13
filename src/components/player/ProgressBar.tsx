@@ -27,35 +27,49 @@ const PreassBar = memo(({ onDragState, setDragProgress, onSetProgress }: {
   setDragProgress: (progress: number) => void
   onSetProgress: (progress: number) => void
 }) => {
+  // 拖动过程中节流地实时 seek，让进度条与实际播放位置始终一致（跟手）
+  const lastSeekRef = useRef(0)
+  const liveSeek = useCallback((progress: number) => {
+    const now = Date.now()
+    if (now - lastSeekRef.current < 120) return
+    lastSeekRef.current = now
+    onSetProgress(progress)
+  }, [onSetProgress])
+
   const {
     onLayout,
     onDragStart,
     onDragEnd,
     onDrag,
-  } = useDrag(onSetProgress, onDragState, setDragProgress)
-  // const handlePress = useCallback((event: GestureResponderEvent) => {
-  //   onPress(event.nativeEvent.locationX)
-  // }, [onPress])
+  } = useDrag(onSetProgress, onDragState, (progress) => {
+    setDragProgress(progress)
+    liveSeek(progress)
+  })
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
-      onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
+      // 按下即接管并全程持有：
+      // - 不能在 Move 阶段再开 Capture，那会每帧重复请求捕获，
+      //   与已 grant 的 responder 冲突，表现为「只能拖一小段」。
+      // - TerminationRequest 必须返回 false，否则会被父级 PagerView 抢走
+      //   而误触发翻页（表现为「拖动触发翻页」）。
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
 
-      // onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (evt, gestureState) => {
         onDrag(gestureState.dx)
       },
       onPanResponderGrant: (evt, gestureState) => {
-        // console.log(evt.nativeEvent.locationX, gestureState)
         onDragStart(gestureState.dx, evt.nativeEvent.locationX)
       },
       onPanResponderRelease: () => {
         onDragEnd()
       },
-      // onPanResponderTerminate: (evt, gestureState) => {
-      //   onDragEnd()
-      // },
+      onPanResponderTerminate: () => {
+        onDragEnd()
+      },
     }),
   ).current
 
@@ -142,10 +156,10 @@ const styles = createStyle({
   },
   pressBar: {
     position: 'absolute',
-    // backgroundColor: 'rgba(0,0,0,0.5)',
+    // 向上扩展触摸热区，让进度条更容易按中（视觉高度不变）
     left: 0,
-    top: 0,
-    height: progressContentHeight,
+    top: -14,
+    height: progressContentHeight + 28,
     paddingTop: progressContentPadding,
     paddingBottom: progressContentPadding,
     width: '100%',

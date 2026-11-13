@@ -11,9 +11,6 @@ import settingState from '@/store/setting/state'
 import { onScreenStateChange } from '@/utils/nativeModules/utils'
 import { AppState } from 'react-native'
 
-/** 切歌后忽略底层 position 的时长（毫秒）：覆盖 track 异步切换的窗口 */
-const MUSIC_TOGGLE_IGNORE_MS = 600
-
 const delaySavePlayInfo = throttleBackgroundTimer(() => {
   void savePlayInfo({
     time: playerState.progress.nowPlayTime,
@@ -31,13 +28,14 @@ export default () => {
   let isScreenOn = true
 
   /**
-   * 切歌后的位置忽略窗口截止时间戳。
+   * 切歌后是否忽略底层 position（强制按 0 处理）。
    *
-   * 切歌时我们已把进度重置为 0，但底层播放器的 track 切换是异步的，
-   * getPosition() 在切换完成前仍会返回上一首的位置。
-   * 在该窗口内不采信 position，避免新歌进度条从上一首的位置开始。
+   * 切歌时进度已重置为 0，但底层播放器的 track 切换是异步的，
+   * getPosition() 在切换完成前仍返回上一首的位置；而 maxPlayTime
+   * 在新歌时长就绪前仍是旧值，两者相除就会让新歌进度条停在上一首的位置。
+   * 置位期间一律按 0 写入，直到 getMaxTime 拿到新歌时长后清除。
    */
-  let ignorePositionUntil = 0
+  let ignorePositionUntilDuration = false
 
   const isRestoringCurrentMusic = () => {
     const restorePlayInfo = global.lx.restorePlayInfo
@@ -49,12 +47,13 @@ export default () => {
   const getCurrentTime = () => {
     let id = playerState.musicInfo.id
     void getPosition().then(position => {
-      if (!position || id != playerState.musicInfo.id) return
-      // 切歌后的短暂窗口内，底层 position 可能仍是上一首的残余值
-      // （track 切换是异步的），此时采信会让新歌进度条直接跳到上一首的位置。
-      if (Date.now() < ignorePositionUntil) return
-      setNowPlayTime(position)
-      if (!playerState.isPlay) return
+      if (id != playerState.musicInfo.id) return
+      // 切歌后、新歌时长就绪前，底层 position 仍是上一首的残余值，
+      // 一律按 0 写入。不能简单 return：否则旧 nowPlayTime 会残留，
+      // 被后续 setMaxplayTime 重新算成非零进度。
+      const effectivePosition = ignorePositionUntilDuration ? 0 : (position || 0)
+      setNowPlayTime(effectivePosition)
+      if (!effectivePosition || !playerState.isPlay) return
 
       if (settingState.setting['player.isSavePlayTime'] && !playerState.playMusicInfo.isTempPlay && isScreenOn) {
         delaySavePlayInfo()
@@ -65,6 +64,8 @@ export default () => {
     const duration = await getDuration()
     const timelineDuration = getTimelineDuration(playerState.playMusicInfo.musicInfo, duration)
     setMaxplayTime(timelineDuration)
+    // 新歌时长已就绪，解除「位置按 0 处理」的锁定
+    if (timelineDuration > 0) ignorePositionUntilDuration = false
 
     if (playerState.playMusicInfo.musicInfo && 'source' in playerState.playMusicInfo.musicInfo && !playerState.playMusicInfo.musicInfo.interval) {
       // console.log(formatPlayTime2(playProgress.maxPlayTime))
@@ -116,10 +117,6 @@ export default () => {
     // prevProgressStatus = 'normal'
     // handleSetTaskBarState(playProgress.progress, prevProgressStatus)
     startUpdateTimeout()
-    // 播放真正开始后再等一小段时间才采信 position，确保底层已完成 track 切换
-    if (ignorePositionUntil && Date.now() > ignorePositionUntil - MUSIC_TOGGLE_IGNORE_MS + 200) {
-      ignorePositionUntil = Math.max(ignorePositionUntil, Date.now() + 200)
-    }
   }
   const handlePause = () => {
     // prevProgressStatus = 'paused'
@@ -150,8 +147,9 @@ export default () => {
     // void setCurrentTime(playerState.progress.nowPlayTime)
     // setMaxplayTime(playProgress.maxPlayTime)
     handlePause()
-    // 切歌：开启位置忽略窗口，避免采信上一首残留的 position
-    ignorePositionUntil = Date.now() + MUSIC_TOGGLE_IGNORE_MS
+    // 切歌：锁定「位置按 0 处理」，直到 getMaxTime 拿到新歌时长后自动解除，
+    // 避免采信上一首残留的 position 导致新歌进度条从中段开始。
+    ignorePositionUntilDuration = true
     // Skip the startup restore transition so we don't overwrite saved progress with 0.
     if (isRestoringCurrentMusic()) return
     if (!playerState.playMusicInfo.isTempPlay) {

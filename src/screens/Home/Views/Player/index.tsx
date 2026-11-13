@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { View, TouchableOpacity, Animated, PanResponder } from 'react-native'
+import { View, TouchableOpacity, Animated } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -191,43 +191,11 @@ export default memo(() => {
     setPageIndex(nativeEvent.position)
   }, [])
 
-  // 供手势回调读取最新值（避免闭包捕获旧 state）
-  const overlayVisibleRef = useRef(overlayVisible)
-  overlayVisibleRef.current = overlayVisible
-  const pageIndexRef = useRef(pageIndex)
-  pageIndexRef.current = pageIndex
-
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
-
-  /**
-   * 播放页（封面页）右滑 → 回主页。
-   *
-   * 完整横滑链路：
-   *   主页 ←(右滑) 播放页封面 ←(右滑) 歌词页
-   *   主页 →(左滑) 播放页封面 →(左滑) 歌词页
-   * 歌词页的右滑由内部 PagerView 处理（回封面页）；
-   * 这里只在「封面页」接管右滑，且要求足够横向位移，避免与纵向切歌冲突。
-   */
-  const backToHomeResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_e, gs) => {
-      if (overlayVisibleRef.current || pageIndexRef.current != 0) return false
-      const ax = Math.abs(gs.dx)
-      const ay = Math.abs(gs.dy)
-      return gs.dx > 28 && ax > ay * 1.2
-    },
-    onPanResponderRelease: (_e, gs) => {
-      if (gs.dx >= 90) {
-        haptic.tap()
-        setNavActiveId('nav_home')
-      }
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [])
 
   return (
     <FullScreenSwipe disabled={overlayVisible || pageIndex == 1}>
-      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]} {...backToHomeResponder.panHandlers}>
+      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
         {/* 横滑翻页：0 播放页 / 1 全屏歌词（左滑看歌词，右滑回播放页） */}

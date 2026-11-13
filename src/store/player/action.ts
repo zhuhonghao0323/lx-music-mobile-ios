@@ -51,7 +51,12 @@ export default {
   setNowPlayTime(time: number) {
     state.progress.nowPlayTime = time
     state.progress.nowPlayTimeStr = formatPlayTime2(time)
-    state.progress.progress = calcProgress(time, state.progress.maxPlayTime)
+    // 切歌后 maxPlayTime 尚未就绪（=0）时，进度必须保持 0。
+    // 否则底层残留的上一首 position 会被算成 旧position/旧时长，
+    // 让新歌进度条一上来就停在上一首的位置。
+    state.progress.progress = state.progress.maxPlayTime > 0
+      ? calcProgress(time, state.progress.maxPlayTime)
+      : 0
 
     global.state_event.playProgressChanged({ ...state.progress })
   },

@@ -296,24 +296,25 @@ const defaultThemes = [
     },
   },
   {
-    // 浅色版 Liquid Glass：白霜底 + 珊瑚强调色。
-    // 与深色版共用同一套「玻璃光学层」逻辑，只是底色与描边方向取反。
+    // 浅色版 Liquid Glass：纯白底 + 黑字 + 琥珀金强调 + 微灰液态按钮。
+    // 参考 Beans Music 浅色态；与深色版共用同一套「玻璃光学层」逻辑，
+    // 只是底色与描边方向取反。
     id: 'liquid_glass_light',
-    name: '液态玻璃·浅色',
+    name: '液态玻璃·浅色（白底黑字）',
     isDark: false,
     config: {
-      primary: 'rgb(226, 96, 80)',
+      primary: 'rgb(184, 112, 8)',
       // 浅色主题需要深字
-      font: 'rgb(28, 26, 26)',
+      font: 'rgb(17, 17, 17)',
       'c-app-background': '#FFFFFF',
-      'c-main-background': '#FAF8F7',
+      'c-main-background': '#F7F7FA',
       'bg-image': '',
       'bg-image-position': 'center',
       'bg-image-size': 'cover',
 
-      'c-badge-primary': '#E26050',
-      'c-badge-secondary': '#C89150',
-      'c-badge-tertiary': '#5F7E99',
+      'c-badge-primary': '#B87008',
+      'c-badge-secondary': '#C07A0A',
+      'c-badge-tertiary': '#8E8E93',
     },
   },
   {
