@@ -86,12 +86,12 @@ const ChannelTab = ({ label, active, onPress }: { label: string, active: boolean
   const theme = useTheme()
   return (
     <TouchableOpacity style={styles.channelTab} onPress={onPress} activeOpacity={0.7}>
+      {/* 选中态仅用「文字高亮 + 加粗放大」表示，去掉下方横杆，避免遮挡 */}
       <Text
-        size={active ? 17 : 15}
-        color={active ? theme['c-font'] : theme['c-font-label']}
+        size={active ? 18 : 15}
+        color={active ? theme['c-primary-font'] : theme['c-font-label']}
         style={active ? styles.channelTabActiveText : undefined}
       >{label}</Text>
-      {active ? <View style={[styles.channelIndicator, { backgroundColor: theme['c-primary-font'] }]} /> : null}
     </TouchableOpacity>
   )
 }
@@ -123,14 +123,7 @@ const styles = createStyle({
     alignItems: 'center',
   },
   channelTabActiveText: {
-    fontWeight: '600',
-  },
-  channelIndicator: {
-    position: 'absolute',
-    bottom: scaleSizeW(14),
-    width: scaleSizeW(16),
-    height: 2,
-    borderRadius: 1,
+    fontWeight: '800',
   },
   searchBox: {
     flexDirection: 'row',

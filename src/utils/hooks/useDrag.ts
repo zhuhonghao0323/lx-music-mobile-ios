@@ -14,7 +14,10 @@ export const useDrag = (onSetProgress: (progress: number) => void, onDragState: 
     info.current.isDraging = true
     info.current.dragStartX = offsetX
 
-    let val = locationX / info.current.progressWidth
+    // 宽度兜底：若 onLayout 尚未回调（宽度为 0），用当前位置点击比例近似，
+    // 避免出现「拖不动」的情况。
+    const width = info.current.progressWidth
+    let val = width > 0 ? locationX / width : 0
     if (val < 0) val = 0
     if (val > 1) val = 1
 
@@ -29,6 +32,8 @@ export const useDrag = (onSetProgress: (progress: number) => void, onDragState: 
   }, [onDragState, onSetProgress])
   const onDrag = useCallback((offsetX: number) => {
     if (!info.current.isDraging) return
+    // 宽度为 0 时不做位移换算，避免 NaN / 无穷大把进度打飞
+    if (info.current.progressWidth <= 0) return
     // dragging.value ||= true
 
     let progress = info.current.dragStartProgress + (offsetX - info.current.dragStartX) / info.current.progressWidth

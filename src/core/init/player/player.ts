@@ -2,7 +2,7 @@ import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
 import { pause, playNext, resetCustomSourceForNewSong } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
-import { setStop, setPlay } from '@/plugins/player'
+import { setStop, setPlay, reloadConfig } from '@/plugins/player'
 import { delayUpdateMusicInfo, updateMetaData } from '@/plugins/player/playList'
 import { soundEffectController } from '@/plugins/player/soundEffect'
 import playerState from '@/store/player/state'
@@ -58,6 +58,11 @@ export default async(setting: LX.AppSetting) => {
       if (playerState.playedList.length) clearPlayedList()
       const playMusicInfo = playerState.playMusicInfo
       if (newValue == 'random' && playMusicInfo.musicInfo && !playMusicInfo.isTempPlay) addPlayedList({ ...(playMusicInfo as LX.Player.PlayMusicInfo) })
+    }
+    // 「与其他应用同时播放」开关变化：iOS 音频会话的 category options 只在
+    // setupPlayer 时读取，切换开关后不重建会话就会出现「开了混音却没声音」。
+    if (Platform.OS == 'ios' && keys.includes('player.isPlayWithOtherApps')) {
+      void reloadConfig()
     }
     if (keys.some(soundEffectController.isSettingKey)) void soundEffectController.applyCurrentConfig()
   }
@@ -116,6 +121,20 @@ export default async(setting: LX.AppSetting) => {
       if (state == State.Paused || state == State.Stopped) {
         recoverIfStalled()
       }
+    })
+
+    // 混音模式下偶发「播放中但没声音」：其它 App 抢走会话后底层音量可能被清零。
+    // 进入播放态时把配置音量重新应用一次（幂等，不会影响用户手动调节的音量）。
+    TrackPlayer.addEventListener(TPEvent.PlaybackState, ({ state }: { state: State }) => {
+      if (state != State.Playing) return
+      if (!settingState.setting['player.isPlayWithOtherApps']) return
+      const configuredVolume = settingState.setting['player.volume']
+      TrackPlayer.getVolume().then(current => {
+        // 仅在异常（接近 0 / 超出范围）时纠正，避免打断用户的音量调节
+        if (current == null || current <= 0.01 || current > 1) {
+          void TrackPlayer.setVolume(configuredVolume).catch(() => {})
+        }
+      }).catch(() => {})
     })
 
     AppState.addEventListener('change', (state) => {

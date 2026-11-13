@@ -95,45 +95,46 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     'bg-image': bgImg,
   }
 
-  // 浅色液态玻璃：纯白底 + 深字 + 珊瑚强调。
+  // 浅色液态玻璃：白底 + 黑字 + 琥珀金强调（参考 Beans Music 浅色态）。
   // 关键点：浅色主题里「白色控件叠白色背景」几乎不可见，
-  // 因此控件改用「极淡的冷灰底 + 明确描边」，靠明度差而不是色相差来区分。
+  // 因此控件改用「极淡冷灰半透底 + 明确描边」，靠明度差营造液态玻璃质感。
   if (theme.id == 'liquid_glass_light') {
-    const text = '#1C1A1A'
-    const textDim = 'rgba(60, 55, 55, 0.62)'
-    const tint = 'rgba(226, 96, 80, 1)'
+    const text = '#111111'
+    const textDim = 'rgba(60, 60, 67, 0.60)'
+    // 浅色背景下用深琥珀，保证对比度（Beans tintLight）
+    const tint = '#B87008'
     const surfaceStrong = '#FFFFFF'
-    // 控件底色：比白底略暗一档的冷灰，形成清晰的“可点击块”观感
-    const control = 'rgba(228, 224, 221, 0.90)'
-    const controlActive = 'rgba(210, 205, 201, 1)'
-    const border = 'rgba(120, 110, 105, 0.30)'
-    const borderSoft = 'rgba(120, 110, 105, 0.16)'
+    // 控件底色：比白底略暗一档的冷灰，形成清晰的「可点击块」观感（液态玻璃微灰）
+    const control = 'rgba(232, 232, 236, 0.92)'
+    const controlActive = 'rgba(218, 218, 224, 1)'
+    const border = 'rgba(60, 60, 67, 0.18)'
+    const borderSoft = 'rgba(60, 60, 67, 0.10)'
     const glassLightOverrides: Partial<LX.ActiveTheme> = {
-      // 页面纯白，控件用冷灰，明度差足够
+      // 页面纯白，控件用微灰，明度差足够
       'c-app-background': '#FFFFFF',
-      'c-main-background': '#FAF8F7',
+      'c-main-background': '#F7F7FA',
       'c-content-background': surfaceStrong,
       'c-border-background': border,
       'c-font': text,
       'c-font-label': textDim,
       'c-primary-font': tint,
-      'c-primary-font-hover': 'rgba(226, 96, 80, 0.86)',
-      'c-primary-font-active': 'rgba(226, 96, 80, 0.72)',
-      'c-primary-background': 'rgba(226, 96, 80, 0.12)',
-      'c-primary-background-hover': 'rgba(226, 96, 80, 0.18)',
-      'c-primary-background-active': 'rgba(226, 96, 80, 0.24)',
+      'c-primary-font-hover': 'rgba(184, 112, 8, 0.86)',
+      'c-primary-font-active': 'rgba(184, 112, 8, 0.72)',
+      'c-primary-background': 'rgba(242, 163, 60, 0.14)',
+      'c-primary-background-hover': 'rgba(242, 163, 60, 0.20)',
+      'c-primary-background-active': 'rgba(242, 163, 60, 0.26)',
       'c-primary-input-background': control,
       'c-button-font': text,
       'c-button-font-selected': '#FFFFFF',
-      // 按钮：冷灰底 + 深字，白底页面上清晰可见
+      // 按钮：微灰半透底 + 深字，白底页面上清晰可见
       'c-button-background': control,
-      'c-button-background-selected': 'rgba(226, 96, 80, 0.92)',
+      'c-button-background-selected': 'rgba(242, 163, 60, 0.92)',
       'c-button-background-hover': controlActive,
       'c-button-background-active': controlActive,
       'c-list-header-border-bottom': borderSoft,
       'c-badge-primary': tint,
-      'c-badge-secondary': '#C89150',
-      'c-badge-tertiary': '#5F7E99',
+      'c-badge-secondary': '#C07A0A',
+      'c-badge-tertiary': '#8E8E93',
     }
     Object.assign(activeTheme, glassLightOverrides)
   }

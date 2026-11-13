@@ -1,4 +1,5 @@
 {
+  "comment_expand": "展開", "comment_collapse": "收起",
   "user_api_priority_title": "音源切換優先順序",
   "user_api_priority_desc": "拖動調整順序，第一個為預設音源；目前音源失效時自動切換下一個，每次切歌從第一個重新開始",
   "user_api_priority_default": "預設",

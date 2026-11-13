@@ -32,40 +32,52 @@ const PreassBar = memo(({ onDragState, setDragProgress, onSetProgress }: {
   setDragProgress: (progress: number) => void
   onSetProgress: (progress: number) => void
 }) => {
+  // 拖动过程中节流地实时 seek，让「进度条」和「实际播放位置」始终一致、跟手
+  const lastSeekRef = useRef(0)
+  const liveSeek = useCallback((progress: number) => {
+    const now = Date.now()
+    if (now - lastSeekRef.current < 120) return
+    lastSeekRef.current = now
+    onSetProgress(progress)
+  }, [onSetProgress])
+
   const {
     onLayout,
     onDragStart,
     onDragEnd,
     onDrag,
-  } = useDrag(onSetProgress, onDragState, setDragProgress)
+  } = useDrag(onSetProgress, onDragState, (progress) => {
+    setDragProgress(progress)
+    liveSeek(progress)
+  })
   // const handlePress = useCallback((event: GestureResponderEvent) => {
   //   onPress(event.nativeEvent.locationX)
   // }, [onPress])
 
   const panResponder = useRef(
     PanResponder.create({
-      // 进度条优先接管手势：父容器（播放页右滑歌词）会监听 Move，
-      // 若不在这里用 Capture 抢下，横向拖动会被父级抢走，
-      // 表现为「进度条动了但歌曲没跳」。
-      onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
-      onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
-      onMoveShouldSetPanResponder: (evt, gestureState) => true,
+      // 进度条在按下时就接管并一直持有，父容器（播放页右滑歌词）抢不走。
+      // 注意：
+      // - 不要在 Move 阶段再设 Capture=true，那会让每次移动都重新请求捕获，
+      //   与已 grant 的 responder 冲突，表现为「拖动卡滞 / 拖不动」。
+      // - onPanResponderTerminationRequest 返回 false 已足够阻止被抢。
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
 
-      // onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (evt, gestureState) => {
         onDrag(gestureState.dx)
       },
       onPanResponderGrant: (evt, gestureState) => {
-        // console.log(evt.nativeEvent.locationX, gestureState)
         onDragStart(gestureState.dx, evt.nativeEvent.locationX)
       },
       onPanResponderRelease: () => {
         onDragEnd()
       },
-      onPanResponderTerminate: (evt, gestureState) => {
+      onPanResponderTerminate: () => {
         onDragEnd()
       },
-      onPanResponderTerminationRequest: () => false,
     }),
   ).current
 

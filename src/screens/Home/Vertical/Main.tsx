@@ -125,8 +125,7 @@ const viewMap: Record<CommonState['navActiveId'], number> = {
   nav_setting: 7,
 }
 
-/** 底部 Tab 对应的索引范围，用于决定是否允许左右滑动切页 */
-const TAB_PAGE_COUNT = 3
+/** 播放页与歌词页不作为底部 Tab 展示，横滑由各自内部手势处理 */
 
 const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
@@ -172,11 +171,12 @@ const Main = () => {
     }
   }, [])
 
-  // 只有停留在「主页 / 我的」之间时才允许左右滑动：
-  // - 播放页自己接管右滑（用于展开全屏歌词），不能交给 PagerView 切成「我的」
-  // - 进入二级页后也禁用，避免误滑回 Tab
-  const isOnTab = viewMap[navActiveId] < TAB_PAGE_COUNT && navActiveId != 'nav_player'
-  const allowScroll = scrollEnabled && isOnTab
+  // 横滑策略：
+  // - 主页(0) ↔ 播放页(1) 之间允许左右滑动：
+  //   主页右滑 = 去播放页；播放页左滑 = 回主页
+  // - 播放页自身还有「封面 ↔ 歌词」的内部翻页，以及「封面页右滑回主页」手势
+  // - 「我的」页与其它二级页不参与横滑，避免误滑到搜索页（问题6）
+  const allowScroll = scrollEnabled && (navActiveId == 'nav_home' || navActiveId == 'nav_player')
 
   const component = useMemo(() => (
     <PagerView ref={pagerViewRef}
