@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { View, PanResponder } from 'react-native'
 import BackToMine from './BackToMine'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
@@ -8,6 +9,8 @@ import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/comm
 import { COMPONENT_IDS } from '@/config/constant'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import type { InitState as CommonState } from '@/store/common/state'
+import { setNavActiveId } from '@/core/common'
+import { haptic } from '@/utils/haptics'
 
 const MAX_WIDTH = scaleSizeW(400)
 
@@ -53,6 +56,19 @@ export default () => {
   const navigationView = () => <MyList />
   // console.log('render drawer content')
 
+  // 整页右滑返回「我的」（挂在根容器上，覆盖列表区域）。
+  // 只在明确横向右滑时接管，避免与列表纵向滚动冲突。
+  const backResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_e, gs) => gs.dx > 20 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.3,
+    onPanResponderRelease: (_e, gs) => {
+      if (gs.dx > 70) {
+        haptic.tap()
+        setNavActiveId('nav_mine')
+      }
+    },
+  })).current
+
   return (
     <DrawerLayoutFixed
       ref={drawer}
@@ -65,8 +81,10 @@ export default () => {
       drawerBackgroundColor={theme['c-content-background']}
       style={{ elevation: 1 }}
     >
-      <BackToMine />
-      <MusicList />
+      <View style={{ flex: 1 }} {...backResponder.panHandlers}>
+        <BackToMine />
+        <MusicList />
+      </View>
     </DrawerLayoutFixed>
   )
 }

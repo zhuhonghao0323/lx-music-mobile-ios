@@ -10,6 +10,9 @@ import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onScreenStateChange } from '@/utils/nativeModules/utils'
 import { AppState } from 'react-native'
+import { initTotalPlayTime, trackPlayTime, resetPlayTimeAnchor, flushTotalPlayTime } from '@/core/player/totalPlayTime'
+
+initTotalPlayTime()
 
 const delaySavePlayInfo = throttleBackgroundTimer(() => {
   void savePlayInfo({
@@ -53,10 +56,13 @@ export default () => {
       // 被后续 setMaxplayTime 重新算成非零进度。
       const effectivePosition = ignorePositionUntilDuration ? 0 : (position || 0)
       setNowPlayTime(effectivePosition)
+      // 累计播放时长：只统计合理的正增量（切歌/seek 的跳跃由阈值过滤）
+      trackPlayTime(effectivePosition, playerState.isPlay && !ignorePositionUntilDuration)
       if (!effectivePosition || !playerState.isPlay) return
 
       if (settingState.setting['player.isSavePlayTime'] && !playerState.playMusicInfo.isTempPlay && isScreenOn) {
         delaySavePlayInfo()
+        flushTotalPlayTime()
       }
     })
   }
@@ -123,10 +129,13 @@ export default () => {
     // handleSetTaskBarState(playProgress.progress, prevProgressStatus)
     // clearBufferTimeout()
     clearUpdateTimeout()
+    flushTotalPlayTime()
   }
 
   const handleStop = () => {
     clearUpdateTimeout()
+    flushTotalPlayTime()
+    resetPlayTimeAnchor(0)
     setNowPlayTime(0)
     setMaxplayTime(0)
     // prevProgressStatus = 'none'
@@ -147,6 +156,9 @@ export default () => {
     // void setCurrentTime(playerState.progress.nowPlayTime)
     // setMaxplayTime(playProgress.maxPlayTime)
     handlePause()
+    // 切歌：重置累计时长的位置基准并落盘，避免把切歌跳跃算进时长
+    resetPlayTimeAnchor(0)
+    flushTotalPlayTime()
     // 切歌：锁定「位置按 0 处理」，直到 getMaxTime 拿到新歌时长后自动解除，
     // 避免采信上一首残留的 position 导致新歌进度条从中段开始。
     ignorePositionUntilDuration = true

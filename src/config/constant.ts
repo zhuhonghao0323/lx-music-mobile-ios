@@ -50,6 +50,8 @@ export const storageDataPrefix = {
   musicUrl: '@music_url__',
   musicOtherSource: '@music_other_source__',
   playInfo: '@play_info',
+  /** 累计播放时长（秒） */
+  totalPlayTime: '@total_play_time',
 
   syncAuthKey: '@sync_auth_key',
   syncHost: '@sync_host',

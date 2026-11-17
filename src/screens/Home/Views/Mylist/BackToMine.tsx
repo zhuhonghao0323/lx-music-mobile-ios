@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react'
-import { View, TouchableOpacity, PanResponder } from 'react-native'
+import { View, TouchableOpacity } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
@@ -36,19 +36,8 @@ export default memo(() => {
     global.app_event.changeLoveListVisible(true)
   }, [])
 
-  // 整页右滑返回：要求明显横向位移，避免与列表纵向滚动冲突
-  const backResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_evt, gs) => gs.dx > 24 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.3,
-    onPanResponderRelease: (_evt, gs) => {
-      if (gs.dx > 80) goBack()
-    },
-  })
-
   return (
     <View style={styles.wrap}>
-      {/* 整页手势层（透明，只捕获明确的右滑） */}
-      <View style={styles.gestureLayer} {...backResponder.panHandlers} pointerEvents="box-none" />
       <View style={[styles.bar, { paddingTop: statusBarHeight + scaleSizeW(4) }]}>
         <TouchableOpacity style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={goBack}>
           <Icon name="chevron-left" size={18} color={theme['c-font']} />
@@ -91,13 +80,5 @@ const styles = createStyle({
     flex: 1,
     marginLeft: scaleSizeW(4),
     fontWeight: '600',
-  },
-  gestureLayer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
   },
 })

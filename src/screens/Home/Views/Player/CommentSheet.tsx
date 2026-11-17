@@ -4,6 +4,7 @@ import Text from '@/components/common/Text'
 import { useI18n } from '@/lang'
 import { useTheme } from '@/store/theme/hook'
 import { usePlayMusicInfo, usePlayerMusicInfo } from '@/store/player/hook'
+import { useIsGlassLight } from '@/theme/glass'
 import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
@@ -37,6 +38,9 @@ export default forwardRef<CommentSheetType, { onHide?: () => void }>(({ onHide }
   const theme = useTheme()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
+  const isLight = useIsGlassLight()
+  // 抽屉必须不透明，否则玻璃主题的半透明 c-content-background 会让评论文字看不清
+  const sheetBackground = isLight ? '#FFFFFF' : '#1C1C1E'
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<TabId>('hot')
   const [expanded, setExpanded] = useState(false)
@@ -131,7 +135,7 @@ export default forwardRef<CommentSheetType, { onHide?: () => void }>(({ onHide }
     <Modal transparent animationType="fade" visible onRequestClose={close} statusBarTranslucent>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={close} />
-        <Animated.View style={[styles.sheet, { height: heightAnim, backgroundColor: theme['c-content-background'] }]}>
+        <Animated.View style={[styles.sheet, { height: heightAnim, backgroundColor: sheetBackground }]}>
           {/* 拖拽手柄 */}
           <View style={styles.handleWrap} {...dragResponder.panHandlers}>
             <TouchableOpacity style={styles.handleTouch} activeOpacity={0.7} onPress={toggleExpand}>

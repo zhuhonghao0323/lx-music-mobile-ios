@@ -1,4 +1,5 @@
 {
+  "mine_stat_total_time": "累計播放時長",
   "mine_stat_favorite": "收藏歌曲", "mine_stat_playlists": "我的歌單", "mine_stat_session_played": "本次播放",
   "search_hero_hint": "使用上方搜尋框開始，聚合搜尋也可以切換到單一平台。",
   "comment_expand": "展開", "comment_collapse": "收起",

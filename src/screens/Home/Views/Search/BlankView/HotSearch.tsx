@@ -3,7 +3,6 @@ import { TouchableOpacity, View } from 'react-native'
 import { type Source, type InitState } from '@/store/hotSearch/state'
 import { getList } from '@/core/hotSearch'
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
@@ -31,10 +30,13 @@ const ListItem = ({ keyword, index, onSearch }: {
       activeOpacity={0.7}
       onPress={() => { onSearch(keyword) }}
     >
-      <Icon name="search-2" size={13} color={theme['c-primary-font']} />
+      <View style={[
+        styles.rankBadge,
+        { backgroundColor: index < 3 ? (index == 0 ? '#FF3B30' : index == 1 ? '#FF9500' : '#FFCC00') : theme['c-font-label'] },
+      ]}>
+        <Text size={11} color="#FFFFFF" style={styles.rankText}>{index + 1}</Text>
+      </View>
       <Text color={theme['c-font']} size={13} numberOfLines={1} style={styles.keyword}>{keyword}</Text>
-      {/* 前三条带热度标识（图1 的🔥效果，用图标近似） */}
-      {index < 3 ? <Icon name="thumbs-up" size={11} color={theme['c-primary-font']} /> : null}
     </TouchableOpacity>
   )
 }
@@ -104,9 +106,19 @@ const styles = createStyle({
     borderRadius: scaleSizeW(22),
     marginBottom: scaleSizeW(9),
   },
+  rankBadge: {
+    width: scaleSizeW(18),
+    height: scaleSizeW(18),
+    borderRadius: scaleSizeW(9),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankText: {
+    fontWeight: '700',
+  },
   keyword: {
     flex: 1,
-    marginLeft: scaleSizeW(7),
+    marginLeft: scaleSizeW(8),
     marginRight: scaleSizeW(4),
   },
 })

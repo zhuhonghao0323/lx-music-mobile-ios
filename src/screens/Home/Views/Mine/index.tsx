@@ -17,9 +17,9 @@ import ListGrid from './ListGrid'
 import { useMineStats } from './useMineStats'
 
 /** 统计卡片中的单项（大数字 + 小标签） */
-const StatItem = ({ value, label, theme }: { value: number, label: string, theme: ReturnType<typeof useTheme> }) => (
+const StatItem = ({ value, label, theme }: { value: string | number, label: string, theme: ReturnType<typeof useTheme> }) => (
   <View style={styles.statItem}>
-    <Text size={22} color={theme['c-font']} style={styles.statValue}>{value}</Text>
+    <Text size={typeof value == 'string' ? 16 : 22} color={theme['c-font']} style={styles.statValue}>{value}</Text>
     <Text size={11} color={theme['c-font-label']} numberOfLines={2} style={styles.statLabel}>{label}</Text>
   </View>
 )
@@ -86,7 +86,7 @@ export default memo(() => {
         <View style={styles.statDivider} />
         <StatItem value={stats.playlistCount} label={t('mine_stat_playlists')} theme={theme} />
         <View style={styles.statDivider} />
-        <StatItem value={stats.sessionPlayedCount} label={t('mine_stat_session_played')} theme={theme} />
+        <StatItem value={stats.totalPlayTimeText} label={t('mine_stat_total_time')} theme={theme} />
       </View>
 
       <View style={styles.sectionHeader}>

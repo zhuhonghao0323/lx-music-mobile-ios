@@ -10,6 +10,7 @@ import { throttle } from './common'
 const fontSizeKey = storageDataPrefix.fontSize
 const themeKey = storageDataPrefix.theme
 const playInfoStorageKey = storageDataPrefix.playInfo
+const totalPlayTimeKey = storageDataPrefix.totalPlayTime
 const userListKey = storageDataPrefix.userList
 const viewPrevStateKey = storageDataPrefix.viewPrevState
 const listScrollPositionKey = storageDataPrefix.listScrollPosition
@@ -437,6 +438,10 @@ export const savePlayInfo = async(playInfo: LX.Player.SavedPlayInfo) => {
 export const getPlayInfo = async() => {
   return getData<LX.Player.SavedPlayInfo | null>(playInfoStorageKey)
 }
+
+/** 累计播放时长（秒），持久化 */
+export const getTotalPlayTime = async() => (await getData<number>(totalPlayTimeKey)) ?? 0
+export const saveTotalPlayTime = async(seconds: number) => saveData(totalPlayTimeKey, seconds)
 
 let selectedManagedFolder: string | null = ''
 export const setSelectedManagedFolder = async(uri: string) => {

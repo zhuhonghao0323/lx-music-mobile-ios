@@ -1,17 +1,22 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
-import { type InitState } from '@/store/hotSearch/state'
-import Button from '@/components/common/Button'
-import Text from '@/components/common/Text'
-import { createStyle } from '@/utils/tools'
-import { useTheme } from '@/store/theme/hook'
-import { useI18n } from '@/lang'
-import { clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import { Icon } from '@/components/common/Icon'
+import Text from '@/components/common/Text'
+import { useI18n } from '@/lang'
+import { useTheme } from '@/store/theme/hook'
+import { createStyle } from '@/utils/tools'
+import { scaleSizeW } from '@/utils/pixelRatio'
+import { getSearchHistory, clearHistoryList, removeHistoryWord } from '@/core/search/search'
 
+interface HistorySearchProps {
+  onSearch: (keyword: string) => void
+}
+export interface HistorySearchType {
+  show: () => void
+}
+type List = string[]
 
-export type List = NonNullable<InitState['sourceList'][keyof InitState['sourceList']]>
-
+/** 历史词条：圆角灰色 chip + 关闭图标 */
 const ListItem = ({ keyword, onSearch, onRemove }: {
   keyword: string
   onSearch: (keyword: string) => void
@@ -19,22 +24,18 @@ const ListItem = ({ keyword, onSearch, onRemove }: {
 }) => {
   const theme = useTheme()
   return (
-    <Button
-      style={{ ...styles.button, backgroundColor: theme['c-button-background'] }}
+    <TouchableOpacity
+      style={[styles.chip, { backgroundColor: theme['c-button-background'] }]}
+      activeOpacity={0.7}
       onPress={() => { onSearch(keyword) }}
       onLongPress={() => { onRemove(keyword) }}
     >
-      <Text color={theme['c-button-font']} size={13}>{keyword}</Text>
-    </Button>
+      <Text color={theme['c-font']} size={13} numberOfLines={1} style={styles.chipText}>{keyword}</Text>
+      <TouchableOpacity hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => { onRemove(keyword) }}>
+        <Icon name="close" size={11} color={theme['c-font-label']} />
+      </TouchableOpacity>
+    </TouchableOpacity>
   )
-}
-
-
-interface HistorySearchProps {
-  onSearch: (keyword: string) => void
-}
-export interface HistorySearchType {
-  show: () => void
 }
 
 export default forwardRef<HistorySearchType, HistorySearchProps>((props, ref) => {
@@ -45,9 +46,7 @@ export default forwardRef<HistorySearchType, HistorySearchProps>((props, ref) =>
 
   useEffect(() => {
     isUnmountedRef.current = false
-    return () => {
-      isUnmountedRef.current = true
-    }
+    return () => { isUnmountedRef.current = true }
   }, [])
 
   useImperativeHandle(ref, () => ({
@@ -65,66 +64,66 @@ export default forwardRef<HistorySearchType, HistorySearchProps>((props, ref) =>
   }
 
   const handleRemove = useCallback((keyword: string) => {
-    setList(list => {
-      list = [...list]
-      const index = list.indexOf(keyword)
-      list.splice(index, 1)
+    setList(curr => {
+      const index = curr.indexOf(keyword)
+      if (index < 0) return curr
       removeHistoryWord(index)
-      return list
+      const next = [...curr]
+      next.splice(index, 1)
+      return next
     })
   }, [])
 
+  if (!list.length) return null
+
   return (
-    list.length
-      ? (
-          <View>
-            <View style={styles.titleContent}>
-              <Text size={16}>{t('search_history_search')}</Text>
-              <TouchableOpacity onPress={handleClear} style={styles.titleBtn}>
-                <Icon name="eraser" color={theme['c-300']} size={14} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.list}>
-              {
-                list.map(keyword => <ListItem keyword={keyword} key={keyword} onSearch={props.onSearch} onRemove={handleRemove} />)
-              }
-            </View>
-          </View>
-        )
-      : null
+    <View style={styles.container}>
+      <View style={styles.titleRow}>
+        <Text size={17} color={theme['c-font']} style={styles.title}>{t('search_history_search')}</Text>
+        <TouchableOpacity onPress={handleClear} style={styles.clearBtn} activeOpacity={0.7}>
+          <Icon name="eraser" color={theme['c-font-label']} size={15} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.list}>
+        {list.map(keyword => (
+          <ListItem keyword={keyword} key={keyword} onSearch={props.onSearch} onRemove={handleRemove} />
+        ))}
+      </View>
+    </View>
   )
 })
 
-
 const styles = createStyle({
-  titleContent: {
-    paddingTop: 15,
+  container: {
+    marginBottom: scaleSizeW(18),
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: scaleSizeW(10),
   },
   title: {
-    // paddingLeft: 15,
-    // paddingBottom: 5,
+    fontWeight: '700',
   },
-  titleBtn: {
-    marginLeft: 10,
-    padding: 5,
+  clearBtn: {
+    padding: scaleSizeW(5),
   },
   list: {
-    // paddingLeft: 15,
-    // paddingRight: 15,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    // paddingBottom: 15,
   },
-  button: {
-    textAlign: 'center',
-    paddingLeft: 10,
-    paddingRight: 10,
-    paddingTop: 5,
-    paddingBottom: 5,
-    borderRadius: 4,
-    marginRight: 10,
-    marginTop: 8,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scaleSizeW(12),
+    paddingVertical: scaleSizeW(8),
+    borderRadius: scaleSizeW(16),
+    marginRight: scaleSizeW(8),
+    marginBottom: scaleSizeW(9),
+    maxWidth: '48%',
+  },
+  chipText: {
+    marginRight: scaleSizeW(6),
   },
 })

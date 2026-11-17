@@ -385,7 +385,8 @@ const styles = createStyle({
     justifyContent: 'center',
     paddingHorizontal: scaleSizeW(16),
     paddingTop: scaleSizeW(14),
-    paddingBottom: scaleSizeW(6),
+    // 整体上移，拉开与底部三按钮的距离
+    marginBottom: scaleSizeW(38),
   },
   actionCell: {
     flex: 1,

@@ -1,18 +1,21 @@
 import { memo, useEffect, useRef } from 'react'
-import { Animated, Easing, StyleSheet, Text } from 'react-native'
-import { Icon } from '@/components/common/Icon'
-import { scaleSizeW } from '@/utils/pixelRatio'
+import { Animated, Easing, Image, StyleSheet } from 'react-native'
 import { setFavoriteArriveListener } from './FavoriteDockAnimation'
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const ICON_STAR_NORMAL = require('@/resources/images/star_normal.png')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const ICON_STAR_FILLED = require('@/resources/images/star_filled.png')
 
 export const FAVORITE_COLOR = '#ff4d6d'
 
 /**
- * 收藏状态图标：
- * - 已收藏：实心红色爱心
- * - 未收藏：空心爱心 + 加号
- * - 封面收进心形时：晃动 + 弹跳 + 变红，作为「已收藏」的动效反馈
+ * 收藏状态图标（星形）：
+ * - 已收藏：实心红色星
+ * - 未收藏：空心灰色星
+ * - 封面收进星形时：晃动 + 弹跳，作为「已收藏」的动效反馈
  */
-const FavoriteIcon = memo(({ favorited, iconSize, emptyColor }: {
+const FavoriteIcon = memo(({ favorited, iconSize }: {
   favorited: boolean
   iconSize: number
   emptyColor?: string
@@ -45,11 +48,13 @@ const FavoriteIcon = memo(({ favorited, iconSize, emptyColor }: {
 
   const rotate = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-14deg', '0deg', '14deg'] })
 
-  if (!favorited) return <Icon name="add-music" color={emptyColor} size={iconSize} />
+  if (!favorited) {
+    return <Image source={ICON_STAR_NORMAL} style={[styles.star, { width: iconSize, height: iconSize }]} resizeMode="contain" />
+  }
 
   return (
     <Animated.View style={[styles.container, { transform: [{ rotate }, { scale: pop }] }]} pointerEvents="none">
-      <Text style={[styles.heart, { fontSize: scaleSizeW(iconSize), lineHeight: scaleSizeW(iconSize) * 1.2, color: FAVORITE_COLOR }]}>♥</Text>
+      <Image source={ICON_STAR_FILLED} style={[styles.star, { width: iconSize, height: iconSize }]} resizeMode="contain" />
     </Animated.View>
   )
 })
@@ -59,9 +64,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heart: {
-    textAlign: 'center',
-    fontWeight: 'bold',
+  star: {
+    resizeMode: 'contain',
   },
 })
 

@@ -1,4 +1,5 @@
 {
+  "mine_stat_total_time": "Total play time",
   "mine_stat_favorite": "Favorites", "mine_stat_playlists": "Playlists", "mine_stat_session_played": "Played this session",
   "search_hero_hint": "Start with the search box above; aggregated search can also switch to a single platform.",
   "comment_expand": "Expand", "comment_collapse": "Collapse",
