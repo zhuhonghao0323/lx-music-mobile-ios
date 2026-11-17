@@ -14,21 +14,19 @@ import { scaleSizeW } from '@/utils/pixelRatio'
  */
 export const GLASS_CIRCLE_SIZE = Math.max(44, scaleSizeW(46))
 
-/** 玻璃主题下的圆形底样式 */
+/** 玻璃主题下的圆形底样式（四个按钮共用，液态玻璃质感） */
 export const glassCircleStyle = (size: number) => ({
   width: size,
   height: size,
   borderRadius: size / 2,
-  backgroundColor: 'rgba(255, 255, 255, 0.09)',
+  // 更明显的玻璃底：半透明灰白 + 细描边 + 内高光 + 柔和投影
+  backgroundColor: 'rgba(255, 255, 255, 0.14)',
   borderWidth: StyleSheet.hairlineWidth,
-  borderTopColor: 'rgba(255, 255, 255, 0.30)',
-  borderLeftColor: 'rgba(255, 255, 255, 0.20)',
-  borderRightColor: 'rgba(255, 255, 255, 0.16)',
-  borderBottomColor: 'rgba(255, 255, 255, 0.10)',
-  shadowColor: 'rgba(6, 4, 4, 0.55)',
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.4,
-  shadowRadius: 18,
+  borderColor: 'rgba(255, 255, 255, 0.28)',
+  shadowColor: 'rgba(0, 0, 0, 0.45)',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.35,
+  shadowRadius: 10,
 })
 
 /**

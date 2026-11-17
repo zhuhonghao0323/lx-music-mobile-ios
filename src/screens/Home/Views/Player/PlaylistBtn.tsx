@@ -7,22 +7,32 @@ import { GLASS_CIRCLE_SIZE, glassCircleStyle } from '@/screens/PlayDetail/Vertic
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ICON_LIST = require('@/resources/images/icon_list.png')
 
-/** 播放页操作行的「当前播放列表」按钮：与其它按钮共用同一套玻璃底和尺寸 */
+/**
+ * 播放页操作行的「当前播放列表」按钮。
+ * 层级结构与 MoreBtn/Btn 完全一致（Animated.View > TouchableOpacity > 图标），
+ * 保证四个按钮尺寸、圆底、对齐完全相同。
+ */
 export default memo(({ onPress }: { onPress: () => void }) => {
-  const scale = useRef(new Animated.Value(1)).current
+  const pressScale = useRef(new Animated.Value(1)).current
   const animateTo = (to: number) => {
-    Animated.timing(scale, { toValue: to, duration: to < 1 ? 90 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start()
+    Animated.timing(pressScale, { toValue: to, duration: to < 1 ? 90 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start()
   }
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={() => { haptic.tap(); onPress() }}
-      onPressIn={() => { animateTo(0.96) }}
-      onPressOut={() => { animateTo(1) }}
-    >
-      <Animated.View style={[glassCircleStyle(GLASS_CIRCLE_SIZE), { transform: [{ scale }] }]}>
-        <Image source={ICON_LIST} style={{ width: scaleSizeW(19), height: scaleSizeW(19) }} resizeMode="contain" />
-      </Animated.View>
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: pressScale }] }}>
+      <TouchableOpacity
+        style={glassCircleStyle(GLASS_CIRCLE_SIZE)}
+        activeOpacity={1}
+        onPressIn={() => { animateTo(0.96) }}
+        onPressOut={() => { animateTo(1) }}
+        onPress={() => { haptic.tap(); onPress() }}
+      >
+        <Image
+          source={ICON_LIST}
+          style={{ width: scaleSizeW(19), height: scaleSizeW(19), alignSelf: 'center' }}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+    </Animated.View>
   )
 })
