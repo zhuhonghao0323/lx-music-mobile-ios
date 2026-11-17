@@ -2,7 +2,7 @@ import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
 import { pause, playNext, resetCustomSourceForNewSong } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
-import { setStop, setPlay } from '@/plugins/player'
+import { setStop, setPlay, applyAudioMix } from '@/plugins/player'
 import { syncNowPlayingVisibility } from '@/core/player/nowPlaying'
 import { delayUpdateMusicInfo, updateMetaData } from '@/plugins/player/playList'
 import { soundEffectController } from '@/plugins/player/soundEffect'
@@ -121,7 +121,17 @@ export default async(setting: LX.AppSetting) => {
       recovering = true
       // 延迟一点，避开音频会话恢复瞬间的抖动
       setTimeout(() => {
-        void setPlay().finally(() => { recovering = false })
+        // 【无声修复】其它 App 独占激活会 deactivate 我们的 AVAudioSession，
+        // 单纯 play() 不会重新 setActive，底层恢复不了声音。
+        // 先重新 setCategory + setActive（幂等），再续播。
+        void (async() => {
+          try {
+            await applyAudioMix(true)
+            await setPlay()
+          } finally {
+            recovering = false
+          }
+        })()
       }, 220)
     }
 
