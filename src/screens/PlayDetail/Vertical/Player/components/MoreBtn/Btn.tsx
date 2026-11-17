@@ -32,19 +32,16 @@ export default ({ icon, color, onPress, onLongPress }: {
   }, [pressScale])
 
   return (
-    <Animated.View style={isGlass ? { transform: [{ scale: pressScale }] } : undefined}>
+    <Animated.View style={{ transform: [{ scale: pressScale }] }}>
       <TouchableOpacity
-        style={StyleSheet.compose(
-          styles.cotrolBtn,
-          isGlass ? glassCircleStyle(glassSize) : { width: BTN_WIDTH, height: BTN_WIDTH },
-        )}
-        activeOpacity={isGlass ? 1 : 0.55}
-        onPressIn={isGlass ? () => { animateTo(0.96) } : undefined}
-        onPressOut={isGlass ? () => { animateTo(1) } : undefined}
+        style={StyleSheet.compose(styles.cotrolBtn, glassCircleStyle(glassSize))}
+        activeOpacity={1}
+        onPressIn={() => { animateTo(0.96) }}
+        onPressOut={() => { animateTo(1) }}
         onPress={() => { haptic.tap(); onPress() }}
         onLongPress={onLongPress ? () => { haptic.longPress(); onLongPress() } : undefined}
       >
-        <Icon name={icon} color={color ?? (isGlass ? '#F5F2F1' : theme['c-font-label'])} size={isGlass ? BTN_ICON_SIZE - 5 : BTN_ICON_SIZE} />
+        <Icon name={icon} color={color ?? (isGlass ? '#F5F2F1' : theme['c-font-label'])} size={BTN_ICON_SIZE - 5} />
       </TouchableOpacity>
     </Animated.View>
   )

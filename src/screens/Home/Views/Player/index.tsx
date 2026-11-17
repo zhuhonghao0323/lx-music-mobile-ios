@@ -20,6 +20,7 @@ import PlayModeBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn
 import CommentBtn from '@/screens/PlayDetail/Vertical/Player/components/MoreBtn/CommentBtn'
 import Lyric from '@/screens/PlayDetail/Vertical/Lyric'
 import FullScreenSwipe from '@/screens/PlayDetail/components/FullScreenSwipe'
+import FavoriteDockAnimation from '@/screens/PlayDetail/components/FavoriteDockAnimation'
 import PlaylistSheet, { type PlaylistSheetType } from './PlaylistSheet'
 import PlaylistBtn from './PlaylistBtn'
 import CommentSheet, { type CommentSheetType } from './CommentSheet'
@@ -194,8 +195,9 @@ export default memo(() => {
   const circleBg = isGlass ? 'rgba(255,255,255,0.09)' : theme['c-primary-light-500-alpha-800']
 
   return (
-    <FullScreenSwipe disabled={overlayVisible || pageIndex == 1}>
-      <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
+    <>
+      <FullScreenSwipe disabled={overlayVisible || pageIndex == 1}>
+        <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
         {/* 横滑翻页：0 播放页 / 1 全屏歌词（左滑看歌词，右滑回播放页） */}
@@ -299,8 +301,11 @@ export default memo(() => {
         />
         <PlaylistSheet ref={playlistSheetRef} onHide={() => { setOverlayVisible(false) }} />
         <CommentSheet ref={commentSheetRef} onHide={() => { setOverlayVisible(false) }} />
-      </Animated.View>
-    </FullScreenSwipe>
+        </Animated.View>
+      </FullScreenSwipe>
+      {/* 收藏/取消收藏：封面飞入/抽出星形的 Dock 动画覆盖层（整屏绝对定位，不拦截触摸） */}
+      <FavoriteDockAnimation />
+    </>
   )
 })
 

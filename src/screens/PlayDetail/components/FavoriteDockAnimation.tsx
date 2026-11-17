@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, Easing, StyleSheet, View, type LayoutRectangle } from 'react-native'
 import Image from '@/components/common/Image'
 
@@ -18,17 +18,36 @@ export interface FavoriteDockAnimationPayload {
   direction: 'add' | 'remove'
 }
 
-let runner: ((payload: FavoriteDockAnimationPayload) => void) | null = null
-let arriveListener: ((direction: 'add' | 'remove') => void) | null = null
+type Runner = (payload: FavoriteDockAnimationPayload) => void
+type ArriveListener = (direction: 'add' | 'remove') => void
+
+/**
+ * 用栈管理而非单例：新版播放 Tab 常驻、独立播放页临时 push，两者可能同时挂载动画层。
+ * 后挂载的（当前可见页面）位于栈顶并实际生效；卸载时只移除自己，
+ * 避免旧实现「卸载即置空」把另一个页面的动画链路一并切断。
+ */
+const runnerStack: Runner[] = []
+const arriveStack: ArriveListener[] = []
 
 /** 触发一次「收进/抽出」动画；播放页未挂载时安全忽略 */
 export const playFavoriteDockAnimation = (payload: FavoriteDockAnimationPayload) => {
-  runner?.(payload)
+  runnerStack[runnerStack.length - 1]?.(payload)
 }
 
-/** 注册「封面已到达心形」的回调，供心形播放晃动/变红反馈 */
-export const setFavoriteArriveListener = (fn: ((direction: 'add' | 'remove') => void) | null) => {
-  arriveListener = fn
+/**
+ * 注册「封面已到达星形」的回调，供星形播放晃动/变红反馈。
+ * 返回取消注册函数；到达时只通知栈顶（当前可见页面）的星形。
+ */
+export const addFavoriteArriveListener = (fn: ArriveListener): (() => void) => {
+  arriveStack.push(fn)
+  return () => {
+    const index = arriveStack.indexOf(fn)
+    if (index >= 0) arriveStack.splice(index, 1)
+  }
+}
+
+const notifyArrive = (direction: 'add' | 'remove') => {
+  arriveStack[arriveStack.length - 1]?.(direction)
 }
 
 const FLY_DURATION = 480
@@ -44,16 +63,38 @@ export default ({ onArrive }: { onArrive?: (direction: 'add' | 'remove') => void
   const progress = useRef(new Animated.Value(0)).current
   const burst = useRef(new Animated.Value(0)).current
   const animRef = useRef<Animated.CompositeAnimation | null>(null)
+  const hostRef = useRef<View>(null)
+  // 用 ref 同步保存容器原点，保证与 payload 在同一次渲染生效（measure 回调可能滞后于 setPayload）
+  const hostOriginRef = useRef({ x: 0, y: 0 })
+  const [, forceRefresh] = useState(0)
+
+  // 测量覆盖层容器在窗口中的原点：封面/星形坐标来自 measureInWindow（窗口绝对坐标），
+  // 而动画层用 absoluteFill 相对容器定位，故需减去容器原点。
+  // 独立播放页原点恰为 (0,0)，新版播放 Tab 因 SafeAreaView 存在偏移，必须校正。
+  const measureHost = useCallback(() => {
+    hostRef.current?.measureInWindow((x, y) => {
+      const cur = hostOriginRef.current
+      if (cur.x !== x || cur.y !== y) {
+        hostOriginRef.current = { x, y }
+        forceRefresh(v => v + 1)
+      }
+    })
+  }, [])
 
   useEffect(() => {
-    runner = (next) => {
+    const run: Runner = (next) => {
       animRef.current?.stop()
+      measureHost()
       setPayload(next)
       progress.setValue(0)
       burst.setValue(0)
     }
-    return () => { runner = null }
-  }, [progress, burst])
+    runnerStack.push(run)
+    return () => {
+      const index = runnerStack.indexOf(run)
+      if (index >= 0) runnerStack.splice(index, 1)
+    }
+  }, [progress, burst, measureHost])
 
   useEffect(() => {
     if (!payload) return
@@ -66,11 +107,11 @@ export default ({ onArrive }: { onArrive?: (direction: 'add' | 'remove') => void
     animRef.current = anim
     anim.start(({ finished }) => {
       if (!finished) return
-      // 封面刚落到心形上：立刻通知心形播放晃动/变红，观感上「收到了」
+      // 封面刚落到星形上：立刻通知星形播放晃动/变红，观感上「收到了」
       setPayload((current) => {
         if (current) {
           onArrive?.(current.direction)
-          arriveListener?.(current.direction)
+          notifyArrive(current.direction)
         }
         return current
       })
@@ -86,13 +127,24 @@ export default ({ onArrive }: { onArrive?: (direction: 'add' | 'remove') => void
     })
   }, [payload, progress, burst, onArrive])
 
-  if (!payload) return null
+  // 无动画时仍渲染宿主容器（用于测量原点），但不绘制任何飞行内容
+  if (!payload) {
+    return (
+      <View
+        ref={hostRef}
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+        onLayout={measureHost}
+      />
+    )
+  }
 
   const { from, to, pic, direction } = payload
-  const startX = from.x + from.width / 2
-  const startY = from.y + from.height / 2
-  const endX = to.x + to.width / 2
-  const endY = to.y + to.height / 2
+  const hostOrigin = hostOriginRef.current
+  const startX = from.x + from.width / 2 - hostOrigin.x
+  const startY = from.y + from.height / 2 - hostOrigin.y
+  const endX = to.x + to.width / 2 - hostOrigin.x
+  const endY = to.y + to.height / 2 - hostOrigin.y
 
   // 反向：取消收藏时从心形出发飞回封面位置
   const reversed = direction == 'remove'
@@ -126,7 +178,12 @@ export default ({ onArrive }: { onArrive?: (direction: 'add' | 'remove') => void
   const burstOpacity = burst.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] })
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View
+      ref={hostRef}
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      onLayout={measureHost}
+    >
       {/* 到达心形后的扩散光晕 */}
       <Animated.View
         style={{
