@@ -2,7 +2,8 @@ import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
 import { pause, playNext, resetCustomSourceForNewSong } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
-import { setStop, setPlay, reloadConfig } from '@/plugins/player'
+import { setStop, setPlay } from '@/plugins/player'
+import { syncNowPlayingVisibility } from '@/core/player/nowPlaying'
 import { delayUpdateMusicInfo, updateMetaData } from '@/plugins/player/playList'
 import { soundEffectController } from '@/plugins/player/soundEffect'
 import playerState from '@/store/player/state'
@@ -59,10 +60,14 @@ export default async(setting: LX.AppSetting) => {
       const playMusicInfo = playerState.playMusicInfo
       if (newValue == 'random' && playMusicInfo.musicInfo && !playMusicInfo.isTempPlay) addPlayedList({ ...(playMusicInfo as LX.Player.PlayMusicInfo) })
     }
-    // 「与其他应用同时播放」开关变化：iOS 音频会话的 category options 只在
-    // setupPlayer 时读取，切换开关后不重建会话就会出现「开了混音却没声音」。
+    // 「与其他应用同时播放」开关变化：
+    // 音频会话由设置页的 applyAudioMix() 直接改写（不销毁播放器）。
+    // 【重要】这里绝不能再调用 reloadConfig()——它会 destroy 播放器并 setActive(false)，
+    // 与 applyAudioMix 的 setActive(true) 并发竞态，导致「开了混音却没声音」，
+    // 必须重新开关一次才恢复。锁屏控件的显隐由 syncNowPlayingVisibility 统一处理。
     if (Platform.OS == 'ios' && keys.includes('player.isPlayWithOtherApps')) {
-      void reloadConfig()
+      const enabled = !!settings['player.isPlayWithOtherApps']
+      syncNowPlayingVisibility(enabled).catch(() => {})
     }
     if (keys.some(soundEffectController.isSettingKey)) void soundEffectController.applyCurrentConfig()
   }
@@ -82,6 +87,10 @@ export default async(setting: LX.AppSetting) => {
   global.app_event.on('lyricUpdated', refreshNowPlaying)
   global.state_event.on('configUpdated', handleConfigUpdated)
   void soundEffectController.applyCurrentConfig()
+  // 启动时按当前混音设置初始化锁屏控件显隐
+  if (Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']) {
+    void syncNowPlayingVisibility(true)
+  }
 
   if (Platform.OS == 'ios') {
     onHeadphonesDisconnected(() => {

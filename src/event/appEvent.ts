@@ -206,6 +206,16 @@ export class AppEvent extends Event {
     this.emit('songlistTagInfoChange', name, id)
   }
 
+  /** 歌单页顶部搜索按钮：展开列表内搜索栏 */
+  showListSearchBar() {
+    this.emit('showListSearchBar')
+  }
+
+  /** 首页 Music 位置的平台筛选按钮切换了歌单音源，SongList 页需重载 */
+  songlistSourceChanged(source: LX.OnlineSource) {
+    this.emit('songlistSourceChanged', source)
+  }
+
   selectSyncMode(mode: LX.Sync.ModeType) {
     this.emit('selectSyncMode', mode)
   }

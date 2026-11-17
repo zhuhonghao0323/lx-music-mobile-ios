@@ -14,6 +14,7 @@ import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import SongList from '../SongList'
 import Leaderboard from '../Leaderboard'
+import SourceIconButton from './SourceIconButton'
 
 /** 主页顶部频道：歌单 / 榜单，同页切换 */
 type Channel = 'songlist' | 'top'
@@ -55,9 +56,9 @@ export default memo(() => {
           paddingTop: statusBarHeight,
         })}
       >
-        {/* 品牌名 + 频道 Tab */}
+        {/* 品牌位改为音源平台筛选图标（点击切换酷我/QQ/酷狗/网易/咪咕） */}
         <View style={styles.headerLeft}>
-          <Text style={styles.brand} size={19} color={theme['c-font']}>Music</Text>
+          <SourceIconButton />
           <ChannelTab label={t('nav_songlist')} active={channel == 'songlist'} onPress={() => { switchChannel('songlist') }} />
           <ChannelTab label={t('nav_top')} active={channel == 'top'} onPress={() => { switchChannel('top') }} />
         </View>

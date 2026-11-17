@@ -50,7 +50,8 @@ export default forwardRef<HeaderBarType, HeaderBarProps>(({ onSortChange, onTagC
       <SortTab ref={sortTabRef} onSortChange={onSortChange} />
       <Tag ref={tagRef} onTagChange={onTagChange} />
       <OpenList ref={openListRef} />
-      <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} />
+      {/* 音源筛选已挪到首页顶栏的 Music 位（平台图标），此处不再重复显示 */}
+      <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} style={styles.hiddenSelector} />
     </View>
   )
 })
@@ -65,5 +66,10 @@ const styles = createStyle({
   },
   selector: {
     width: 86,
+  },
+  // 音源筛选已挪到首页顶栏，这里保留组件实例（供 setSource 调用）但不占视觉空间
+  hiddenSelector: {
+    width: 0,
+    opacity: 0,
   },
 })

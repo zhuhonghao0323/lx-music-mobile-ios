@@ -4,6 +4,7 @@ import { NativeModules, Platform } from 'react-native'
 import settingState from '@/store/setting/state'
 import { seekToTime } from './seek'
 import { clearNowPlayingInfo, updateNowPlayingInfo } from '@/utils/nativeModules/nowPlaying'
+import { isNowPlayingHidden } from '@/core/player/nowPlayingVisibility'
 
 const list: LX.Player.Track[] = []
 
@@ -133,11 +134,12 @@ export const updateCurrentTrackMetadata = async(metadata: {
   elapsedTime?: number
   playbackRate?: number
 }) => {
-  // 「与其他应用同时播放」模式下不再清空/跳过系统媒体信息：
-  // iOS 依赖 MPNowPlayingInfoCenter 的活跃媒体会话来维持后台音频，
-  // 清空它会导致锁屏或进入后台后系统挂起播放（表现为「音乐直接停止」）。
-  // 保留锁屏卡片是后台持续播放的必要条件，混音本身由 AVAudioSession 的
-  // mixWithOthers 控制，与是否显示卡片无关。
+  // 「与其他应用同时播放」模式：不写锁屏/控制中心媒体信息。
+  // 开启混音时由 syncNowPlayingVisibility 清空控件；这里在源头阻止后续
+  // 元数据写入（包括 ensureCurrentTrackMetadata 的 4 次延迟写入）反复覆盖，
+  // 保证锁屏控件持续不出现。后台播放由 AVAudioSession 的 Playback+ MixWithOthers
+  // 维持，与是否显示锁屏控件无关。
+  if (isNowPlayingHidden()) return
   const currentTrackIndex = await TrackPlayer.getCurrentTrack().catch(() => null)
   if (currentTrackIndex != null && currentTrackIndex > -1) {
     await TrackPlayer.updateMetadataForTrack(currentTrackIndex, metadata).catch(() => {})

@@ -26,24 +26,40 @@ export default memo(() => {
     setNavActiveId('nav_mine')
   }, [])
 
-  // 左缘右滑返回：仅响应从屏幕左侧 40px 内起始的右滑，避免与列表横向手势冲突
+  // 顶部功能：搜索当前列表 / 打开列表管理抽屉（内含排序、新建、导入导出）
+  const handleSearch = useCallback(() => {
+    haptic.tap()
+    global.app_event.showListSearchBar()
+  }, [])
+  const handleSort = useCallback(() => {
+    haptic.tap()
+    global.app_event.changeLoveListVisible(true)
+  }, [])
+
+  // 整页右滑返回：要求明显横向位移，避免与列表纵向滚动冲突
   const backResponder = PanResponder.create({
-    onStartShouldSetPanResponder: (evt) => evt.nativeEvent.pageX < 40,
-    onMoveShouldSetPanResponder: (evt, gs) => evt.nativeEvent.pageX < 40 && gs.dx > 24 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.2,
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_evt, gs) => gs.dx > 24 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.3,
     onPanResponderRelease: (_evt, gs) => {
-      if (gs.dx > 70) goBack()
+      if (gs.dx > 80) goBack()
     },
   })
 
   return (
     <View style={styles.wrap}>
-      {/* 整页左缘手势层（透明，只捕获屏幕左缘的右滑） */}
+      {/* 整页手势层（透明，只捕获明确的右滑） */}
       <View style={styles.gestureLayer} {...backResponder.panHandlers} pointerEvents="box-none" />
       <View style={[styles.bar, { paddingTop: statusBarHeight + scaleSizeW(4) }]}>
         <TouchableOpacity style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={goBack}>
           <Icon name="chevron-left" size={18} color={theme['c-font']} />
         </TouchableOpacity>
         <Text size={15} color={theme['c-font']} numberOfLines={1} style={styles.title}>{t('nav_mine')}</Text>
+        <TouchableOpacity style={styles.actionBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={handleSort}>
+          <Icon name="slider" size={19} color={theme['c-font']} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={handleSearch}>
+          <Icon name="search-2" size={19} color={theme['c-font']} />
+        </TouchableOpacity>
       </View>
     </View>
   )
@@ -65,6 +81,12 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  actionBtn: {
+    width: scaleSizeW(34),
+    height: scaleSizeW(34),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: {
     flex: 1,
     marginLeft: scaleSizeW(4),
@@ -75,7 +97,7 @@ const styles = createStyle({
     top: 0,
     bottom: 0,
     left: 0,
-    width: 40,
+    right: 0,
     zIndex: 10,
   },
 })

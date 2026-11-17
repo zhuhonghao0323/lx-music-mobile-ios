@@ -3,8 +3,10 @@ import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { useTheme } from '@/store/theme/hook'
 import { createStyle } from '@/utils/tools'
+import { scaleSizeW } from '@/utils/pixelRatio'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { ScrollView, View } from 'react-native'
+import { Icon } from '@/components/common/Icon'
 import HistorySearch, { type HistorySearchType } from './HistorySearch'
 import HotSearch, { type HotSearchType } from './HotSearch'
 
@@ -50,6 +52,12 @@ export default forwardRef<BlankViewType, BlankViewProps>(({ onSearch }, ref) => 
         ? (
             <ScrollView>
               <View style={styles.content}>
+                {/* 图1：中间大放大镜空状态 */}
+                <View style={styles.hero}>
+                  <Icon name="search-2" size={58} color={theme['c-font-label']} />
+                  <Text size={18} color={theme['c-font-label']} style={styles.heroTitle}>{t('search_input_placeholder')}</Text>
+                  <Text size={12} color={theme['c-font-label']} style={styles.heroSub}>{t('search_hero_hint')}</Text>
+                </View>
                 { isShowHotSearch ? <HotSearch ref={hotSearchRef} onSearch={onSearch} /> : null }
                 { isShowHistorySearch ? <HistorySearch ref={historySearchRef} onSearch={onSearch} /> : null }
               </View>
@@ -77,5 +85,20 @@ const styles = createStyle({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  hero: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: scaleSizeW(120),
+    paddingBottom: scaleSizeW(60),
+  },
+  heroTitle: {
+    marginTop: scaleSizeW(18),
+    fontWeight: '600',
+  },
+  heroSub: {
+    marginTop: scaleSizeW(8),
+    textAlign: 'center',
+    lineHeight: scaleSizeW(20),
   },
 })

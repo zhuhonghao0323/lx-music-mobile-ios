@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import listState from '@/store/list/state'
 import ListMenu, { type ListMenuType, type Position, type SelectInfo } from './ListMenu'
@@ -34,6 +34,14 @@ export default () => {
   const isShowMultipleModeBar = useRef(false)
   const isShowSearchBarModeBar = useRef(false)
   const selectedInfoRef = useRef<SelectInfo>()
+
+  // 顶部功能条（BackToMine）的搜索按钮通过事件展开列表搜索栏
+  useEffect(() => {
+    const handleShowSearchBar = () => { listSearchBarRef.current?.show() }
+    global.app_event.on('showListSearchBar', handleShowSearchBar)
+    return () => { global.app_event.off('showListSearchBar', handleShowSearchBar) }
+  }, [])
+
   // console.log('render index list')
 
   const hancelMultiSelect = useCallback(() => {

@@ -10,6 +10,7 @@ import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
 import { useListCover } from '../Mylist/useListCover'
 import { useIsGlass } from '@/theme/glass'
+import { getListMusicSync } from '@/utils/listManage'
 
 /** 单个歌单图标（封面网格单元） */
 const ListTile = memo(({ listInfo, size, onPress, onLongPress }: {
@@ -22,6 +23,8 @@ const ListTile = memo(({ listInfo, size, onPress, onLongPress }: {
   const isGlass = useIsGlass()
   // 歌单封面 = 列表内第一首歌封面（进程级缓存）
   const cover = useListCover(listInfo.id)
+  // 歌曲数量（真实数据，取同步缓存；列表可能异步加载，首帧为 0 属正常）
+  const songCount = getListMusicSync(listInfo.id).length
 
   return (
     <TouchableOpacity
@@ -45,6 +48,10 @@ const ListTile = memo(({ listInfo, size, onPress, onLongPress }: {
               </View>
             )
           : null}
+        {/* 歌曲数量（真实数据） */}
+        <View style={styles.countBadge}>
+          <Text size={10} color="#FFFFFF" style={styles.countText}>{songCount}</Text>
+        </View>
       </View>
       <Text style={styles.tileName} size={12} color={theme['c-font']} numberOfLines={2}>{listInfo.name}</Text>
     </TouchableOpacity>
@@ -136,6 +143,21 @@ const styles = createStyle({
     borderRadius: scaleSizeW(9),
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  countBadge: {
+    position: 'absolute',
+    right: scaleSizeW(6),
+    bottom: scaleSizeW(6),
+    minWidth: scaleSizeW(22),
+    paddingHorizontal: scaleSizeW(5),
+    paddingVertical: scaleSizeW(2),
+    borderRadius: scaleSizeW(11),
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: {
+    fontWeight: '600',
   },
   tileName: {
     marginTop: scaleSizeW(6),

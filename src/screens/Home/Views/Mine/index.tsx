@@ -14,53 +14,34 @@ import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { setActiveList } from '@/core/list'
 import ListGrid from './ListGrid'
+import { useMineStats } from './useMineStats'
 
-/** 快捷入口图标按钮 */
-const QuickEntry = ({ icon, label, onPress }: { icon: string, label: string, onPress: () => void }) => {
-  const theme = useTheme()
-  const isGlass = useIsGlass()
-  return (
-    <TouchableOpacity
-      style={styles.quickEntry}
-      activeOpacity={0.7}
-      onPress={() => { haptic.tap(); onPress() }}
-    >
-      <View style={StyleSheet.compose(styles.quickIcon, {
-        backgroundColor: isGlass ? 'rgba(255,255,255,0.10)' : theme['c-primary-light-500-alpha-800'],
-      })}>
-        <Icon name={icon} size={18} color={theme['c-primary-font']} />
-      </View>
-      <Text style={styles.quickLabel} size={11} color={theme['c-font-label']} numberOfLines={1}>{label}</Text>
-    </TouchableOpacity>
-  )
-}
+/** 统计卡片中的单项（大数字 + 小标签） */
+const StatItem = ({ value, label, theme }: { value: number, label: string, theme: ReturnType<typeof useTheme> }) => (
+  <View style={styles.statItem}>
+    <Text size={22} color={theme['c-font']} style={styles.statValue}>{value}</Text>
+    <Text size={11} color={theme['c-font-label']} numberOfLines={2} style={styles.statLabel}>{label}</Text>
+  </View>
+)
 
 /**
- * Tab 3 · 我的（收藏 + 个人 + 设置入口）。
+ * Tab 3 · 我的（统计 + 歌单 + 设置入口）。
  *
- * 结构对标波点音乐：
+ * 结构：
  *   顶部栏（标题 + 设置齿轮）
- *   → 个人信息卡
- *   → 快捷入口（喜欢）
- *   → 歌单区（直接复用现有 MyList，含自建与收藏歌单的全部操作）
- *
- * 复用 MyList 而不是重搭列表，是为了让新建/重命名/排序/导入导出/
- * 同步等既有能力全部保留，不因布局重构而丢失。
+ *   → 统计卡片（收藏歌曲数 / 歌单数 / 本次会话已播放，均为真实可获取的数据）
+ *   → 歌单网格（自建与收藏歌单，含封面与数量）
  */
 export default memo(() => {
   const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const isGlass = useIsGlass()
+  const stats = useMineStats()
 
   const openSetting = useCallback(() => {
     haptic.tap()
     setNavActiveId('nav_setting')
-  }, [])
-
-  const openLove = useCallback(() => {
-    haptic.tap()
-    setNavActiveId('nav_love')
   }, [])
 
   /** 点歌单图标：设为当前列表并进入列表歌曲页（那里有播放列表、添加到播放列表等全部功能） */
@@ -97,20 +78,15 @@ export default memo(() => {
         </TouchableOpacity>
       </View>
 
+      {/* 统计卡片：收藏歌曲数 / 歌单数 / 本次会话已播放（真实可获取的数据） */}
       <View style={StyleSheet.compose(styles.profileCard, {
         backgroundColor: isGlass ? 'rgba(255,255,255,0.08)' : theme['c-primary-light-500-alpha-800'],
       })}>
-        <View style={StyleSheet.compose(styles.avatar, { backgroundColor: theme['c-primary-font'] })}>
-          <Icon name="logo" size={24} color={theme['c-main-background']} />
-        </View>
-        <View style={styles.profileInfo}>
-          <Text size={16} color={theme['c-font']}>{t('user_api_local')}</Text>
-          <Text style={styles.profileSub} size={11} color={theme['c-font-label']}>{t('nav_mine_subtitle')}</Text>
-        </View>
-      </View>
-
-      <View style={styles.quickRow}>
-        <QuickEntry icon="love" label={t('nav_love')} onPress={openLove} />
+        <StatItem value={stats.favoriteCount} label={t('mine_stat_favorite')} theme={theme} />
+        <View style={styles.statDivider} />
+        <StatItem value={stats.playlistCount} label={t('mine_stat_playlists')} theme={theme} />
+        <View style={styles.statDivider} />
+        <StatItem value={stats.sessionPlayedCount} label={t('mine_stat_session_played')} theme={theme} />
       </View>
 
       <View style={styles.sectionHeader}>
@@ -148,43 +124,29 @@ const styles = createStyle({
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-around',
     marginHorizontal: scaleSizeW(16),
     marginTop: scaleSizeW(6),
-    padding: scaleSizeW(14),
+    paddingVertical: scaleSizeW(16),
     borderRadius: scaleSizeW(16),
   },
-  avatar: {
-    width: scaleSizeW(48),
-    height: scaleSizeW(48),
-    borderRadius: scaleSizeW(24),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInfo: {
-    marginLeft: scaleSizeW(12),
+  statItem: {
     flex: 1,
-  },
-  profileSub: {
-    marginTop: scaleSizeW(3),
-  },
-  quickRow: {
-    flexDirection: 'row',
-    marginTop: scaleSizeW(14),
-    paddingHorizontal: scaleSizeW(16),
-  },
-  quickEntry: {
-    alignItems: 'center',
-    width: scaleSizeW(56),
-  },
-  quickIcon: {
-    width: scaleSizeW(44),
-    height: scaleSizeW(44),
-    borderRadius: scaleSizeW(22),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickLabel: {
-    marginTop: scaleSizeW(5),
+  statValue: {
+    fontWeight: '800',
+  },
+  statLabel: {
+    marginTop: scaleSizeW(4),
+    textAlign: 'center',
+    lineHeight: scaleSizeW(15),
+  },
+  statDivider: {
+    width: 1,
+    height: scaleSizeW(34),
+    backgroundColor: 'rgba(128,128,128,0.24)',
   },
   sectionHeader: {
     flexDirection: 'row',

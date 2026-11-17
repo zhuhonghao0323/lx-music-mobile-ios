@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
 
 // import music from '@/utils/musicSdk'
@@ -13,6 +13,7 @@ import { getSearchSetting, saveSearchSetting } from '@/utils/data'
 import { createStyle } from '@/utils/tools'
 import TipList, { type TipListType } from './TipList'
 import List, { type ListType } from './List'
+import ResultTabs, { type ResultTabId } from './ResultTabs'
 import { addHistoryWord } from '@/core/search/search'
 
 
@@ -29,6 +30,8 @@ export default () => {
   const layoutHeightRef = useRef<number>(0)
   const searchInfo = useRef<SearchInfo>({ temp_source: 'kw', source: 'kw', searchType: 'music' })
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // 结果分类 tab（骨架）：综合/单曲/歌手/专辑/歌单
+  const [resultTab, setResultTab] = useState<ResultTabId>('all')
 
   useEffect(() => {
     void getSearchSetting().then(info => {
@@ -109,7 +112,9 @@ export default () => {
       />
       <View style={styles.content} onLayout={handleLayout}>
         <TipList ref={searchTipListRef} onSearch={handleSearch} />
-        <List ref={listRef} onSearch={handleSearch} />
+        {/* 搜索结果分类 tab（骨架，配色跟随当前主题） */}
+        <ResultTabs active={resultTab} onChange={setResultTab} />
+        <List ref={listRef} onSearch={handleSearch} tab={resultTab} />
       </View>
     </View>
   )

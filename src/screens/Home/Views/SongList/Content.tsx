@@ -27,6 +27,19 @@ export default () => {
       headerBarRef.current?.setSource(info.source, info.sortId, info.tagName, info.tagId)
       listRef.current?.loadList(info.source, info.sortId, info.tagId)
     })
+
+    // 首页「Music」位置的平台图标筛选切换音源后，这里同步重载
+    const handleSourceChanged = (source: LX.OnlineSource) => {
+      songlistInfo.current.source = source
+      songlistInfo.current.tagId = ''
+      songlistInfo.current.sortId = songlistState.sortList[source]?.[0]?.id ?? '5'
+      headerBarRef.current?.setSource(source, songlistInfo.current.sortId, '', '')
+      listRef.current?.loadList(source, songlistInfo.current.sortId, '')
+    }
+    global.app_event.on('songlistSourceChanged', handleSourceChanged)
+    return () => {
+      global.app_event.off('songlistSourceChanged', handleSourceChanged)
+    }
   }, [])
 
   const handleSortChange: HeaderBarProps['onSortChange'] = (id) => {
