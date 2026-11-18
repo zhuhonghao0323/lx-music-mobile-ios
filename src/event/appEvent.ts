@@ -206,9 +206,24 @@ export class AppEvent extends Event {
     this.emit('songlistTagInfoChange', name, id)
   }
 
+  /** 歌单操作：由「我的」页长按歌单图标或歌单内功能按钮触发 */
+  listOperation(action: 'sort' | 'duplicate' | 'localFile' | 'sync' | 'import' | 'export' | 'remove', listId: string) {
+    this.emit('listOperation', action, listId)
+  }
+
+  /** 新建歌单（从「我的」页新建按钮触发） */
+  requestCreateList() {
+    this.emit('requestCreateList')
+  }
+
   /** 歌单页顶部搜索按钮：展开列表内搜索栏 */
   showListSearchBar() {
     this.emit('showListSearchBar')
+  }
+
+  /** 首页音乐图标切换了排行榜音源，排行榜页需重载 */
+  leaderboardSourceChanged(source: LX.OnlineSource) {
+    this.emit('leaderboardSourceChanged', source)
   }
 
   /** 首页 Music 位置的平台筛选按钮切换了歌单音源，SongList 页需重载 */

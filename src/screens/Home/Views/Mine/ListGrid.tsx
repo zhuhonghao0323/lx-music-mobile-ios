@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import { View, TouchableOpacity, FlatList, Dimensions, type ListRenderItem } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useMyList } from '@/store/list/hook'
@@ -17,21 +17,30 @@ const ListTile = memo(({ listInfo, size, onPress, onLongPress }: {
   listInfo: LX.List.MyListInfo
   size: number
   onPress: (info: LX.List.MyListInfo) => void
-  onLongPress?: (info: LX.List.MyListInfo) => void
+  onLongPress?: (info: LX.List.MyListInfo, position: { x: number, y: number, w: number, h: number }) => void
 }) => {
   const theme = useTheme()
   const isGlass = useIsGlass()
+  const tileRef = useRef<TouchableOpacity>(null)
   // 歌单封面 = 列表内第一首歌封面（进程级缓存）
   const cover = useListCover(listInfo.id)
   // 歌曲数量（真实数据，取同步缓存；列表可能异步加载，首帧为 0 属正常）
   const songCount = getListMusicSync(listInfo.id).length
 
+  const handleLongPress = () => {
+    haptic.longPress()
+    tileRef.current?.measure((_x, _y, w, h, px, py) => {
+      onLongPress?.(listInfo, { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) })
+    })
+  }
+
   return (
     <TouchableOpacity
+      ref={tileRef}
       style={[styles.tile, { width: size }]}
       activeOpacity={0.75}
       onPress={() => { haptic.tap(); onPress(listInfo) }}
-      onLongPress={onLongPress ? () => { haptic.longPress(); onLongPress(listInfo) } : undefined}
+      onLongPress={onLongPress ? handleLongPress : undefined}
     >
       <View style={[styles.tileCoverWrap, { width: size, height: size }]}>
         <Image
@@ -67,7 +76,7 @@ const ListTile = memo(({ listInfo, size, onPress, onLongPress }: {
  */
 export default memo(({ onSelectList, onLongPressList }: {
   onSelectList: (info: LX.List.MyListInfo) => void
-  onLongPressList?: (info: LX.List.MyListInfo) => void
+  onLongPressList?: (info: LX.List.MyListInfo, position: { x: number, y: number, w: number, h: number }) => void
 }) => {
   const theme = useTheme()
   const allList = useMyList()

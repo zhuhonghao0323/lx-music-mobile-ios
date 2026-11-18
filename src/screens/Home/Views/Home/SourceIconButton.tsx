@@ -3,7 +3,7 @@ import { TouchableOpacity, Image } from 'react-native'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 import { haptic } from '@/utils/haptics'
-import { getSongListSetting, saveSongListSetting } from '@/utils/data'
+import { getSongListSetting, saveSongListSetting, saveLeaderboardSetting } from '@/utils/data'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -29,11 +29,11 @@ const PLATFORMS: Array<{
   icon: number
   name: string
 }> = [
-  { id: 'kw', icon: ICON_KW, name: '酷我音乐' },
-  { id: 'tx', icon: ICON_TX, name: 'QQ音乐' },
-  { id: 'kg', icon: ICON_KG, name: '酷狗音乐' },
-  { id: 'wy', icon: ICON_WY, name: '网易云音乐' },
-  { id: 'mg', icon: ICON_MG, name: '咪咕音乐' },
+  { id: 'kw', icon: ICON_KW, name: '酷我' },
+  { id: 'tx', icon: ICON_TX, name: 'QQ' },
+  { id: 'kg', icon: ICON_KG, name: '酷狗' },
+  { id: 'wy', icon: ICON_WY, name: '网易云' },
+  { id: 'mg', icon: ICON_MG, name: '咪咕' },
 ]
 
 /** 首页顶栏的「Music」位：真实平台图标筛选按钮 */
@@ -57,7 +57,7 @@ export default memo(() => {
     haptic.tap()
     btnRef.current?.measure((_x, _y, w, h, px, py) => {
       const position: Position = { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(w), h: Math.ceil(h) }
-      menuRef.current?.show(position, { width: 150, height: 44 })
+      menuRef.current?.show(position, { width: 108, height: 38 })
     })
   }, [])
 
@@ -65,8 +65,11 @@ export default memo(() => {
     const next = menu.action as LX.OnlineSource
     haptic.select()
     setSource(next)
+    // 一个图标同时切换歌单与排行榜的音源：两份 setting 都写，两个页面都重载
     void saveSongListSetting({ source: next, tagId: '', tagName: '' })
+    void saveLeaderboardSetting({ source: next })
     global.app_event.songlistSourceChanged(next)
+    global.app_event.leaderboardSourceChanged(next)
   }, [])
 
   return (
@@ -74,7 +77,7 @@ export default memo(() => {
       <TouchableOpacity ref={btnRef} style={styles.wrap} onPress={showMenu} activeOpacity={0.7}>
         <Image source={current.icon} style={styles.icon} resizeMode="contain" />
       </TouchableOpacity>
-      <Menu ref={menuRef} menus={menus} activeId={source} onPress={handleSelect} />
+      <Menu ref={menuRef} menus={menus} activeId={source} onPress={handleSelect} fontSize={13} center />
     </>
   )
 })

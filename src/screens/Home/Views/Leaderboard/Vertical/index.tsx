@@ -117,27 +117,30 @@ export default () => {
 
 
     isUnmountedRef.current = false
-    void getLeaderboardSetting().then(({ source, boardId }) => {
+    const loadSource = (source: LX.OnlineSource, boardId?: string) => {
       boundInfo.current.source = source
       void getBoardsList(source).then(list => {
-        const resolvedId = resolveBoardId(list, boardId)
+        if (isUnmountedRef.current) return
+        const resolvedId = resolveBoardId(list, boardId ?? '')
         if (!resolvedId) return
         boundInfo.current.id = resolvedId
         const bound = list.find(l => l.id == resolvedId)
         boardsListRef.current?.setList(list, resolvedId)
         headerBarRef.current?.setBound(source, resolvedId, bound?.name ?? 'Unknown')
-        if (resolvedId != boardId) {
-          void saveLeaderboardSetting({
-            source,
-            boardId: resolvedId,
-          })
-        }
         musicListRef.current?.loadList(source, resolvedId)
       })
+    }
+    void getLeaderboardSetting().then(({ source, boardId }) => {
+      loadSource(source, boardId)
     })
+
+    // 首页音乐图标切换音源后，排行榜同步重载（boardId 交由 resolveBoardId 自动取第一个）
+    const handleSourceChanged = (source: LX.OnlineSource) => { loadSource(source) }
+    global.app_event.on('leaderboardSourceChanged', handleSourceChanged)
 
     return () => {
       global.state_event.off('navActiveIdUpdated', handleFixDrawer)
+      global.app_event.off('leaderboardSourceChanged', handleSourceChanged)
       isUnmountedRef.current = true
     }
   }, [])

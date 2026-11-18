@@ -6,7 +6,6 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { ScrollView, View } from 'react-native'
-import { Icon } from '@/components/common/Icon'
 import HistorySearch, { type HistorySearchType } from './HistorySearch'
 import HotSearch, { type HotSearchType } from './HotSearch'
 
@@ -50,16 +49,14 @@ export default forwardRef<BlankViewType, BlankViewProps>(({ onSearch }, ref) => 
     visible
       ? isShowHotSearch || isShowHistorySearch
         ? (
-            <ScrollView>
+            <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.content}>
-                {/* 图1：中间大放大镜空状态 */}
-                <View style={styles.hero}>
-                  <Icon name="search-2" size={58} color={theme['c-font-label']} />
-                  <Text size={18} color={theme['c-font-label']} style={styles.heroTitle}>{t('search_input_placeholder')}</Text>
-                  <Text size={12} color={theme['c-font-label']} style={styles.heroSub}>{t('search_hero_hint')}</Text>
+                {/* 搜索引擎风格：紧凑的「搜索发现」提示，不再用大放大镜空状态 */}
+                <View style={styles.discoverHeader}>
+                  <Text size={13} color={theme['c-font-label']}>{t('search_hero_hint')}</Text>
                 </View>
-                { isShowHotSearch ? <HotSearch ref={hotSearchRef} onSearch={onSearch} /> : null }
                 { isShowHistorySearch ? <HistorySearch ref={historySearchRef} onSearch={onSearch} /> : null }
+                { isShowHotSearch ? <HotSearch ref={hotSearchRef} onSearch={onSearch} /> : null }
               </View>
             </ScrollView>
           )
@@ -86,19 +83,8 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hero: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: scaleSizeW(120),
-    paddingBottom: scaleSizeW(60),
-  },
-  heroTitle: {
-    marginTop: scaleSizeW(18),
-    fontWeight: '600',
-  },
-  heroSub: {
-    marginTop: scaleSizeW(8),
-    textAlign: 'center',
-    lineHeight: scaleSizeW(20),
+  discoverHeader: {
+    paddingVertical: scaleSizeW(16),
+    paddingHorizontal: scaleSizeW(2),
   },
 })

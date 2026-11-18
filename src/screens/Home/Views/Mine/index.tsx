@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -14,6 +14,9 @@ import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { setActiveList } from '@/core/list'
 import ListGrid from './ListGrid'
+import ListOperations from '../Mylist/ListOperations'
+import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
+
 import { useMineStats } from './useMineStats'
 
 /** 统计卡片中的单项（大数字 + 小标签） */
@@ -38,6 +41,32 @@ export default memo(() => {
   const statusBarHeight = useStatusbarHeight()
   const isGlass = useIsGlass()
   const stats = useMineStats()
+  const listMenuRef = useRef<MenuType>(null)
+  const longPressedIdRef = useRef<string>('')
+
+  /** 长按歌单弹出的操作菜单（用户指定 5 项） */
+  const LIST_MENUS: Menus = [
+    { action: 'localFile', label: t('list_select_local_file') },
+    { action: 'sync', label: t('list_sync') },
+    { action: 'import', label: t('list_import') },
+    { action: 'export', label: t('list_export') },
+    { action: 'remove', label: t('list_remove') },
+  ]
+
+  const handleLongPressList = useCallback((info: LX.List.MyListInfo, position: Position) => {
+    longPressedIdRef.current = info.id
+    listMenuRef.current?.show({ x: position.x, y: position.y, w: position.w, h: position.h }, { width: 140, height: 40 })
+  }, [])
+
+  const handleListMenuPress = useCallback((menu: Menus[number]) => {
+    if (!longPressedIdRef.current) return
+    global.app_event.listOperation(menu.action as 'localFile' | 'sync' | 'import' | 'export' | 'remove', longPressedIdRef.current)
+  }, [])
+
+  const handleCreateList = useCallback(() => {
+    haptic.tap()
+    global.app_event.requestCreateList()
+  }, [])
 
   const openSetting = useCallback(() => {
     haptic.tap()
@@ -91,12 +120,20 @@ export default memo(() => {
 
       <View style={styles.sectionHeader}>
         <Text size={15} color={theme['c-font']}>{t('nav_my_lists')}</Text>
+        <TouchableOpacity style={styles.createBtn} activeOpacity={0.7} onPress={handleCreateList}>
+          <Icon name="add_folder" size={17} color={theme['c-primary-font']} />
+        </TouchableOpacity>
       </View>
 
       {/* 歌单图标网格：点图标进入该列表的歌曲页（复用现有 MusicList 全部能力） */}
       <View style={styles.listArea}>
-        <ListGrid onSelectList={handleSelectList} />
+        <ListGrid onSelectList={handleSelectList} onLongPressList={handleLongPressList} />
       </View>
+
+      {/* 歌单长按菜单 */}
+      <Menu ref={listMenuRef} menus={LIST_MENUS} onPress={handleListMenuPress} fontSize={13} />
+      {/* 歌单操作处理器（新建/添加本地/更新/导入/导出/移除） */}
+      <ListOperations />
     </View>
   )
 })
@@ -154,6 +191,10 @@ const styles = createStyle({
     paddingHorizontal: scaleSizeW(16),
     marginTop: scaleSizeW(18),
     marginBottom: scaleSizeW(4),
+  },
+  createBtn: {
+    marginLeft: 'auto',
+    padding: scaleSizeW(6),
   },
   listArea: {
     flex: 1,

@@ -1,63 +1,35 @@
-import { useEffect, useRef } from 'react'
-import { View, PanResponder } from 'react-native'
+import { useCallback, useEffect, useRef } from 'react'
+import { View, TouchableOpacity, StyleSheet, PanResponder } from 'react-native'
 import BackToMine from './BackToMine'
-import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
-import MyList from './MyList'
 import { useTheme } from '@/store/theme/hook'
-import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
-import { COMPONENT_IDS } from '@/config/constant'
-import { scaleSizeW } from '@/utils/pixelRatio'
-import type { InitState as CommonState } from '@/store/common/state'
-import { setNavActiveId } from '@/core/common'
 import { haptic } from '@/utils/haptics'
+import { setNavActiveId } from '@/core/common'
+import { scaleSizeW } from '@/utils/pixelRatio'
+import { Icon } from '@/components/common/Icon'
+import Text from '@/components/common/Text'
+import { createStyle } from '@/utils/tools'
+import { useActiveListId } from '@/store/list/hook'
+import ListOperations from './ListOperations'
 
-const MAX_WIDTH = scaleSizeW(400)
+/** 歌单内一排功能按钮（风格统一）：排序 / 重复 / 添加本地 / 更新 / 导入 / 导出 / 移除 */
+type OpAction = 'sort' | 'duplicate' | 'localFile' | 'sync' | 'import' | 'export' | 'remove'
+
+const ACTIONS: Array<{ id: OpAction, icon: string, label: string, needsOnline?: boolean }> = [
+  { id: 'sort', icon: 'list-order', label: '排序' },
+  { id: 'duplicate', icon: 'sd-card', label: '重复' },
+  { id: 'localFile', icon: 'add_folder', label: '本地' },
+  { id: 'sync', icon: 'available_updates', label: '更新', needsOnline: true },
+  { id: 'import', icon: 'download-2', label: '导入' },
+  { id: 'export', icon: 'share', label: '导出' },
+  { id: 'remove', icon: 'remove', label: '移除' },
+]
 
 export default () => {
-  const drawer = useRef<DrawerLayoutFixedType>(null)
   const theme = useTheme()
-  // const [width, setWidth] = useState(0)
+  const activeListId = useActiveListId()
 
-  useEffect(() => {
-    const handleFixDrawer = (id: CommonState['navActiveId']) => {
-      if (id == 'nav_love') drawer.current?.fixWidth()
-    }
-    const changeVisible = (visible: boolean) => {
-      if (visible) {
-        requestAnimationFrame(() => {
-          drawer.current?.openDrawer()
-        })
-      } else {
-        drawer.current?.closeDrawer()
-      }
-    }
-
-    // setWidth(getWindowSise().width * 0.82)
-
-    global.state_event.on('navActiveIdUpdated', handleFixDrawer)
-    global.app_event.on('changeLoveListVisible', changeVisible)
-
-    // 就放旋转屏幕后的宽度没有更新的问题
-    // const changeEvent = onDimensionChange(({ window }) => {
-    //   setWidth(window.width * 0.82)
-    //   drawer.current?.setNativeProps({
-    //     width: window.width,
-    //   })
-    // })
-
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleFixDrawer)
-      global.app_event.off('changeLoveListVisible', changeVisible)
-    // changeEvent.remove()
-    }
-  }, [])
-
-  const navigationView = () => <MyList />
-  // console.log('render drawer content')
-
-  // 整页右滑返回「我的」（挂在根容器上，覆盖列表区域）。
-  // 只在明确横向右滑时接管，避免与列表纵向滚动冲突。
+  // 整页右滑返回「我的」
   const backResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_e, gs) => gs.dx > 20 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.3,
@@ -69,22 +41,57 @@ export default () => {
     },
   })).current
 
+  useEffect(() => {
+    // 进入歌单页时确保不处于抽屉态（兼容旧逻辑）
+    global.app_event.changeLoveListVisible(false)
+  }, [])
+
+  const handleOp = useCallback((action: OpAction) => {
+    haptic.tap()
+    global.app_event.listOperation(action, activeListId)
+  }, [activeListId])
+
   return (
-    <DrawerLayoutFixed
-      ref={drawer}
-      visibleNavNames={[COMPONENT_IDS.home]}
-      // drawerWidth={width}
-      widthPercentage={0.82}
-      widthPercentageMax={MAX_WIDTH}
-      drawerPosition={settingState.setting['common.drawerLayoutPosition']}
-      renderNavigationView={navigationView}
-      drawerBackgroundColor={theme['c-content-background']}
-      style={{ elevation: 1 }}
-    >
-      <View style={{ flex: 1 }} {...backResponder.panHandlers}>
-        <BackToMine />
+    <View style={{ flex: 1 }} {...backResponder.panHandlers}>
+      <BackToMine />
+      {/* 一排统一风格的功能按钮，放在歌曲列表最上方 */}
+      <View style={[styles.actionBar, { borderBottomColor: theme['c-border-background'] }]}>
+        {ACTIONS.map(a => (
+          <TouchableOpacity key={a.id} style={styles.actionBtn} activeOpacity={0.7} onPress={() => { handleOp(a.id) }}>
+            <View style={[styles.actionIcon, { backgroundColor: theme['c-button-background'] }]}>
+              <Icon name={a.icon} size={17} color={theme['c-font']} />
+            </View>
+            <Text size={10} color={theme['c-font-label']} numberOfLines={1}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{ flex: 1 }}>
         <MusicList />
       </View>
-    </DrawerLayoutFixed>
+      <ListOperations />
+    </View>
   )
 }
+
+const styles = createStyle({
+  actionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: scaleSizeW(6),
+    paddingVertical: scaleSizeW(8),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  actionBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    width: scaleSizeW(38),
+    height: scaleSizeW(38),
+    borderRadius: scaleSizeW(19),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})

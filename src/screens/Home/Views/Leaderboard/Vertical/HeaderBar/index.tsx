@@ -39,7 +39,8 @@ export default forwardRef<HeaderBarType, HeaderBarProps>(({ onShowBound, onSourc
 
   return (
     <View style={{ ...styles.currentList, borderBottomColor: theme['c-border-background'] }}>
-      <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} />
+      {/* 音源筛选已统一到首页顶栏的音乐图标，此处不再显示「小蜗音乐」文字下拉 */}
+      <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} style={styles.hiddenSelector} />
       <ActiveListName ref={activeListNameRef} onShowBound={onShowBound} />
     </View>
   )
@@ -55,5 +56,10 @@ const styles = createStyle({
   },
   selector: {
     width: 86,
+  },
+  // 音源筛选已统一到首页音乐图标，这里只保留组件实例供 setBound 同步状态
+  hiddenSelector: {
+    width: 0,
+    opacity: 0,
   },
 })
