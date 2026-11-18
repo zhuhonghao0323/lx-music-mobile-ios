@@ -73,7 +73,15 @@ export default async(setting: LX.AppSetting) => {
   }
 
 
-  global.app_event.on('play', setPlayStatus)
+  global.app_event.on('play', () => {
+    setPlayStatus()
+    // 混音模式下每次开始播放都确保音频会话处于激活态。
+    // 长时间后台/交叉使用其它 App 后，会话可能被 deactivate，
+    // 底层 RNTP 仍显示 Playing 但无声；这里幂等 setCategory + setActive 保证首次播放有声。
+    if (Platform.OS == 'ios' && settingState.setting['player.isPlayWithOtherApps']) {
+      void applyAudioMix(true).catch(() => {})
+    }
+  })
   global.app_event.on('pause', setPauseStatus)
   global.app_event.on('error', setPauseStatus)
   global.app_event.on('stop', setStopStatus)
@@ -156,8 +164,23 @@ export default async(setting: LX.AppSetting) => {
       }).catch(() => {})
     })
 
+    // AppState 监听：
+    // 1) 回前台时混音模式下【无条件】重新激活一次音频会话。
+    //    根因：长时间后台 / 与其它 App 交叉使用后，系统会 deactivate 我们的会话，
+    //    即使底层 RNTP 仍认为自己在 Playing，实际已无声。
+    //    仅靠「底层 stopped 才恢复」不够——因为底层状态可能还是 Playing（假播放）。
+    //    这里无条件 setCategory + setActive（幂等），确保第一次打开就有声音。
+    // 2) 同时保留 stalled 恢复（处理底层真的停了的情况）。
+    let lastReactivate = 0
     AppState.addEventListener('change', (state) => {
       if (state != 'active') return
+      if (!settingState.setting['player.isPlayWithOtherApps']) return
+      // 节流：3 秒内不重复激活，避免频繁切前台造成抖动
+      const now = Date.now()
+      if (now - lastReactivate < 3000) return
+      lastReactivate = now
+      void applyAudioMix(true).catch(() => {})
+      // 若底层确实停了，再走完整恢复（含 setPlay）
       recoverIfStalled()
     })
   }
