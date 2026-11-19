@@ -26,6 +26,7 @@ struct SwiftUIMineView: View {
       }
       .background(.background)
       .navigationTitle("我的")
+      .navigationBarTitleDisplayMode(.large)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button { bridge.send(pageId: pageId, command: "openSetting") } label: {
@@ -50,7 +51,7 @@ struct SwiftUIMineView: View {
     .padding(.vertical, DS.Space.sm)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
     .padding(.horizontal, DS.Space.sm)
-    .padding(.top, DS.Space.xs)
+    .padding(.top, DS.Space.sm)
   }
 
   private func statCell(_ value: String, _ label: String) -> some View {
@@ -75,7 +76,7 @@ struct SwiftUIMineView: View {
 
   // MARK: - 歌单网格
   private var playlistGrid: some View {
-    let columns = [GridItem(.adaptive(minimum: 100), spacing: DS.Space.sm)]
+    let columns = [GridItem(.adaptive(minimum: 104), spacing: DS.Space.sm)]
     return LazyVGrid(columns: columns, spacing: DS.Space.sm) {
       ForEach(lists) { item in
         Button {

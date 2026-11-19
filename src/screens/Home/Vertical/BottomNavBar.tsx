@@ -8,6 +8,7 @@ import GlassView from '@/components/common/GlassView'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { useWindowSize } from '@/utils/hooks'
 import { useBrandColor, useTokenColor } from '@/theme/glassMaterial'
+import { useIsGlassLight } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { popToRoot } from '@/navigation/utils'
@@ -87,6 +88,9 @@ export default memo(({ children, isOverlay = false }: {
   const t = useI18n()
   const activeId = useNavActiveId()
   const windowSize = useWindowSize()
+  const isLight = useIsGlassLight()
+  // 底部导航底：不透明一档，避免多层半透明叠加产生杂色/白条
+  const trayBg = isLight ? 'rgba(255,255,255,0.92)' : 'rgba(28,28,30,0.88)'
 
   // 中间胶囊固定为屏幕宽度的 1/3，不随内容长度变化
   const centerWidth = useMemo(() => Math.round(windowSize.width / 3), [windowSize.width])
@@ -107,7 +111,7 @@ export default memo(({ children, isOverlay = false }: {
 
   return (
     <View style={styles.wrap}>
-      <GlassView material="floating" style={styles.tray}>
+      <GlassView material="floating" plain style={[styles.tray, { backgroundColor: trayBg }]}>
         <SideButton
           source={homeIcon}
           active={isHomeActive}

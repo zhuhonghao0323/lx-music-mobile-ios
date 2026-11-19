@@ -11,6 +11,7 @@ struct SwiftUIHomeView: View {
   private var isLoading: Bool { state["loading"] as? Bool ?? false }
   private var hasMore: Bool { state["hasMore"] as? Bool ?? false }
   private var channel: String { state["channel"] as? String ?? "songlist" }
+  private var sourceName: String { state["sourceName"] as? String ?? "音源" }
 
   private let columns = [GridItem(.adaptive(minimum: 100), spacing: DS.Space.sm)]
 
@@ -43,10 +44,23 @@ struct SwiftUIHomeView: View {
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
           Button { bridge.send(pageId: pageId, command: "switchSource") } label: {
-            Image(systemName: "music.note.list").symbolRenderingMode(.hierarchical)
+            Label(sourceName, systemImage: "music.note.list")
+              .labelStyle(.titleAndIcon)
+              .font(.subheadline)
           }
-          .frame(minWidth: DS.minTap, minHeight: DS.minTap)
           .accessibilityLabel("切换音源")
+        }
+        ToolbarItem(placement: .principal) {
+          // 频道切换：歌单 / 排行榜（与 RN 版一致）
+          Picker("频道", selection: Binding(
+            get: { channel },
+            set: { bridge.send(pageId: pageId, command: "switchChannel", payload: ["channel": $0]) }
+          )) {
+            Text("歌单").tag("songlist")
+            Text("排行榜").tag("top")
+          }
+          .pickerStyle(.segmented)
+          .frame(width: 160)
         }
         ToolbarItem(placement: .topBarTrailing) {
           Button { bridge.send(pageId: pageId, command: "openSearch") } label: {

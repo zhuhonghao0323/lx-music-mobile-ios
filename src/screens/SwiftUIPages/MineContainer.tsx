@@ -5,6 +5,7 @@ import { useMyList } from '@/store/list/hook'
 import { getListMusicSync } from '@/utils/listManage'
 import { LIST_IDS } from '@/config/constant'
 import { getTotalPlayTime } from '@/utils/data'
+import { getMusicPicUrl } from '@/utils/musicCover'
 import { formatTotalPlayTime } from '@/core/player/totalPlayTime'
 import { setNavActiveId } from '@/core/common'
 import { setActiveList } from '@/core/list'
@@ -22,12 +23,18 @@ export default memo(() => {
   }, [])
 
   // 歌单数据（id/name/count/cover）
-  const lists = useMemo(() => allList.map(item => ({
-    id: item.id,
-    name: item.name,
-    count: getListMusicSync(item.id).length,
-    cover: undefined as string | undefined,
-  })), [allList])
+  // 封面取该列表第一首歌的专辑图，与 RN 版 ListGrid 保持一致
+  const lists = useMemo(() => allList.map(item => {
+    const musics = getListMusicSync(item.id)
+    const first = musics.length ? musics[0] : null
+    const cover = first ? getMusicPicUrl(first) : undefined
+    return {
+      id: item.id,
+      name: item.name,
+      count: musics.length,
+      cover: cover ?? undefined,
+    }
+  }), [allList])
 
   const state = useMemo(() => ({
     favoriteCount: getListMusicSync(LIST_IDS.LOVE).length,

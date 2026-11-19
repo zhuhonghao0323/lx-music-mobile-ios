@@ -11,6 +11,7 @@ const PAGE_ID = 'home'
 
 /** 主页（歌单发现）SwiftUI 容器 */
 export default memo(() => {
+  const [channel, setChannel] = useState<'songlist' | 'top'>('songlist')
   const [items, setItems] = useState<Array<{ id: string, name: string, img: string, source?: string }>>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -42,8 +43,9 @@ export default memo(() => {
     items: JSON.stringify(items),
     loading,
     hasMore,
-    channel: 'songlist',
-  }), [items, loading, hasMore])
+    channel,
+    sourceName: songlistState.listInfo.source.toUpperCase(),
+  }), [items, loading, hasMore, channel])
 
   useEffect(() => { updatePageState(PAGE_ID, state) }, [state])
 
@@ -53,6 +55,12 @@ export default memo(() => {
       case 'openSearch': setNavActiveId('nav_search'); break
       case 'loadMore': loadPage(pageRef.current + 1); break
       case 'switchSource': global.app_event.songlistSourceChanged(songlistState.listInfo.source); break
+      case 'switchChannel': {
+        const next = String(payload.channel ?? 'songlist') as 'songlist' | 'top'
+        setChannel(next)
+        if (next == 'songlist') loadPage(1)
+        break
+      }
       case 'openItem': {
         haptic.tap()
         const id = String(payload.id ?? '')

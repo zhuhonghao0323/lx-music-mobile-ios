@@ -36,24 +36,29 @@ struct SwiftUIPlayerView: View {
   // MARK: - 层 1：底层模糊背景（原图放大铺满，不用小图拉伸）
   private var blurredBackground: some View {
     ZStack {
+      // 深色兜底，避免封面加载前出现白闪
+      Color.black
+
       if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
         AsyncImage(url: url) { phase in
           if case .success(let image) = phase {
             image
               .resizable()
-              .scaledToFill()          // 原图放大铺满，而非拉伸
-              .blur(radius: 70)        // 大高斯模糊
+              .scaledToFill()          // 原图放大铺满，而不是拉伸小图
+              .blur(radius: 60)        // 大高斯模糊
               .clipped()
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
 
-      // 主色染色：让整张播放器色调统一（每首歌氛围不同）
-      accent.opacity(colorScheme == .dark ? 0.30 : 0.18)
+      // 封面主色染色：整张播放器色调跟随封面（每首歌氛围不同）
+      accent
+        .opacity(colorScheme == .dark ? 0.42 : 0.26)
+        .blendMode(.plusLighter)
 
-      // 压暗：深色压 0.45 / 浅色压 0.10，保证文字可读
-      Color.black.opacity(colorScheme == .dark ? 0.45 : 0.10)
+      // 压暗：保证歌词与按钮可读，但不过度（0.35 上下是沉浸与可读的平衡点）
+      Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08)
     }
     .ignoresSafeArea()
   }
@@ -62,9 +67,11 @@ struct SwiftUIPlayerView: View {
   private var blendGradient: some View {
     LinearGradient(
       gradient: Gradient(stops: [
-        .init(color: Color.black.opacity(0.05), location: 0),
-        .init(color: Color.black.opacity(0.12), location: 0.45),
-        .init(color: Color.black.opacity(0.55), location: 1),
+        .init(color: .clear, location: 0.0),
+        .init(color: .clear, location: 0.42),
+        .init(color: Color.black.opacity(0.28), location: 0.62),
+        .init(color: Color.black.opacity(0.62), location: 0.82),
+        .init(color: Color.black.opacity(0.80), location: 1.0),
       ]),
       startPoint: .top,
       endPoint: .bottom
@@ -75,20 +82,32 @@ struct SwiftUIPlayerView: View {
 
   // MARK: - 层 3 + 4：内容
   private var contentLayer: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: 0) {
       header
-      Spacer(minLength: 8)
-      cover
-      Spacer(minLength: 8)
-      songInfo
-      lyrics
-      progress
-      controls
-      actions
+
+      // 封面区：占据剩余空间并等比缩放，保证底部控件永远可见
+      GeometryReader { geo in
+        let side = min(geo.size.width, geo.size.height)
+        cover
+          .frame(width: side, height: side)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+      .frame(maxHeight: .infinity)
+      .layoutPriority(1)
+
+      VStack(spacing: DS.Space.xs) {
+        songInfo
+        lyrics
+      }
+      .padding(.top, DS.Space.xs)
+
+      progress.padding(.top, DS.Space.sm)
+      controls.padding(.vertical, DS.Space.xs)
+      actions.padding(.bottom, DS.Space.xs)
       bottomNav
     }
-    .padding(.horizontal, 24)
-    .padding(.bottom, 8)
+    .padding(.horizontal, DS.Space.md)
+    .padding(.bottom, DS.Space.xs)
   }
 
   // MARK: - 顶栏
@@ -150,7 +169,6 @@ struct SwiftUIPlayerView: View {
         .stroke(.white.opacity(0.12), lineWidth: 0.5)
     }
     .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
-    .padding(.horizontal, 24)
   }
 
   private var coverPlaceholder: some View {

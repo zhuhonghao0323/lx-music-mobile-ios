@@ -66,6 +66,7 @@ export type PageCommand =
   | 'search'
   | 'playResult'
   | 'clearHistory'
+  | 'switchChannel'
 
 export const onPageCommand = (
   handler: (pageId: string, command: PageCommand, payload: Record<string, unknown>) => void,
