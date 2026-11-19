@@ -33,7 +33,25 @@ RCT_EXPORT_MODULE(LXSwiftUIPlayerView)
 - (UIView *)view
 {
   Class hostClass = NSClassFromString(@"LXSwiftUIPlayerHostView");
-  if (hostClass == Nil) return [[UIView alloc] initWithFrame:CGRectZero];
+  if (hostClass == Nil) {
+    // 诊断：Swift 类未导出时给出醒目标记，避免静默返回空白视图
+    UIView *fallback = [[UIView alloc] initWithFrame:CGRectZero];
+    fallback.backgroundColor = [UIColor redColor];
+    UILabel *label = [[UILabel alloc] init];
+    label.text = @" LXSwiftUIPlayerHostView NOT FOUND ";
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont boldSystemFontOfSize:14];
+    label.numberOfLines = 0;
+    label.textAlignment = NSTextAlignmentCenter;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    [fallback addSubview:label];
+    [NSLayoutConstraint activateConstraints:@[
+      [label.centerXAnchor constraintEqualToAnchor:fallback.centerXAnchor],
+      [label.centerYAnchor constraintEqualToAnchor:fallback.centerYAnchor],
+    ]];
+    NSLog(@"[LXSwiftUIPlayer] hostClass Nil!");
+    return fallback;
+  }
 
   id module = [self.bridge moduleForName:@"LXSwiftUIPlayerModule" lazilyLoadIfNecessary:YES];
 

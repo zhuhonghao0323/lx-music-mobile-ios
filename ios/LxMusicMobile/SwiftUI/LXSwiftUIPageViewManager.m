@@ -10,7 +10,24 @@
 static UIView *LXMakeSwiftUIHost(RCTViewManager *mgr, NSString *hostClassName)
 {
   Class hostClass = NSClassFromString(hostClassName);
-  if (hostClass == Nil) return [[UIView alloc] initWithFrame:CGRectZero];
+  if (hostClass == Nil) {
+    UIView *fallback = [[UIView alloc] initWithFrame:CGRectZero];
+    fallback.backgroundColor = [UIColor redColor];
+    UILabel *label = [[UILabel alloc] init];
+    label.text = [NSString stringWithFormat:@" %@ NOT FOUND ", hostClassName];
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont boldSystemFontOfSize:13];
+    label.numberOfLines = 0;
+    label.textAlignment = NSTextAlignmentCenter;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    [fallback addSubview:label];
+    [NSLayoutConstraint activateConstraints:@[
+      [label.centerXAnchor constraintEqualToAnchor:fallback.centerXAnchor],
+      [label.centerYAnchor constraintEqualToAnchor:fallback.centerYAnchor],
+    ]];
+    NSLog(@"[LXSwiftUIPage] hostClass Nil: %@", hostClassName);
+    return fallback;
+  }
 
   id module = [mgr.bridge moduleForName:@"LXSwiftUIPageModule" lazilyLoadIfNecessary:YES];
   SEL initSelector = NSSelectorFromString(@"initWithModule:");
