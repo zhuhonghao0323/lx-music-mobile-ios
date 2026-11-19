@@ -103,16 +103,17 @@ export const initSetting = async() => {
     }
   }
 
-  // 主题迁移：v1.9.1 移除了 16 个旧皮肤，若持久化设置里仍是旧主题 id，
-  // 回退到液态玻璃主题（深色）。避免用户看到「主题不存在」的空白状态。
+  // 主题迁移：v1.9.1 只保留「液态玻璃（深/浅）」两套主题，
+  // 之前所有旧皮肤（16 个旧皮肤 + md3 + netease）全部移除。
+  // 这里用【正向白名单】校验：任何不在当前主题列表里的 id 一律回退，
+  // 避免 themes.find() 返回 undefined 后读取 .isCustom 直接崩溃。
   if (setting) {
-    const legacyIds = new Set([
-      'green', 'blue', 'blue_plus', 'orange', 'brown', 'red', 'pink', 'purple',
-      'grey', 'ming', 'blue2', 'black', 'mid_autumn', 'naruto', 'china_ink', 'happy_new_year',
-    ])
+    const validThemeIds = new Set(['liquid_glass', 'liquid_glass_light'])
     for (const key of ['theme.id', 'theme.lightId', 'theme.darkId'] as const) {
-      if (legacyIds.has((setting as Record<string, unknown>)[key] as string)) {
-        ;(setting as Record<string, unknown>)[key] = key == 'theme.lightId' ? 'liquid_glass_light' : 'liquid_glass'
+      const current = (setting as Record<string, unknown>)[key] as string | undefined
+      if (!current || !validThemeIds.has(current)) {
+        const fallback = key == 'theme.lightId' ? 'liquid_glass_light' : 'liquid_glass'
+        ;(setting as Record<string, unknown>)[key] = fallback
       }
     }
   }

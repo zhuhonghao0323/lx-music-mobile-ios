@@ -109,14 +109,11 @@ const defaultSetting: LX.AppSetting = {
   'theme.fontShadow': false,
 }
 
-// 主题迁移：旧皮肤（green/black/happy_new_year 等 16 个）已在 v1.9.1 移除，
-// 若用户设备上还存有旧主题 id，回退到液态玻璃主题。
-const LEGACY_THEME_IDS = new Set([
-  'green', 'blue', 'blue_plus', 'orange', 'brown', 'red', 'pink', 'purple',
-  'grey', 'ming', 'blue2', 'black', 'mid_autumn', 'naruto', 'china_ink', 'happy_new_year',
-])
+// 主题白名单：v1.9.1 起只保留「液态玻璃深/浅」两套主题，
+// 其余 id（16 个旧皮肤、md3、netease）全部视为无效并回退。
+const VALID_THEME_IDS = new Set(['liquid_glass', 'liquid_glass_light'])
 for (const key of ['theme.id', 'theme.lightId', 'theme.darkId'] as const) {
-  if (LEGACY_THEME_IDS.has(defaultSetting[key])) {
+  if (!VALID_THEME_IDS.has(defaultSetting[key])) {
     defaultSetting[key] = key == 'theme.lightId' ? 'liquid_glass_light' : 'liquid_glass'
   }
 }

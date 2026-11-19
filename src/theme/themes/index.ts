@@ -46,59 +46,62 @@ type ColorsKey = keyof LX.Theme['config']['themeColors']
 type ExtInfoKey = keyof LX.Theme['config']['extInfo']
 const varColorRxp = /^var\((.+)\)$/
 export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
+  // 防御：主题 id 已被移除（旧皮肤 / md3 / netease）时可能拿到 undefined，
+  // 这里兜底到本地主题第一项，绝不因主题缺失导致启动崩溃。
+  const safeTheme: LX.Theme = theme ?? themes[0]
   let bgImg: ImageSourcePropType | undefined
-  if (theme.isCustom) {
-    if (theme.config.extInfo['bg-image']) {
-      theme.config.extInfo['bg-image'] =
-        isUrl(theme.config.extInfo['bg-image'])
-          ? theme.config.extInfo['bg-image']
-          : `${privateStorageDirectoryPath}/theme_images/${theme.config.extInfo['bg-image']}`
+  if (safeTheme.isCustom) {
+    if (safeTheme.config.extInfo['bg-image']) {
+      safeTheme.config.extInfo['bg-image'] =
+        isUrl(safeTheme.config.extInfo['bg-image'])
+          ? safeTheme.config.extInfo['bg-image']
+          : `${privateStorageDirectoryPath}/theme_images/${safeTheme.config.extInfo['bg-image']}`
     }
   } else {
-    const extInfo = (theme as LocalTheme).config.extInfo
+    const extInfo = (safeTheme as LocalTheme).config.extInfo
     if (extInfo['bg-image']) {
-      if (!theme.isDark || !settingState.setting['theme.hideBgDark']) bgImg = BG_IMAGES[extInfo['bg-image']]
+      if (!safeTheme.isDark || !settingState.setting['theme.hideBgDark']) bgImg = BG_IMAGES[extInfo['bg-image']]
     }
   }
 
-  theme.config.extInfo = { ...theme.config.extInfo }
+  safeTheme.config.extInfo = { ...safeTheme.config.extInfo }
 
-  for (const [k, v] of Object.entries(theme.config.extInfo) as Array<[ExtInfoKey, LX.Theme['config']['extInfo'][ExtInfoKey]]>) {
+  for (const [k, v] of Object.entries(safeTheme.config.extInfo) as Array<[ExtInfoKey, LX.Theme['config']['extInfo'][ExtInfoKey]]>) {
     if (!v.startsWith('var(')) continue
-    theme.config.extInfo[k] = theme.config.themeColors[v.replace(varColorRxp, '$1') as ColorsKey]
+    safeTheme.config.extInfo[k] = safeTheme.config.themeColors[v.replace(varColorRxp, '$1') as ColorsKey]
   }
 
   const activeTheme: LX.ActiveTheme = {
-    id: theme.id,
-    name: theme.name,
-    isDark: theme.isDark,
+    id: safeTheme.id,
+    name: safeTheme.name,
+    isDark: safeTheme.isDark,
     ...theme.config.themeColors,
     ...theme.config.extInfo,
-    'c-font': theme.config.themeColors['c-850'],
-    'c-font-label': theme.config.themeColors['c-450'],
-    'c-primary-font': theme.config.themeColors['c-primary'],
-    'c-primary-font-hover': theme.config.themeColors['c-primary-alpha-300'],
-    'c-primary-font-active': theme.config.themeColors['c-primary-dark-100-alpha-200'],
-    'c-primary-background': theme.config.themeColors['c-primary-light-400-alpha-700'],
-    'c-primary-background-hover': theme.config.themeColors['c-primary-light-300-alpha-800'],
-    'c-primary-background-active': theme.config.themeColors['c-primary-light-100-alpha-800'],
-    'c-primary-input-background': theme.config.themeColors['c-primary-light-400-alpha-700'],
-    'c-button-font': theme.config.themeColors['c-primary-alpha-100'],
-    'c-button-font-selected': theme.config.themeColors['c-primary-dark-100-alpha-100'],
-    'c-button-background': theme.config.themeColors['c-primary-light-400-alpha-700'],
-    'c-button-background-selected': theme.config.themeColors['c-primary-alpha-600'],
-    'c-button-background-hover': theme.config.themeColors['c-primary-light-300-alpha-600'],
-    'c-button-background-active': theme.config.themeColors['c-primary-light-100-alpha-600'],
-    'c-list-header-border-bottom': theme.config.themeColors['c-primary-alpha-900'],
-    'c-content-background': theme.config.themeColors['c-primary-light-1000'],
-    'c-border-background': theme.config.themeColors['c-primary-light-100-alpha-700'],
+    'c-font': safeTheme.config.themeColors['c-850'],
+    'c-font-label': safeTheme.config.themeColors['c-450'],
+    'c-primary-font': safeTheme.config.themeColors['c-primary'],
+    'c-primary-font-hover': safeTheme.config.themeColors['c-primary-alpha-300'],
+    'c-primary-font-active': safeTheme.config.themeColors['c-primary-dark-100-alpha-200'],
+    'c-primary-background': safeTheme.config.themeColors['c-primary-light-400-alpha-700'],
+    'c-primary-background-hover': safeTheme.config.themeColors['c-primary-light-300-alpha-800'],
+    'c-primary-background-active': safeTheme.config.themeColors['c-primary-light-100-alpha-800'],
+    'c-primary-input-background': safeTheme.config.themeColors['c-primary-light-400-alpha-700'],
+    'c-button-font': safeTheme.config.themeColors['c-primary-alpha-100'],
+    'c-button-font-selected': safeTheme.config.themeColors['c-primary-dark-100-alpha-100'],
+    'c-button-background': safeTheme.config.themeColors['c-primary-light-400-alpha-700'],
+    'c-button-background-selected': safeTheme.config.themeColors['c-primary-alpha-600'],
+    'c-button-background-hover': safeTheme.config.themeColors['c-primary-light-300-alpha-600'],
+    'c-button-background-active': safeTheme.config.themeColors['c-primary-light-100-alpha-600'],
+    'c-list-header-border-bottom': safeTheme.config.themeColors['c-primary-alpha-900'],
+    'c-content-background': safeTheme.config.themeColors['c-primary-light-1000'],
+    'c-border-background': safeTheme.config.themeColors['c-primary-light-100-alpha-700'],
     'bg-image': bgImg,
   }
 
   // 浅色液态玻璃：白底 + 黑字 + 琥珀金强调（参考 Beans Music 浅色态）。
   // 关键点：浅色主题里「白色控件叠白色背景」几乎不可见，
   // 因此控件改用「极淡冷灰半透底 + 明确描边」，靠明度差营造液态玻璃质感。
-  if (theme.id == 'liquid_glass_light') {
+  if (safeTheme.id == 'liquid_glass_light') {
     const text = '#111111'
     const textDim = 'rgba(60, 60, 67, 0.60)'
     // 浅色背景下用深琥珀，保证对比度（Beans tintLight）
@@ -142,7 +145,7 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
   // 液态玻璃（深色，全局主推主题）：
   // 冷黑 #0A0A0C 环境底 + 品牌琥珀暖金 #F5B359 强调色。
   // 与浅色液态玻璃共享同一套设计 token（见 glassMaterial.ts）。
-  if (theme.id == 'liquid_glass') {
+  if (safeTheme.id == 'liquid_glass') {
     const surface = 'rgba(255, 255, 255, 0.08)'
     const surfaceStrong = 'rgba(255, 255, 255, 0.13)'
     const control = 'rgba(255, 255, 255, 0.08)'
@@ -196,32 +199,24 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
 // }
 // type IDS = LocalTheme['id']
 export const getTheme = async() => {
-  // fs.promises.readdir()
   const shouldUseDarkColors = themeState.shouldUseDarkColors
-  // let themeId = settingState.setting['theme.id'] == 'auto'
-  //   ? shouldUseDarkColors
-  //     ? settingState.setting['theme.darkId']
-  //     : settingState.setting['theme.lightId']
-  //   // : 'china_ink'
-  //   : settingState.setting['theme.id']
   const selectedThemeId = settingState.setting['theme.id']
   // 液态玻璃本身就是深色玻璃，跟随系统深色时不应被强制替换为纯黑主题
   const isLiquidGlass = selectedThemeId == 'liquid_glass'
+  // v1.9.1 起只剩「液态玻璃深/浅」两套主题，自动深浅模式直接映射到这两套
   let themeId = settingState.setting['common.isAutoTheme'] && shouldUseDarkColors && !isLiquidGlass
-    ? 'black'
+    ? 'liquid_glass'
     : selectedThemeId
-  // themeId = 'naruto'
-  // themeId = 'pink'
-  // themeId = 'black'
+
   let theme: LocalTheme | LX.Theme | undefined = themes.find(theme => theme.id == themeId)
   if (!theme) {
     userThemes = await getUserTheme()
     theme = userThemes.find(theme => theme.id == themeId)
-    if (!theme) {
-      themeId = settingState.setting['theme.id'] == 'auto' && shouldUseDarkColors ? 'black' : 'green'
-      theme = themes.find(theme => theme.id == themeId) as LX.Theme
-    }
   }
+  // 最终兜底：任何无效/已移除的主题 id（旧皮肤、md3、netease、用户自定义被删等）
+  // 都回退到本地主题列表的第一项，保证 theme 一定存在，
+  // 避免 buildActiveThemeColors 读到 undefined 导致启动崩溃。
+  if (!theme) theme = themes[0]
 
   return theme
 }
