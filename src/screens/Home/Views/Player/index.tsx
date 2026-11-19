@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { View, TouchableOpacity, Animated } from 'react-native'
+import { View, TouchableOpacity, Animated, StyleSheet, Image as RNImage } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { useTheme } from '@/store/theme/hook'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -9,7 +9,7 @@ import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { scaleSizeW } from '@/utils/pixelRatio'
-import { useIsGlass } from '@/theme/glass'
+import { useIsGlass, GLASS_DEEP } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
 import Pic from '@/screens/PlayDetail/Vertical/Pic'
@@ -36,6 +36,9 @@ import { setMusicUrl } from '@/core/player/player'
 import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
 import { useTogglePlayMode } from './useTogglePlayMode'
+import { usePlayerDynamicBg } from './usePlayerDynamicBg'
+import { toRgba } from '@/utils/imageColor'
+import { defaultHeaders } from '@/components/common/Image'
 
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
@@ -74,6 +77,8 @@ export default memo(() => {
   const playlistSheetRef = useRef<PlaylistSheetType>(null)
   const commentSheetRef = useRef<CommentSheetType>(null)
   const togglePlayMode = useTogglePlayMode()
+  // 动态背景：封面 + 平均主色（切歌自动更新）
+  const { coverUrl: dynamicCover, accentColor } = usePlayerDynamicBg()
 
   const apiSource = useSettingValue('common.apiSource')
   const userApiList = useUserApiList()
@@ -200,6 +205,27 @@ export default memo(() => {
         <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
+        {/* 动态背景层：模糊封面 + 主色遮罩（玻璃随封面变色） */}
+        {dynamicCover
+          ? (
+              <View pointerEvents="none" style={[styles.dynamicBg, { backgroundColor: GLASS_DEEP }]}>
+                <RNImage
+                  source={{ uri: dynamicCover, headers: defaultHeaders }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                  blurRadius={28}
+                />
+                {/* 主色遮罩：有主色时用封面主色压暗铺底，无主色时纯黑压底 */}
+                <View
+                  style={[StyleSheet.absoluteFill, {
+                    backgroundColor: accentColor ? toRgba(accentColor, 0.72) : 'rgba(0, 0, 0, 0.78)',
+                  }]}
+                />
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.30)' }]} />
+              </View>
+            )
+          : null}
+
         {/* 横滑翻页：0 播放页 / 1 全屏歌词（左滑看歌词，右滑回播放页） */}
         <PagerView
           style={styles.pagerView}
@@ -274,6 +300,10 @@ export default memo(() => {
           {/* 第二页：全屏歌词 */}
           <View collapsable={false} style={styles.page}>
             <View style={styles.lyricPage}>
+              {/* 歌词阅读遮罩：主色薄层保证文字可读（不牺牲沉浸感） */}
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, {
+                backgroundColor: accentColor ? toRgba(accentColor, 0.55) : 'rgba(0, 0, 0, 0.55)',
+              }]} />
               <Lyric />
             </View>
           </View>
@@ -312,6 +342,14 @@ export default memo(() => {
 const styles = createStyle({
   container: {
     flex: 1,
+  },
+  dynamicBg: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
   },
   pagerView: {
     flex: 1,
