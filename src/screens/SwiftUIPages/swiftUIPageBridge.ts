@@ -17,8 +17,8 @@ const hasView = (name: string) => {
   }
 }
 
-/** iOS 且原生页面组件已注册时才启用 SwiftUI 页面 */
-export const isSwiftUIPageSupported = Platform.OS == 'ios' && !!Module && hasView('LXSwiftUIMineView')
+/** iOS 上直接启用 SwiftUI 页面（不再依赖运行时探测，避免静默降级） */
+export const isSwiftUIPageSupported = Platform.OS == 'ios'
 
 export const NativeMineView = isSwiftUIPageSupported
   ? requireNativeComponent<ViewProps>('LXSwiftUIMineView')

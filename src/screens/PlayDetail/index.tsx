@@ -22,7 +22,7 @@ export default ({ componentId }: { componentId: string }) => {
   // iOS 上无条件使用 SwiftUI 播放页（产品级重构）。
   // 不再依赖 setting 开关，避免 updateSetting 异步写入导致
   // 进入页面时读到的还是旧值、退回到老版 RN 播放页。
-  if (isSwiftUIPlayerSupported) {
+  if (isSwiftUIPlayerSupported()) {
     return <SwiftUIPlayerContainer />
   }
 

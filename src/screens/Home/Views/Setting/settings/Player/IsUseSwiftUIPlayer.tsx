@@ -11,7 +11,7 @@ import { isSwiftUIPlayerSupported } from '@/screens/PlayDetail/SwiftUI/swiftUIPl
 export default memo(() => {
   const t = useI18n()
   const enabled = useSettingValue('player.useSwiftUIPlayer')
-  if (!isSwiftUIPlayerSupported) return null
+  if (!isSwiftUIPlayerSupported()) return null
 
   return (
     <View>

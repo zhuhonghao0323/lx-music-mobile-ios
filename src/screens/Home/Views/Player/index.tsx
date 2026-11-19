@@ -351,7 +351,7 @@ const PlayerContent = memo(() => {
  * 其它平台保留原 RN 实现。
  */
 export default memo(() => {
-  if (isSwiftUIPlayerSupported) return <SwiftUIPlayerContainer />
+  if (isSwiftUIPlayerSupported()) return <SwiftUIPlayerContainer />
   return <PlayerContent />
 })
 

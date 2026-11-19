@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import {
-  SwiftUIPlayerView,
+  getSwiftUIPlayerView,
   updateSwiftUIPlayerState,
   onSwiftUIPlayerCommand,
   type SwiftUIPlayerCommand,
@@ -215,11 +215,13 @@ export default memo(() => {
     })
   }, [])
 
-  if (!SwiftUIPlayerView) return null
+  const PlayerView = getSwiftUIPlayerView()
+  console.log('[SwiftUIPlayerContainer] render, PlayerView=', !!PlayerView)
+  if (!PlayerView) return null
 
   return (
     <View style={styles.container}>
-      <SwiftUIPlayerView style={styles.view} />
+      <PlayerView style={styles.view} />
     </View>
   )
 })

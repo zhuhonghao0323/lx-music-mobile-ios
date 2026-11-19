@@ -29,15 +29,30 @@ const hasViewManager = (name: string) => {
   }
 }
 
-/** 当前平台是否支持 SwiftUI 播放页 */
-export const isSwiftUIPlayerSupported = Platform.OS == 'ios' &&
-  !!Module &&
-  hasViewManager('LXSwiftUIPlayerView')
+/**
+ * 是否支持 SwiftUI 播放页。
+ * 惰性求值：不能在建模块时就定死，因为原生组件注册可能晚于 JS 模块加载。
+ */
+export const isSwiftUIPlayerSupported = (): boolean => {
+  // iOS 上直接启用（不再依赖运行时检测）：
+  // 之前依赖 UIManager / NativeModules 探测，一旦探测失败就静默退回 RN 老页面，
+  // 导致 SwiftUI 实现永远不生效且难以定位。原生组件已确认编译进包，
+  // 这里让 iOS 无条件走 SwiftUI，若组件真的缺失 render 会报错而不是静默降级。
+  return Platform.OS === 'ios'
+}
 
-/** 供 JS 渲染的原生视图（内部是 UIHostingController 承载的 SwiftUI 页面） */
-export const SwiftUIPlayerView = isSwiftUIPlayerSupported
-  ? requireNativeComponent<ViewProps>('LXSwiftUIPlayerView')
-  : null
+let cachedPlayerView: React.ComponentType<ViewProps> | null | undefined
+/** 供 JS 渲染的原生视图（惰性创建，避免模块加载时组件尚未注册） */
+export const getSwiftUIPlayerView = () => {
+  if (cachedPlayerView !== undefined) return cachedPlayerView
+  try {
+    cachedPlayerView = requireNativeComponent<ViewProps>('LXSwiftUIPlayerView')
+  } catch (e) {
+    console.log('[SwiftUIPlayer] requireNativeComponent failed', e)
+    cachedPlayerView = null
+  }
+  return cachedPlayerView
+}
 
 export type SwiftUIPlayerCommand =
   | 'back'
@@ -59,7 +74,8 @@ export type SwiftUIPlayerCommand =
 
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {
-  if (!isSwiftUIPlayerSupported) return null
+  if (Platform.OS !== 'ios') return null
+  if (!NativeModules.LXSwiftUIPlayerModule) return null
   if (!emitter) emitter = new NativeEventEmitter(Module as never)
   return emitter
 }
