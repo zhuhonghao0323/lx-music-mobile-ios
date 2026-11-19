@@ -38,11 +38,10 @@ if (Platform.OS === 'ios') {
 }
 
 export const isSwiftUIPlayerSupported = (): boolean => {
-  // iOS 上直接启用（不再依赖运行时检测）：
-  // 之前依赖 UIManager / NativeModules 探测，一旦探测失败就静默退回 RN 老页面，
-  // 导致 SwiftUI 实现永远不生效且难以定位。原生组件已确认编译进包，
-  // 这里让 iOS 无条件走 SwiftUI，若组件真的缺失 render 会报错而不是静默降级。
-  return Platform.OS === 'ios'
+  if (Platform.OS !== 'ios') return false
+  // 原生模块已通过 LXSwiftUIModuleBridge.m 的 RCT_EXTERN_MODULE 注册，
+  // 这里判断模块存在性即可（组件是否注册由 requireNativeComponent 兜底）。
+  return !!NativeModules.LXSwiftUIPlayerModule
 }
 
 let cachedPlayerView: React.ComponentType<ViewProps> | null | undefined

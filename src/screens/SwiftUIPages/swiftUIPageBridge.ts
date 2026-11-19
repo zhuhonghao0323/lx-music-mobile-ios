@@ -20,8 +20,8 @@ if (Platform.OS === 'ios') {
   }, 1500)
 }
 
-/** iOS 上直接启用 SwiftUI 页面（不再依赖运行时探测，避免静默降级） */
-export const isSwiftUIPageSupported = Platform.OS == 'ios'
+/** iOS 且原生页面模块已注册（LXSwiftUIModuleBridge.m 负责注册） */
+export const isSwiftUIPageSupported = Platform.OS == 'ios' && !!NativeModules.LXSwiftUIPageModule
 
 const safeRequireView = (name: string) => {
   if (!isSwiftUIPageSupported) return null
