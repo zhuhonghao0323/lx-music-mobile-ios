@@ -21,18 +21,22 @@ const Module = NativeModules.LXSwiftUIPlayerModule as {
  * 会导致 SwiftUI 播放页永远启不了、一直显示老版 RN 页面。
  * 正确方式是通过 UIManager 查询组件配置。
  */
-const hasViewManager = (name: string) => {
-  try {
-    return !!UIManager.getViewManagerConfig?.(name)
-  } catch {
-    return false
-  }
-}
-
 /**
  * 是否支持 SwiftUI 播放页。
  * 惰性求值：不能在建模块时就定死，因为原生组件注册可能晚于 JS 模块加载。
  */
+// 启动时打印一次原生模块注册情况，便于定位「SwiftUI 页面不生效」类问题
+if (Platform.OS === 'ios') {
+  setTimeout(() => {
+    let viewCfg: unknown = null
+    try { viewCfg = UIManager.getViewManagerConfig?.('LXSwiftUIPlayerView') ?? null } catch {}
+    console.log('[SwiftUIPlayer] 诊断', {
+      module: !!NativeModules.LXSwiftUIPlayerModule,
+      viewManager: !!viewCfg,
+    })
+  }, 1500)
+}
+
 export const isSwiftUIPlayerSupported = (): boolean => {
   // iOS 上直接启用（不再依赖运行时检测）：
   // 之前依赖 UIManager / NativeModules 探测，一旦探测失败就静默退回 RN 老页面，
@@ -73,10 +77,16 @@ export type SwiftUIPlayerCommand =
   | 'goMine'
 
 let emitter: NativeEventEmitter | null = null
+const PLAYER_MODULE = NativeModules.LXSwiftUIPlayerModule as Record<string, unknown> | undefined
+
 const getEmitter = () => {
   if (Platform.OS !== 'ios') return null
-  if (!NativeModules.LXSwiftUIPlayerModule) return null
-  if (!emitter) emitter = new NativeEventEmitter(Module as never)
+  // 原生事件模块必须存在，否则 NativeEventEmitter 会抛 invariant violation
+  if (!PLAYER_MODULE) {
+    console.warn('[SwiftUIPlayer] LXSwiftUIPlayerModule 未注册，无法接收播放页命令')
+    return null
+  }
+  if (!emitter) emitter = new NativeEventEmitter(PLAYER_MODULE as never)
   return emitter
 }
 

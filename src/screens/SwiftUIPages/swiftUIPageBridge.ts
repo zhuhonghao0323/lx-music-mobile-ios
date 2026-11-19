@@ -9,32 +9,43 @@ const Module = NativeModules.LXSwiftUIPageModule as {
   updatePageState?: (payload: { pageId: string, state: Record<string, unknown> }) => void
 } | undefined
 
-const hasView = (name: string) => {
-  try {
-    return !!UIManager.getViewManagerConfig?.(name)
-  } catch {
-    return false
-  }
+if (Platform.OS === 'ios') {
+  setTimeout(() => {
+    let viewCfg: unknown = null
+    try { viewCfg = UIManager.getViewManagerConfig?.('LXSwiftUIMineView') ?? null } catch {}
+    console.log('[SwiftUIPage] 诊断', {
+      module: !!NativeModules.LXSwiftUIPageModule,
+      viewManager: !!viewCfg,
+    })
+  }, 1500)
 }
 
 /** iOS 上直接启用 SwiftUI 页面（不再依赖运行时探测，避免静默降级） */
 export const isSwiftUIPageSupported = Platform.OS == 'ios'
 
-export const NativeMineView = isSwiftUIPageSupported
-  ? requireNativeComponent<ViewProps>('LXSwiftUIMineView')
-  : null
+const safeRequireView = (name: string) => {
+  if (!isSwiftUIPageSupported) return null
+  try {
+    return requireNativeComponent<ViewProps>(name)
+  } catch (e) {
+    console.warn('[SwiftUIPage] requireNativeComponent failed:', name, e)
+    return null
+  }
+}
 
-export const NativeHomeView = isSwiftUIPageSupported
-  ? requireNativeComponent<ViewProps>('LXSwiftUIHomeView')
-  : null
-
-export const NativeSearchView = isSwiftUIPageSupported
-  ? requireNativeComponent<ViewProps>('LXSwiftUISearchView')
-  : null
+export const NativeMineView = safeRequireView('LXSwiftUIMineView')
+export const NativeHomeView = safeRequireView('LXSwiftUIHomeView')
+export const NativeSearchView = safeRequireView('LXSwiftUISearchView')
 
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {
-  if (!isSwiftUIPageSupported) return null
+  if (Platform.OS !== 'ios') return null
+  // 必须确认原生事件模块存在，否则 new NativeEventEmitter(undefined) 会抛
+  // "Invariant Violation: new NativeEventEmitter() requires a non-null argument"
+  if (!Module) {
+    console.warn('[SwiftUIPage] LXSwiftUIPageModule 未注册，无法接收页面命令')
+    return null
+  }
   if (!emitter) emitter = new NativeEventEmitter(Module as never)
   return emitter
 }
