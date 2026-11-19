@@ -13,8 +13,9 @@ import MarqueeText from '@/components/common/MarqueeText'
 import { useTheme } from '@/store/theme/hook'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { haptic } from '@/utils/haptics'
-import { setNavActiveId } from '@/core/common'
+import { updateSetting } from '@/core/common'
 import { popToRoot } from '@/navigation/utils'
+import { navigations } from '@/navigation'
 import commonState from '@/store/common/state'
 
 /** 胶囊高度（圆角取一半，得到灵动岛式的半圆端头） */
@@ -43,18 +44,23 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
 
   const handlePressBar = useCallback(() => {
     haptic.tap()
-    // isHome=true 表示当前在首页（Home 的三个 Tab 内）：直接切 Tab 即可。
-    // isHome=false 表示在独立页（歌单详情等，RNN 导航栈上层）：
-    // 必须先 popToRoot 回首页，否则切 Tab 在界面上看不到任何变化。
+    // 点胶囊直接进入 SwiftUI 全屏播放页（产品级重构：RN 模拟玻璃页已废弃）。
+    // 确保在独立页时先回根，再从 Home 栈 push 播放页。
     if (!isHome) {
       const homeId = commonState.componentIds.home
       if (homeId) {
         void popToRoot(homeId)
-        setTimeout(() => { setNavActiveId('nav_player') }, 60)
+        setTimeout(() => {
+          updateSetting({ 'player.useSwiftUIPlayer': true })
+          navigations.pushPlayDetailScreen(homeId)
+        }, 80)
         return
       }
     }
-    setNavActiveId('nav_player')
+    const homeId = commonState.componentIds.home
+    // 强制启用 SwiftUI 播放页，保证这次进入的一定是原生实现
+    updateSetting({ 'player.useSwiftUIPlayer': true })
+    if (homeId) navigations.pushPlayDetailScreen(homeId)
   }, [isHome])
 
   const playerComponent = useMemo(() => (
