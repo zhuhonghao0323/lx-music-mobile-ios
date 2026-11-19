@@ -12,6 +12,8 @@ final class PlayerBridge: ObservableObject {
   @Published var title: String = ""
   @Published var artist: String = ""
   @Published var picUrl: String = ""
+  /// 封面主色（#RRGGBB），由 RN 侧取色后推来，用于背景染色
+  @Published var accentColor: String = ""
   @Published var isPlaying: Bool = false
   @Published var favorited: Bool = false
 
@@ -65,6 +67,7 @@ final class PlayerBridge: ObservableObject {
     if let v = dict["title"] as? String { title = v }
     if let v = dict["artist"] as? String { artist = v }
     if let v = dict["picUrl"] as? String { picUrl = v }
+    if let v = dict["accentColor"] as? String { accentColor = v }
     if let v = dict["isPlaying"] as? Bool { isPlaying = v }
     if let v = dict["favorited"] as? Bool { favorited = v }
 

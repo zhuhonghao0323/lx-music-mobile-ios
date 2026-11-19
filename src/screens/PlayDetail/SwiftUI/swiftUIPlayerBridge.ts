@@ -37,6 +37,8 @@ export type SwiftUIPlayerCommand =
   | 'openComment'
   | 'togglePlayMode'
   | 'openSetting'
+  | 'goHome'
+  | 'goMine'
 
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {

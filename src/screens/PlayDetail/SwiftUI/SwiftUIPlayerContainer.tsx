@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import {
   SwiftUIPlayerView,
@@ -17,7 +17,7 @@ import { playNext, playPrev, togglePlay, setMusicUrl } from '@/core/player/playe
 import { getSourceDisplayName } from '@/core/customSource'
 import { useUserApiList } from '@/store/userApi'
 import { setApiSource } from '@/core/apiSource'
-import { updateSetting } from '@/core/common'
+import { updateSetting, setNavActiveId } from '@/core/common'
 import { TRY_QUALITYS_LIST } from '@/core/music/utils'
 import { MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import settingState from '@/store/setting/state'
@@ -25,6 +25,7 @@ import { navigations, pop } from '@/navigation'
 import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
+import { getAverageColor } from '@/utils/imageColor'
 
 const LYRIC_COLORS: Record<string, string> = {
   white: '#ffffff',
@@ -54,6 +55,16 @@ export default memo(() => {
   const lyricColorKey = useSettingValue('theme.lyricPreviewColor')
   const lyricFontSize = useSettingValue('theme.lyricPreviewFontSize')
 
+  // 封面主色（异步取色，取到后随 state 一起推给 SwiftUI 做背景染色）
+  const [accentColor, setAccentColor] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    void getAverageColor(musicInfo.pic).then(color => {
+      if (!cancelled) setAccentColor(color ?? '')
+    })
+    return () => { cancelled = true }
+  }, [musicInfo.pic])
+
   const getLyric = (index: number) => lyricLines[index]?.text?.trim() ?? ''
 
   // 弹窗数据：可选音源 / 可选音质（SwiftUI 直接拿去渲染原生弹层）
@@ -71,6 +82,7 @@ export default memo(() => {
     title: musicInfo.name ?? '',
     artist: musicInfo.singer ?? '',
     picUrl: musicInfo.pic ?? '',
+    accentColor,
     isPlaying: isPlay,
     favorited,
 
@@ -104,7 +116,7 @@ export default memo(() => {
     lyricFontSize,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
-    musicInfo.name, musicInfo.singer, musicInfo.pic, isPlay, favorited,
+    musicInfo.name, musicInfo.singer, musicInfo.pic, accentColor, isPlay, favorited,
     nowPlayTimeStr, maxPlayTimeStr, progress, currentLine, lyricLines,
     userApiList, apiSource, quality, playQuality, theme, lyricColorKey, lyricFontSize,
     sourceOptions, qualityOptions,
@@ -124,6 +136,13 @@ export default memo(() => {
         case 'back':
           void pop(commonState.componentIds.playDetail!)
           break
+        case 'goHome':
+        case 'goMine': {
+          // 底部导航：先关掉全屏播放页，再切到目标 Tab
+          void pop(commonState.componentIds.playDetail!)
+          setTimeout(() => { setNavActiveId(command == 'goHome' ? 'nav_home' : 'nav_mine') }, 120)
+          break
+        }
         case 'prev':
           markTimeoutExitInteraction()
           void playPrev()
