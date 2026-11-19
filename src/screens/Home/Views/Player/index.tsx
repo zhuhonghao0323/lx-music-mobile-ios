@@ -9,7 +9,7 @@ import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { scaleSizeW } from '@/utils/pixelRatio'
-import { useIsGlass, GLASS_DEEP } from '@/theme/glass'
+import { useIsGlass } from '@/theme/glass'
 import { haptic } from '@/utils/haptics'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
 import Pic from '@/screens/PlayDetail/Vertical/Pic'
@@ -37,7 +37,6 @@ import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
 import { useTogglePlayMode } from './useTogglePlayMode'
 import { usePlayerDynamicBg } from './usePlayerDynamicBg'
-import { toRgba } from '@/utils/imageColor'
 import { defaultHeaders } from '@/components/common/Image'
 
 /**
@@ -77,8 +76,8 @@ export default memo(() => {
   const playlistSheetRef = useRef<PlaylistSheetType>(null)
   const commentSheetRef = useRef<CommentSheetType>(null)
   const togglePlayMode = useTogglePlayMode()
-  // 动态背景：封面 + 平均主色（切歌自动更新）
-  const { coverUrl: dynamicCover, accentColor } = usePlayerDynamicBg()
+  // 动态背景：封面（模糊铺满 + 渐变压暗，沉浸式）
+  const { coverUrl: dynamicCover } = usePlayerDynamicBg()
 
   const apiSource = useSettingValue('common.apiSource')
   const userApiList = useUserApiList()
@@ -205,23 +204,30 @@ export default memo(() => {
         <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY }] }]}>
         <StatusBar />
 
-        {/* 动态背景层：模糊封面 + 主色遮罩（玻璃随封面变色） */}
+        {/* 动态背景层：封面放大模糊铺满 + 上下渐变自然压暗（沉浸式，无杂色） */}
         {dynamicCover
           ? (
-              <View pointerEvents="none" style={[styles.dynamicBg, { backgroundColor: GLASS_DEEP }]}>
+              <View pointerEvents="none" style={[styles.dynamicBg, { backgroundColor: '#0A0A0C' }]}>
                 <RNImage
                   source={{ uri: dynamicCover, headers: defaultHeaders }}
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
-                  blurRadius={28}
+                  blurRadius={26}
                 />
-                {/* 主色遮罩：有主色时用封面主色压暗铺底，无主色时纯黑压底 */}
-                <View
-                  style={[StyleSheet.absoluteFill, {
-                    backgroundColor: accentColor ? toRgba(accentColor, 0.72) : 'rgba(0, 0, 0, 0.78)',
-                  }]}
-                />
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.30)' }]} />
+                {/* 顶部压暗：保证状态栏/顶栏可读（三段阶梯近似渐变） */}
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.bgTopShade]}>
+                  <View style={[styles.shadeStep, { height: '9%', backgroundColor: 'rgba(10,10,12,0.55)' }]} />
+                  <View style={[styles.shadeStep, { top: '9%', height: '8%', backgroundColor: 'rgba(10,10,12,0.32)' }]} />
+                  <View style={[styles.shadeStep, { top: '17%', height: '6%', backgroundColor: 'rgba(10,10,12,0.16)' }]} />
+                </View>
+                {/* 底部压暗：保证底部控件区可读（三段阶梯近似渐变） */}
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.bgBottomShade]}>
+                  <View style={[styles.shadeStep, { bottom: 0, height: '10%', backgroundColor: 'rgba(10,10,12,0.62)' }]} />
+                  <View style={[styles.shadeStep, { bottom: '10%', height: '8%', backgroundColor: 'rgba(10,10,12,0.36)' }]} />
+                  <View style={[styles.shadeStep, { bottom: '18%', height: '6%', backgroundColor: 'rgba(10,10,12,0.16)' }]} />
+                </View>
+                {/* 整体轻暗化：保持色彩可见但不刺眼（可读性优先） */}
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 10, 12, 0.42)' }]} />
               </View>
             )
           : null}
@@ -300,10 +306,8 @@ export default memo(() => {
           {/* 第二页：全屏歌词 */}
           <View collapsable={false} style={styles.page}>
             <View style={styles.lyricPage}>
-              {/* 歌词阅读遮罩：主色薄层保证文字可读（不牺牲沉浸感） */}
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, {
-                backgroundColor: accentColor ? toRgba(accentColor, 0.55) : 'rgba(0, 0, 0, 0.55)',
-              }]} />
+              {/* 歌词阅读遮罩：轻暗化保证可读，不盖死背景 */}
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 10, 12, 0.45)' }]} />
               <Lyric />
             </View>
           </View>
@@ -350,6 +354,19 @@ const styles = createStyle({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
+  },
+  // 顶部压暗（三段阶梯近似渐变，保证状态栏可读）
+  bgTopShade: {
+    backgroundColor: 'transparent',
+  },
+  // 底部压暗（保证底部控件区可读）
+  bgBottomShade: {
+    backgroundColor: 'transparent',
+  },
+  shadeStep: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   pagerView: {
     flex: 1,

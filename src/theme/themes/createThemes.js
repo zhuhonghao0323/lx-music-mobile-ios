@@ -35,7 +35,7 @@ const defaultThemes = [
     isDark: true,
     config: {
       // 珊瑚粉橙强调色 #F27868
-      primary: 'rgb(242, 120, 104)',
+      primary: 'rgb(245, 179, 89)',
       // 主文字 #F5F2F1
       font: 'rgb(245, 242, 241)',
       'c-app-background': '#0B090A',
@@ -44,51 +44,9 @@ const defaultThemes = [
       'bg-image-position': 'center',
       'bg-image-size': 'cover',
 
-      'c-badge-primary': '#F27868',
-      'c-badge-secondary': '#E8B27D',
+      'c-badge-primary': '#F5B359',
+      'c-badge-secondary': '#C07A0A',
       'c-badge-tertiary': '#9BB0C4',
-    },
-  },
-  {
-    // 移植自 md3Music 的 Material Design 3 设计语言：
-    // 种子色 #0061A4（MD3 官方主题构建器的 key tone 40），
-    // 深色面用 M3 dark scheme 的 surface / surfaceContainer 层级。
-    id: 'md3',
-    name: '暗黑Z',
-    isDark: true,
-    config: {
-      primary: 'rgb(161, 201, 255)',
-      font: 'rgb(227, 227, 232)',
-      'c-app-background': '#121318',
-      'c-main-background': '#1A1B21',
-      'bg-image': '',
-      'bg-image-position': 'center',
-      'bg-image-size': 'cover',
-
-      // M3 强调色组：primary / secondary / tertiary 容器色文本
-      'c-badge-primary': 'rgb(161, 201, 255)',
-      'c-badge-secondary': 'rgb(198, 198, 220)',
-      'c-badge-tertiary': 'rgb(236, 178, 213)',
-    },
-  },
-  {
-    // 网易云音乐配色（还原自 AIYO77/flutter_cloud_music 的 lib/common/res/colors.dart）
-    // 标志性红色 #C93D2D / 点亮红 #EB4D44，深色底 #0D0D0C，卡片 #121111
-    id: 'netease',
-    name: '网易云',
-    isDark: true,
-    config: {
-      primary: 'rgb(201, 61, 45)',
-      font: 'rgb(254, 254, 254)',
-      'c-app-background': '#0D0D0C',
-      'c-main-background': '#121111',
-      'bg-image': '',
-      'bg-image-position': 'center',
-      'bg-image-size': 'cover',
-
-      'c-badge-primary': 'rgb(235, 77, 68)',
-      'c-badge-secondary': 'rgb(255, 205, 41)',
-      'c-badge-tertiary': 'rgb(90, 124, 170)',
     },
   },
 ]

@@ -128,15 +128,13 @@ const GLASS = {
 } as const
 
 /**
- * 环境背景光斑：播放页由「封面放大模糊 + 主色遮罩」形成环境底色，
- * 这里保留一组低饱和冷调光斑作为封面上色前的兜底层。
+ * 环境背景光斑：播放页由「封面放大模糊 + 渐变压暗」形成环境底色，
+ * 这里只保留 2 个极低饱和的上部光斑做兜底氛围；
+ * 下半部保持纯净冷黑，避免底部托盘/导航区透出杂色。
  */
 export const GLASS_AURORA = [
-  { color: 'rgba(245, 179, 89, 0.20)', size: 0.9, top: -0.12, left: -0.18 },
-  { color: 'rgba(120, 140, 180, 0.16)', size: 0.75, top: 0.08, left: 0.55 },
-  { color: 'rgba(155, 176, 196, 0.12)', size: 0.8, top: 0.48, left: -0.12 },
-  { color: 'rgba(198, 130, 60, 0.14)', size: 0.7, top: 0.66, left: 0.5 },
-  { color: 'rgba(90, 100, 120, 0.16)', size: 0.6, top: 0.82, left: 0.1 },
+  { color: 'rgba(245, 179, 89, 0.10)', size: 0.85, top: -0.10, left: -0.15 },
+  { color: 'rgba(120, 140, 180, 0.08)', size: 0.7, top: 0.12, left: 0.5 },
 ] as const
 
 export const GLASS_BASE = '#0A0A0C'

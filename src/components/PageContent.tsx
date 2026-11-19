@@ -36,7 +36,7 @@ const GlassAmbient = ({ width, height }: { width: number, height: number }) => {
           top: height * blob.top,
           left: width * blob.left,
           backgroundColor: blob.color,
-          opacity: 0.4,
+          opacity: 0.3,
         }}
       />
     )
