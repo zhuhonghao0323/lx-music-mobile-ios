@@ -4,7 +4,7 @@ import SwiftUI
 ///
 /// 严格遵循设计约束：
 /// - 只用系统动态文本样式（.largeTitle/.title/.headline/.body/.subheadline/.caption/.footnote）
-/// - 图标只用 SF Symbols + .renderingMode(.hierarchical)，无 emoji、无自定义图片
+/// - 图标只用 SF Symbols + .symbolRenderingMode(.hierarchical)，无 emoji、无自定义图片
 /// - 颜色只用语义色 .primary/.secondary/.tint，深浅模式自动适配，不写死 RGB
 /// - 系统材质（.ultraThinMaterial）构建沉浸玻璃背景，禁止手写渐变/花哨阴影
 /// - 8pt 栅格间距（8/16/24/32），所有可点击热区 >= 44pt
@@ -77,7 +77,7 @@ struct SwiftUIPlayerView: View {
         bridge.send("back")
       } label: {
         Image(systemName: "chevron.down")
-          .renderingMode(.hierarchical)
+          .symbolRenderingMode(.hierarchical)
           .imageScale(.large)
       }
       .frame(minWidth: 44, minHeight: 44)
@@ -95,7 +95,7 @@ struct SwiftUIPlayerView: View {
         bridge.send("openSetting")
       } label: {
         Image(systemName: "ellipsis")
-          .renderingMode(.hierarchical)
+          .symbolRenderingMode(.hierarchical)
           .imageScale(.large)
       }
       .frame(minWidth: 44, minHeight: 44)
@@ -131,7 +131,7 @@ struct SwiftUIPlayerView: View {
     ZStack {
       Color.primary.opacity(0.06)
       Image(systemName: "music.note")
-        .renderingMode(.hierarchical)
+        .symbolRenderingMode(.hierarchical)
         .font(.largeTitle)
     }
   }
@@ -202,7 +202,7 @@ struct SwiftUIPlayerView: View {
         bridge.send("togglePlay")
       } label: {
         Image(systemName: bridge.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-          .renderingMode(.hierarchical)
+          .symbolRenderingMode(.hierarchical)
           .font(.system(size: 56))
       }
       .frame(minWidth: 64, minHeight: 64)
@@ -219,7 +219,7 @@ struct SwiftUIPlayerView: View {
   private func controlButton(symbol: String, title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .renderingMode(.hierarchical)
+        .symbolRenderingMode(.hierarchical)
         .font(.title)
     }
     .frame(minWidth: 44, minHeight: 44)
@@ -247,7 +247,7 @@ struct SwiftUIPlayerView: View {
   private func actionButton(symbol: String, title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .renderingMode(.hierarchical)
+        .symbolRenderingMode(.hierarchical)
         .imageScale(.large)
     }
     .frame(minWidth: 44, minHeight: 44)
