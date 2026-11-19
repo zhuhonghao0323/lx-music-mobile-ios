@@ -15,6 +15,8 @@ import { setNavActiveId } from '@/core/common'
 import SongList from '../SongList'
 import Leaderboard from '../Leaderboard'
 import SourceIconButton from './SourceIconButton'
+import { isSwiftUIPageSupported } from '@/screens/SwiftUIPages/swiftUIPageBridge'
+import HomeSwiftUIContainer from '@/screens/SwiftUIPages/HomeContainer'
 
 /** 主页顶部频道：歌单 / 榜单，同页切换 */
 type Channel = 'songlist' | 'top'
@@ -29,7 +31,7 @@ type Channel = 'songlist' | 'top'
  * 歌单与榜单都直接复用现有的 SongList / Leaderboard 页面组件，
  * 因此排序、音源筛选、单曲菜单等能力全部原样保留。
  */
-export default memo(() => {
+const HomeContent = memo(() => {
   const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
@@ -96,6 +98,15 @@ const ChannelTab = ({ label, active, onPress }: { label: string, active: boolean
     </TouchableOpacity>
   )
 }
+
+/**
+ * 主页 —— 平台分发。
+ * iOS 使用 SwiftUI（系统 Grid + 材质 + SF Symbols），其它保留 RN 实现。
+ */
+export default memo(() => {
+  if (isSwiftUIPageSupported) return <HomeSwiftUIContainer />
+  return <HomeContent />
+})
 
 const styles = createStyle({
   container: {

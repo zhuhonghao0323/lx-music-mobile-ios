@@ -15,6 +15,8 @@ import TipList, { type TipListType } from './TipList'
 import List, { type ListType } from './List'
 import ResultTabs, { type ResultTabId } from './ResultTabs'
 import { addHistoryWord } from '@/core/search/search'
+import { isSwiftUIPageSupported } from '@/screens/SwiftUIPages/swiftUIPageBridge'
+import SearchSwiftUIContainer from '@/screens/SwiftUIPages/SearchContainer'
 
 
 interface SearchInfo {
@@ -23,7 +25,7 @@ interface SearchInfo {
   searchType: 'music' | 'songlist'
 }
 
-export default () => {
+const SearchContent = () => {
   const headerBarRef = useRef<HeaderBarType>(null)
   const searchTipListRef = useRef<TipListType>(null)
   const listRef = useRef<ListType>(null)
@@ -118,6 +120,15 @@ export default () => {
       </View>
     </View>
   )
+}
+
+/**
+ * 搜索页 —— 平台分发。
+ * iOS 使用 SwiftUI（系统 searchable / List / 材质），其它保留 RN 实现。
+ */
+export default () => {
+  if (isSwiftUIPageSupported) return <SearchSwiftUIContainer />
+  return <SearchContent />
 }
 
 const styles = createStyle({

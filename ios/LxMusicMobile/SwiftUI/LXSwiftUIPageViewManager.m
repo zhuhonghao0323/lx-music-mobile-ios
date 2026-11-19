@@ -29,3 +29,21 @@ RCT_EXPORT_MODULE(LXSwiftUIMineView)
 + (BOOL)requiresMainQueueSetup { return YES; }
 - (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUIMineHostView"); }
 @end
+
+// ---- 主页 ----
+@interface LXSwiftUIHomeViewManager : RCTViewManager
+@end
+@implementation LXSwiftUIHomeViewManager
+RCT_EXPORT_MODULE(LXSwiftUIHomeView)
++ (BOOL)requiresMainQueueSetup { return YES; }
+- (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUIHomeHostView"); }
+@end
+
+// ---- 搜索页 ----
+@interface LXSwiftUISearchViewManager : RCTViewManager
+@end
+@implementation LXSwiftUISearchViewManager
+RCT_EXPORT_MODULE(LXSwiftUISearchView)
++ (BOOL)requiresMainQueueSetup { return YES; }
+- (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUISearchHostView"); }
+@end

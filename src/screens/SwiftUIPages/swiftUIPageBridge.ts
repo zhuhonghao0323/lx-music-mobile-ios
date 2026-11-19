@@ -15,6 +15,14 @@ export const NativeMineView = isSwiftUIPageSupported
   ? requireNativeComponent<ViewProps>('LXSwiftUIMineView')
   : null
 
+export const NativeHomeView = isSwiftUIPageSupported
+  ? requireNativeComponent<ViewProps>('LXSwiftUIHomeView')
+  : null
+
+export const NativeSearchView = isSwiftUIPageSupported
+  ? requireNativeComponent<ViewProps>('LXSwiftUISearchView')
+  : null
+
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {
   if (!isSwiftUIPageSupported) return null
@@ -26,7 +34,18 @@ export const updatePageState = (pageId: string, state: Record<string, unknown>) 
   Module?.updatePageState?.({ pageId, state })
 }
 
-export type PageCommand = 'openSetting' | 'createList' | 'openList' | 'listOp'
+export type PageCommand =
+  | 'openSetting'
+  | 'createList'
+  | 'openList'
+  | 'listOp'
+  | 'openSearch'
+  | 'openItem'
+  | 'loadMore'
+  | 'switchSource'
+  | 'search'
+  | 'playResult'
+  | 'clearHistory'
 
 export const onPageCommand = (
   handler: (pageId: string, command: PageCommand, payload: Record<string, unknown>) => void,
