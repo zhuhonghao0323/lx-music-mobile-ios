@@ -67,6 +67,9 @@ export type PageCommand =
   | 'playResult'
   | 'clearHistory'
   | 'switchChannel'
+  | 'selectSource'
+  | 'selectSort'
+  | 'openTagPicker'
 
 export const onPageCommand = (
   handler: (pageId: string, command: PageCommand, payload: Record<string, unknown>) => void,

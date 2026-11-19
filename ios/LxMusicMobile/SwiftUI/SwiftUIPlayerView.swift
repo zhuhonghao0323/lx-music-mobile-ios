@@ -14,6 +14,9 @@ import SwiftUI
 struct SwiftUIPlayerView: View {
   @ObservedObject var bridge = PlayerBridge.shared
   @Environment(\.colorScheme) private var colorScheme
+  @State private var showSourceSheet = false
+  @State private var showQualitySheet = false
+  @State private var showPlaylistSheet = false
 
   /// 封面主色（用于背景染色）
   private var accent: Color {
@@ -31,6 +34,22 @@ struct SwiftUIPlayerView: View {
     }
     .tint(.primary)
     .statusBar(hidden: false)
+    .sheet(isPresented: $showSourceSheet) {
+      OptionSheet(title: "切换音源",
+                  options: bridge.sourceOptions,
+                  current: bridge.currentSourceId) { v in
+        bridge.send("selectSource", payload: ["sourceId": v])
+      }
+      .presentationDetents([.medium])
+    }
+    .sheet(isPresented: $showQualitySheet) {
+      OptionSheet(title: "音质",
+                  options: bridge.qualityOptionList,
+                  current: bridge.currentQuality) { v in
+        bridge.send("selectQuality", payload: ["quality": v])
+      }
+      .presentationDetents([.medium])
+    }
   }
 
   // MARK: - 层 1：底层模糊背景（原图放大铺满，不用小图拉伸）
@@ -81,33 +100,43 @@ struct SwiftUIPlayerView: View {
   }
 
   // MARK: - 层 3 + 4：内容
+  //
+  // 结构：顶部固定 → 封面弹性 → 底部固定。
+  // 封面用 aspectRatio 自适应，绝不用 layoutPriority 抢空间，
+  // 否则底部控件会被挤出屏幕（上一版就是这个错误）。
   private var contentLayer: some View {
-    VStack(spacing: 0) {
-      header
+    GeometryReader { geo in
+      let coverSide = min(geo.size.width - DS.Space.md * 2, geo.size.height * 0.42)
 
-      // 封面区：占据剩余空间并等比缩放，保证底部控件永远可见
-      GeometryReader { geo in
-        let side = min(geo.size.width, geo.size.height)
+      VStack(spacing: 0) {
+        header
+
+        Spacer(minLength: DS.Space.xs)
+
+        // 封面：按可用高度取 42%，保证下方控件始终有空间
         cover
-          .frame(width: side, height: side)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-      .frame(maxHeight: .infinity)
-      .layoutPriority(1)
+          .frame(width: coverSide, height: coverSide)
+          .frame(maxWidth: .infinity)
 
-      VStack(spacing: DS.Space.xs) {
+        Spacer(minLength: DS.Space.sm)
+
         songInfo
-        lyrics
-      }
-      .padding(.top, DS.Space.xs)
+        lyrics.padding(.top, DS.Space.xs)
 
-      progress.padding(.top, DS.Space.sm)
-      controls.padding(.vertical, DS.Space.xs)
-      actions.padding(.bottom, DS.Space.xs)
-      bottomNav
+        progress.padding(.top, DS.Space.sm)
+
+        controls.padding(.top, DS.Space.xs)
+
+        actions.padding(.top, DS.Space.xs)
+
+        Spacer(minLength: DS.Space.xs)
+
+        bottomNav
+      }
+      .padding(.horizontal, DS.Space.md)
+      .padding(.bottom, DS.Space.xs)
+      .frame(width: geo.size.width, height: geo.size.height)
     }
-    .padding(.horizontal, DS.Space.md)
-    .padding(.bottom, DS.Space.xs)
   }
 
   // MARK: - 顶栏
@@ -130,7 +159,7 @@ struct SwiftUIPlayerView: View {
       Spacer()
 
       HStack(spacing: 4) {
-        Button { bridge.send("openSourcePicker") } label: {
+        Button { if bridge.sourceOptions.isEmpty { bridge.send("openSourcePicker") } else { showSourceSheet = true } } label: {
           Image(systemName: "dot.radiowaves.left.and.right")
             .symbolRenderingMode(.hierarchical)
         }
@@ -161,8 +190,6 @@ struct SwiftUIPlayerView: View {
         coverPlaceholder
       }
     }
-    .frame(maxWidth: .infinity)
-    .aspectRatio(1, contentMode: .fit)
     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     .overlay {
       RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -262,14 +289,30 @@ struct SwiftUIPlayerView: View {
 
   // MARK: - 功能行
   private var actions: some View {
-    HStack {
-      actionButton(symbol: bridge.favorited ? "heart.fill" : "heart", label: "收藏") { bridge.send("toggleFavorite") }
-      Spacer()
-      actionButton(symbol: "shuffle", label: "播放模式") { bridge.send("togglePlayMode") }
-      Spacer()
-      actionButton(symbol: "bubble.right", label: "评论") { bridge.send("openComment") }
-      Spacer()
-      actionButton(symbol: "list.bullet", label: "播放列表") { bridge.send("openFavoriteListPicker") }
+    HStack(spacing: 0) {
+      actionButton(symbol: bridge.favorited ? "heart.fill" : "heart", label: "收藏") {
+        bridge.send("toggleFavorite")
+      }
+      actionButton(symbol: "shuffle", label: "播放模式") {
+        bridge.send("togglePlayMode")
+      }
+      // 音质：显示当前码率文字
+      Button { if bridge.qualityOptionList.isEmpty { bridge.send("openQualityPicker") } else { showQualitySheet = true } } label: {
+        Text(bridge.qualityText.isEmpty ? "--" : bridge.qualityText)
+          .font(.caption.weight(.medium))
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+      }
+      .frame(maxWidth: .infinity, minHeight: DS.minTap)
+      .contentShape(Rectangle())
+      .accessibilityLabel("音质")
+
+      actionButton(symbol: "bubble.right", label: "评论") {
+        bridge.send("openComment")
+      }
+      actionButton(symbol: "list.bullet", label: "播放列表") {
+        bridge.send("openFavoriteListPicker")
+      }
     }
   }
 
@@ -279,29 +322,36 @@ struct SwiftUIPlayerView: View {
         .symbolRenderingMode(.hierarchical)
         .imageScale(.large)
     }
-    .frame(minWidth: 44, minHeight: 44)
+    .frame(maxWidth: .infinity, minHeight: DS.minTap)
     .contentShape(Rectangle())
     .accessibilityLabel(label)
   }
 
   // MARK: - 底部导航（主页 / 播放键 / 我的）—— 玻璃材质继承背景
   private var bottomNav: some View {
-    HStack {
+    HStack(spacing: 0) {
       navButton(symbol: "house", label: "主页") { bridge.send("goHome") }
-      Spacer()
+        .frame(width: 64)
+
+      Spacer(minLength: 0)
+
+      // 中间胶囊：播放/暂停
       Button { bridge.send("togglePlay") } label: {
         Image(systemName: bridge.isPlaying ? "pause.fill" : "play.fill")
           .symbolRenderingMode(.hierarchical)
           .font(.title3)
-          .frame(width: 44, height: 44)
-          .background(.ultraThinMaterial, in: Circle())
+          .frame(width: 72, height: 44)
+          .background(.ultraThinMaterial, in: Capsule())
       }
-      .frame(minWidth: 44, minHeight: 44)
-      .accessibilityLabel("播放")
-      Spacer()
+      .frame(height: DS.minTap)
+      .accessibilityLabel(bridge.isPlaying ? "暂停" : "播放")
+
+      Spacer(minLength: 0)
+
       navButton(symbol: "person", label: "我的") { bridge.send("goMine") }
+        .frame(width: 64)
     }
-    .padding(.horizontal, 8)
+    .padding(.horizontal, DS.Space.xs)
     .padding(.vertical, 6)
     .background(.ultraThinMaterial, in: Capsule())
   }
@@ -324,4 +374,42 @@ struct SwiftUIPlayerView: View {
 }
 #Preview("播放页 · 深色") {
   SwiftUIPlayerView().preferredColorScheme(.dark)
+}
+
+
+/// 通用选项弹层（音源 / 音质共用）—— 系统 List + 勾选
+struct OptionSheet: View {
+  let title: String
+  let options: [[String: String]]
+  let current: String
+  let onSelect: (String) -> Void
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      List(options, id: \.self) { item in
+        let value = item["value"] ?? ""
+        let label = item["label"] ?? value
+        Button {
+          onSelect(value)
+          dismiss()
+        } label: {
+          HStack {
+            Text(label).foregroundStyle(.primary)
+            Spacer()
+            if value == current {
+              Image(systemName: "checkmark").symbolRenderingMode(.hierarchical)
+            }
+          }
+        }
+      }
+      .navigationTitle(title)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("完成") { dismiss() }
+        }
+      }
+    }
+  }
 }

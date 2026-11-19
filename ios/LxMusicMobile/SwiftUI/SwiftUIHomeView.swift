@@ -12,6 +12,26 @@ struct SwiftUIHomeView: View {
   private var hasMore: Bool { state["hasMore"] as? Bool ?? false }
   private var channel: String { state["channel"] as? String ?? "songlist" }
   private var sourceName: String { state["sourceName"] as? String ?? "音源" }
+  /// 可用音源列表（RN 推送 "id|名称" 用 \u0001 连接）
+  private var sources: [(id: String, name: String)] {
+    guard let raw = state["sources"] as? String, !raw.isEmpty else { return [] }
+    return raw.split(separator: "\u{1}").compactMap { seg in
+      let parts = seg.split(separator: "|", maxSplits: 1).map(String.init)
+      guard parts.count == 2 else { return nil }
+      return (parts[0], parts[1])
+    }
+  }
+  /// 排序项
+  private var sorts: [(id: String, name: String)] {
+    guard let raw = state["sorts"] as? String, !raw.isEmpty else { return [] }
+    return raw.split(separator: "\u{1}").compactMap { seg in
+      let parts = seg.split(separator: "|", maxSplits: 1).map(String.init)
+      guard parts.count == 2 else { return nil }
+      return (parts[0], parts[1])
+    }
+  }
+  private var currentSortId: String { state["sortId"] as? String ?? "" }
+  private var currentTagName: String { state["tagName"] as? String ?? "" }
 
   private let columns = [GridItem(.adaptive(minimum: 100), spacing: DS.Space.sm)]
 
@@ -43,7 +63,19 @@ struct SwiftUIHomeView: View {
       .navigationTitle("发现")
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          Button { bridge.send(pageId: pageId, command: "switchSource") } label: {
+          Menu {
+            ForEach(sources, id: \.id) { src in
+              Button {
+                bridge.send(pageId: pageId, command: "selectSource", payload: ["source": src.id])
+              } label: {
+                if src.id.uppercased() == sourceName.uppercased() {
+                  Label(src.name, systemImage: "checkmark")
+                } else {
+                  Text(src.name)
+                }
+              }
+            }
+          } label: {
             Label(sourceName, systemImage: "music.note.list")
               .labelStyle(.titleAndIcon)
               .font(.subheadline)
@@ -63,11 +95,41 @@ struct SwiftUIHomeView: View {
           .frame(width: 160)
         }
         ToolbarItem(placement: .topBarTrailing) {
-          Button { bridge.send(pageId: pageId, command: "openSearch") } label: {
-            Image(systemName: "magnifyingglass").symbolRenderingMode(.hierarchical)
+          HStack(spacing: 0) {
+            // 排序 / 分类筛选
+            Menu {
+              Section("排序") {
+                ForEach(sorts, id: \.id) { srt in
+                  Button {
+                    bridge.send(pageId: pageId, command: "selectSort", payload: ["sortId": srt.id])
+                  } label: {
+                    if srt.id == currentSortId {
+                      Label(srt.name, systemImage: "checkmark")
+                    } else {
+                      Text(srt.name)
+                    }
+                  }
+                }
+              }
+              Section("分类") {
+                Button {
+                  bridge.send(pageId: pageId, command: "openTagPicker")
+                } label: {
+                  Label(currentTagName.isEmpty ? "全部分类" : currentTagName,
+                        systemImage: "line.3.horizontal.decrease.circle")
+                }
+              }
+            } label: {
+              Image(systemName: "line.3.horizontal.decrease").symbolRenderingMode(.hierarchical)
+            }
+            .accessibilityLabel("排序与分类")
+
+            Button { bridge.send(pageId: pageId, command: "openSearch") } label: {
+              Image(systemName: "magnifyingglass").symbolRenderingMode(.hierarchical)
+            }
+            .frame(minWidth: DS.minTap, minHeight: DS.minTap)
+            .accessibilityLabel("搜索")
           }
-          .frame(minWidth: DS.minTap, minHeight: DS.minTap)
-          .accessibilityLabel("搜索")
         }
       }
     }
