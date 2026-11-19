@@ -21,6 +21,12 @@
 		3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */; };
 		3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */; };
 	3A5E0000000000000000B00A /* LXHapticsModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00A /* LXHapticsModule.m */; };
+		3A5E0000000000000000B00C /* LXSwiftUIPageBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00C /* LXSwiftUIPageBridge.swift */; };
+		3A5E0000000000000000B00D /* LXSwiftUIPageModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00D /* LXSwiftUIPageModule.swift */; };
+		3A5E0000000000000000B00E /* LXSwiftUIPageHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00E /* LXSwiftUIPageHostView.swift */; };
+		3A5E0000000000000000B00F /* LXSwiftUIPageViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00F /* LXSwiftUIPageViewManager.m */; };
+		3A5E0000000000000000B010 /* SwiftUIDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A010 /* SwiftUIDesign.swift */; };
+		3A5E0000000000000000B011 /* SwiftUIMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A011 /* SwiftUIMineView.swift */; };
 		3A5E0000000000000000B00B /* LXImageColorModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00B /* LXImageColorModule.m */; };
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
@@ -53,6 +59,12 @@
 		3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPlayerModule.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerModule.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXSwiftUIPlayerViewManager.m; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerViewManager.m; sourceTree = "<group>"; };
 	3A5E0000000000000000A00A /* LXHapticsModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXHapticsModule.m; path = LxMusicMobile/LXHapticsModule.m; sourceTree = "<group>"; };
+		3A5E0000000000000000A00C /* LXSwiftUIPageBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPageBridge.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPageBridge.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A00D /* LXSwiftUIPageModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPageModule.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPageModule.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A00E /* LXSwiftUIPageHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPageHostView.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPageHostView.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A00F /* LXSwiftUIPageViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXSwiftUIPageViewManager.m; path = LxMusicMobile/SwiftUI/LXSwiftUIPageViewManager.m; sourceTree = "<group>"; };
+		3A5E0000000000000000A010 /* SwiftUIDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUIDesign.swift; path = LxMusicMobile/SwiftUI/SwiftUIDesign.swift; sourceTree = "<group>"; };
+		3A5E0000000000000000A011 /* SwiftUIMineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUIMineView.swift; path = LxMusicMobile/SwiftUI/SwiftUIMineView.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A00B /* LXImageColorModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXImageColorModule.m; path = LxMusicMobile/LXImageColorModule.m; sourceTree = "<group>"; };
 		3A5E0000000000000000A007 /* SwiftUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftUI; path = LxMusicMobile/SwiftUI; sourceTree = "<group>"; };
 		3A5E0000000000000000A009 /* SwiftUICoverImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUICoverImage.swift; path = LxMusicMobile/SwiftUI/SwiftUICoverImage.swift; sourceTree = "<group>"; };
@@ -127,6 +139,12 @@
 				3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */,
 				3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */,
 				3A5E0000000000000000A00A /* LXHapticsModule.m */,
+				3A5E0000000000000000A00C /* LXSwiftUIPageBridge.swift */,
+				3A5E0000000000000000A00D /* LXSwiftUIPageModule.swift */,
+				3A5E0000000000000000A00E /* LXSwiftUIPageHostView.swift */,
+				3A5E0000000000000000A00F /* LXSwiftUIPageViewManager.m */,
+				3A5E0000000000000000A010 /* SwiftUIDesign.swift */,
+				3A5E0000000000000000A011 /* SwiftUIMineView.swift */,
 				3A5E0000000000000000A00B /* LXImageColorModule.m */,
 				3A5E0000000000000000A009 /* SwiftUICoverImage.swift */,
 				3A5E0000000000000000A007 /* SwiftUI */,
@@ -446,6 +464,12 @@
 				3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */,
 				3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.m in Sources */,
 				3A5E0000000000000000B00A /* LXHapticsModule.m in Sources */,
+				3A5E0000000000000000B00C /* LXSwiftUIPageBridge.swift in Sources */,
+				3A5E0000000000000000B00D /* LXSwiftUIPageModule.swift in Sources */,
+				3A5E0000000000000000B00E /* LXSwiftUIPageHostView.swift in Sources */,
+				3A5E0000000000000000B00F /* LXSwiftUIPageViewManager.m in Sources */,
+				3A5E0000000000000000B010 /* SwiftUIDesign.swift in Sources */,
+				3A5E0000000000000000B011 /* SwiftUIMineView.swift in Sources */,
 				3A5E0000000000000000B00B /* LXImageColorModule.m in Sources */,
 				3A5E0000000000000000B009 /* SwiftUICoverImage.swift in Sources */,
 			);

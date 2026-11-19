@@ -18,6 +18,8 @@ import ListOperations from '../Mylist/ListOperations'
 import Menu, { type MenuType, type Menus, type Position } from '@/components/common/Menu'
 
 import { useMineStats } from './useMineStats'
+import { isSwiftUIPageSupported } from '@/screens/SwiftUIPages/swiftUIPageBridge'
+import MineSwiftUIContainer from '@/screens/SwiftUIPages/MineContainer'
 
 /** 统计卡片中的单项（大数字 + 小标签） */
 const StatItem = ({ value, label, theme }: { value: string | number, label: string, theme: ReturnType<typeof useTheme> }) => (
@@ -35,7 +37,7 @@ const StatItem = ({ value, label, theme }: { value: string | number, label: stri
  *   → 统计卡片（收藏歌曲数 / 歌单数 / 本次会话已播放，均为真实可获取的数据）
  *   → 歌单网格（自建与收藏歌单，含封面与数量）
  */
-export default memo(() => {
+const MineContent = memo(() => {
   const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
@@ -136,6 +138,16 @@ export default memo(() => {
       <ListOperations />
     </View>
   )
+})
+
+/**
+ * Tab 3 · 我的 —— 平台分发。
+ * iOS 走 SwiftUI 原生实现（系统 List/Grid + SF Symbols + 材质），
+ * 其它平台保留原 RN 实现。
+ */
+export default memo(() => {
+  if (isSwiftUIPageSupported) return <MineSwiftUIContainer />
+  return <MineContent />
 })
 
 const styles = createStyle({
