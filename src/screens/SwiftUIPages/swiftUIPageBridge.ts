@@ -36,6 +36,8 @@ const safeRequireView = (name: string) => {
 export const NativeMineView = safeRequireView('LXSwiftUIMineView')
 export const NativeHomeView = safeRequireView('LXSwiftUIHomeView')
 export const NativeSearchView = safeRequireView('LXSwiftUISearchView')
+export const NativeLeaderboardView = safeRequireView('LXSwiftUILeaderboardView')
+export const NativeSettingView = safeRequireView('LXSwiftUISettingView')
 
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {
@@ -70,6 +72,11 @@ export type PageCommand =
   | 'selectSource'
   | 'selectSort'
   | 'openTagPicker'
+  | 'selectBoard'
+  | 'playSong'
+  | 'refresh'
+  | 'openSettingPage'
+  | 'back'
 
 export const onPageCommand = (
   handler: (pageId: string, command: PageCommand, payload: Record<string, unknown>) => void,

@@ -82,3 +82,27 @@ final class LXSwiftUISearchHostView: LXSwiftUIPageHostBase {
   }
   required init?(coder: NSCoder) { super.init(coder: coder) }
 }
+
+/// 排行榜宿主
+@objc(LXSwiftUILeaderboardHostView)
+final class LXSwiftUILeaderboardHostView: LXSwiftUIPageHostBase {
+  override var pageId: String { "leaderboard" }
+  override func makeRootView() -> AnyView { AnyView(SwiftUILeaderboardView(pageId: pageId)) }
+  @objc override init(module: LXSwiftUIPageModule?) {
+    super.init(module: module)
+    install()
+  }
+  required init?(coder: NSCoder) { super.init(coder: coder) }
+}
+
+/// 设置页宿主
+@objc(LXSwiftUISettingHostView)
+final class LXSwiftUISettingHostView: LXSwiftUIPageHostBase {
+  override var pageId: String { "setting" }
+  override func makeRootView() -> AnyView { AnyView(SwiftUISettingView(pageId: pageId)) }
+  @objc override init(module: LXSwiftUIPageModule?) {
+    super.init(module: module)
+    install()
+  }
+  required init?(coder: NSCoder) { super.init(coder: coder) }
+}

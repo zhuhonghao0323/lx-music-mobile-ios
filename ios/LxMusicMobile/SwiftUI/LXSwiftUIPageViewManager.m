@@ -47,3 +47,21 @@ RCT_EXPORT_MODULE(LXSwiftUISearchView)
 + (BOOL)requiresMainQueueSetup { return YES; }
 - (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUISearchHostView"); }
 @end
+
+// ---- 排行榜 ----
+@interface LXSwiftUILeaderboardViewManager : RCTViewManager
+@end
+@implementation LXSwiftUILeaderboardViewManager
+RCT_EXPORT_MODULE(LXSwiftUILeaderboardView)
++ (BOOL)requiresMainQueueSetup { return YES; }
+- (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUILeaderboardHostView"); }
+@end
+
+// ---- 设置页 ----
+@interface LXSwiftUISettingViewManager : RCTViewManager
+@end
+@implementation LXSwiftUISettingViewManager
+RCT_EXPORT_MODULE(LXSwiftUISettingView)
++ (BOOL)requiresMainQueueSetup { return YES; }
+- (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUISettingHostView"); }
+@end
