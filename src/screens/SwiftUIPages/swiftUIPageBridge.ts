@@ -1,4 +1,4 @@
-import { NativeEventEmitter, NativeModules, Platform, requireNativeComponent, type ViewProps } from 'react-native'
+import { NativeEventEmitter, NativeModules, Platform, UIManager, requireNativeComponent, type ViewProps } from 'react-native'
 
 /**
  * 通用 SwiftUI 页面桥（iOS）。
@@ -9,7 +9,16 @@ const Module = NativeModules.LXSwiftUIPageModule as {
   updatePageState?: (payload: { pageId: string, state: Record<string, unknown> }) => void
 } | undefined
 
-export const isSwiftUIPageSupported = Platform.OS == 'ios' && !!Module
+const hasView = (name: string) => {
+  try {
+    return !!UIManager.getViewManagerConfig?.(name)
+  } catch {
+    return false
+  }
+}
+
+/** iOS 且原生页面组件已注册时才启用 SwiftUI 页面 */
+export const isSwiftUIPageSupported = Platform.OS == 'ios' && !!Module && hasView('LXSwiftUIMineView')
 
 export const NativeMineView = isSwiftUIPageSupported
   ? requireNativeComponent<ViewProps>('LXSwiftUIMineView')
