@@ -36,6 +36,14 @@ struct SwiftUIHomeView: View {
   private let columns = [GridItem(.adaptive(minimum: 100), spacing: DS.Space.sm)]
 
   var body: some View {
+    // GeometryReader 让首帧就拿到确定尺寸，
+    // 避免 RN 容器尺寸未定时内容顶到状态栏、与导航栏重叠
+    GeometryReader { _ in
+      content
+    }
+  }
+
+  private var content: some View {
     NavigationStack {
       ScrollView {
         LazyVGrid(columns: columns, spacing: DS.Space.sm) {
@@ -61,6 +69,7 @@ struct SwiftUIHomeView: View {
       }
       .background(.background)
       .navigationTitle("发现")
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
           Menu {

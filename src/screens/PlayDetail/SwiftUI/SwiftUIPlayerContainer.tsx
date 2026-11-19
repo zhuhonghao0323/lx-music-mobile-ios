@@ -26,6 +26,7 @@ import playerState from '@/store/player/state'
 import commonState from '@/store/common/state'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { getAverageColor } from '@/utils/imageColor'
+import { handleShare } from '@/screens/Home/Views/Mylist/MusicList/listAction'
 
 const LYRIC_COLORS: Record<string, string> = {
   white: '#ffffff',
@@ -202,6 +203,15 @@ export default memo(() => {
           if (componentId) navigations.pushCommentScreen(componentId)
           break
         }
+        case 'share': {
+          const info = getPlayMusicInfo()
+          if (info) handleShare(info)
+          break
+        }
+        case 'openMore':
+          // 更多菜单在 RN 侧由播放页自身管理，这里通知切回 RN 处理
+          setNavActiveId('nav_player')
+          break
         case 'openSourcePicker':
         case 'openQualityPicker':
         case 'openFavoriteListPicker':

@@ -16,6 +16,12 @@ struct SwiftUIMineView: View {
   private var lists: [PlaylistItem] { PlaylistItem.decode(state["lists"] as? String) }
 
   var body: some View {
+    GeometryReader { _ in
+      content
+    }
+  }
+
+  private var content: some View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 0) {
@@ -26,7 +32,7 @@ struct SwiftUIMineView: View {
       }
       .background(.background)
       .navigationTitle("我的")
-      .navigationBarTitleDisplayMode(.large)
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button { bridge.send(pageId: pageId, command: "openSetting") } label: {

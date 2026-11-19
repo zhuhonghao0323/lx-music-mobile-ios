@@ -32,6 +32,9 @@ class LXSwiftUIPageHostBase: UIView {
     let root = makeRootView()
     let host = UIHostingController(rootView: root)
     host.view.backgroundColor = .clear
+    // 同上：避免 UIKit 与 SwiftUI 重复计算 safeArea 导致首帧布局错乱
+    host.safeAreaRegions = []
+    host.view.insetsLayoutMarginsFromSafeArea = false
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)
     NSLayoutConstraint.activate([

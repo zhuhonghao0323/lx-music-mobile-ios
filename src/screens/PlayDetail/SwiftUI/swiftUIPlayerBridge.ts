@@ -74,6 +74,8 @@ export type SwiftUIPlayerCommand =
   | 'openSetting'
   | 'goHome'
   | 'goMine'
+  | 'share'
+  | 'openMore'
 
 let emitter: NativeEventEmitter | null = null
 const PLAYER_MODULE = NativeModules.LXSwiftUIPlayerModule as Record<string, unknown> | undefined
