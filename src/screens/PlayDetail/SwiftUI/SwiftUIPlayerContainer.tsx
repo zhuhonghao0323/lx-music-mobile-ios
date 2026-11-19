@@ -133,14 +133,20 @@ export default memo(() => {
   useEffect(() => {
     return onSwiftUIPlayerCommand((command: SwiftUIPlayerCommand, payload) => {
       switch (command) {
-        case 'back':
-          void pop(commonState.componentIds.playDetail!)
+        case 'back': {
+          // 独立页（RNN 栈）里 pop 回去；首页 PagerView 里（无栈）切回首页 Tab
+          const playDetailId = commonState.componentIds.playDetail
+          if (playDetailId) void pop(playDetailId)
+          else setNavActiveId('nav_home')
           break
+        }
         case 'goHome':
         case 'goMine': {
-          // 底部导航：先关掉全屏播放页，再切到目标 Tab
-          void pop(commonState.componentIds.playDetail!)
-          setTimeout(() => { setNavActiveId(command == 'goHome' ? 'nav_home' : 'nav_mine') }, 120)
+          // 底部导航：独立页先 pop，首页内直接切 Tab
+          const pid = commonState.componentIds.playDetail
+          if (pid) void pop(pid)
+          const target = command == 'goHome' ? 'nav_home' : 'nav_mine'
+          setTimeout(() => { setNavActiveId(target) }, pid ? 120 : 0)
           break
         }
         case 'prev':

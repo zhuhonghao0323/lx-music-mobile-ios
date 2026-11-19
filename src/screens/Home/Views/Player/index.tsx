@@ -38,6 +38,8 @@ import commonState from '@/store/common/state'
 import { useTogglePlayMode } from './useTogglePlayMode'
 import { usePlayerDynamicBg } from './usePlayerDynamicBg'
 import { defaultHeaders } from '@/components/common/Image'
+import SwiftUIPlayerContainer from '@/screens/PlayDetail/SwiftUI/SwiftUIPlayerContainer'
+import { isSwiftUIPlayerSupported } from '@/screens/PlayDetail/SwiftUI/swiftUIPlayerBridge'
 
 /**
  * Tab 2 · 正在播放（对标波点音乐的精简播放器）。
@@ -61,7 +63,7 @@ const TAG_FONT_SIZE = 11
 /** 音质/音源弹出菜单的字号（两者统一，比标签略大以保证可读） */
 const MENU_FONT_SIZE = 13
 
-export default memo(() => {
+const PlayerContent = memo(() => {
   const theme = useTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
@@ -341,6 +343,16 @@ export default memo(() => {
       <FavoriteDockAnimation />
     </>
   )
+})
+
+/**
+ * 播放页 —— 平台分发。
+ * iOS 使用 SwiftUI 原生实现（四层沉浸背景 + 系统材质）；
+ * 其它平台保留原 RN 实现。
+ */
+export default memo(() => {
+  if (isSwiftUIPlayerSupported) return <SwiftUIPlayerContainer />
+  return <PlayerContent />
 })
 
 const styles = createStyle({
