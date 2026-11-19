@@ -65,20 +65,14 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
       style={StyleSheet.compose(
         styles.container,
         {
-          backgroundColor: isGlass ? 'rgba(28,24,24,0.72)' : 'rgba(24,22,22,0.94)',
+          // 胶囊位于统一玻璃托盘内：用更薄的一层玻璃做次级层级，
+          // 不再铺厚重底色、不做大阴影（托盘已经提供悬浮层次）。
+          backgroundColor: isGlass ? 'rgba(255, 255, 255, 0.09)' : 'rgba(24,22,22,0.94)',
           // 胶囊高度的一半作为圆角 = 完美的半圆端头（灵动岛圆弧）
           borderRadius: PILL_HEIGHT / 2,
           borderWidth: StyleSheet.hairlineWidth,
-          borderTopColor: 'rgba(255,255,255,0.32)',
-          borderLeftColor: 'rgba(255,255,255,0.18)',
-          borderRightColor: 'rgba(255,255,255,0.12)',
-          borderBottomColor: 'rgba(0,0,0,0.30)',
+          borderColor: 'rgba(255,255,255,0.14)',
           overflow: 'hidden',
-          shadowColor: 'rgba(0,0,0,0.55)',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.5,
-          shadowRadius: 18,
-          elevation: 10,
         },
       )}
     >

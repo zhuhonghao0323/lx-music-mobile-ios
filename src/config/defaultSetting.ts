@@ -100,20 +100,25 @@ const defaultSetting: LX.AppSetting = {
 
   'sync.enable': false,
 
-  // 'theme.id': 'blue_plus',
-  'theme.id': 'green',
-  'theme.lightId': 'green',
-  'theme.darkId': 'black',
+  // 全局默认主题：液态玻璃（深色）。浅色/深色模式分别映射。
+  'theme.id': 'liquid_glass',
+  'theme.lightId': 'liquid_glass_light',
+  'theme.darkId': 'liquid_glass',
   'theme.hideBgDark': false,
   'theme.dynamicBg': false,
   'theme.fontShadow': false,
 }
 
-
-// 使用新年皮肤
-if (new Date().getMonth() < 2) {
-  defaultSetting['theme.id'] = 'happy_new_year'
-  defaultSetting['desktopLyric.style.lyricPlayedColor'] = 'rgba(255, 18, 34, 1)'
+// 主题迁移：旧皮肤（green/black/happy_new_year 等 16 个）已在 v1.9.1 移除，
+// 若用户设备上还存有旧主题 id，回退到液态玻璃主题。
+const LEGACY_THEME_IDS = new Set([
+  'green', 'blue', 'blue_plus', 'orange', 'brown', 'red', 'pink', 'purple',
+  'grey', 'ming', 'blue2', 'black', 'mid_autumn', 'naruto', 'china_ink', 'happy_new_year',
+])
+for (const key of ['theme.id', 'theme.lightId', 'theme.darkId'] as const) {
+  if (LEGACY_THEME_IDS.has(defaultSetting[key])) {
+    defaultSetting[key] = key == 'theme.lightId' ? 'liquid_glass_light' : 'liquid_glass'
+  }
 }
 
 export default defaultSetting

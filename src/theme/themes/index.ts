@@ -139,35 +139,29 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
     Object.assign(activeTheme, glassLightOverrides)
   }
 
-  // 液态玻璃（iOS 27 Liquid Glass 视觉语言，按设计交付说明还原）：
-  // 把全局语义色统一改成半透明玻璃色，这样所有引用
-  // c-button-background / c-content-background / c-primary-background …
-  // 的组件都会自动获得一致的玻璃质感，无需逐个改造。
-  // 基调：暖黑 #0B090A 环境底 + 珊瑚粉橙 #F27868 强调色。
+  // 液态玻璃（深色，全局主推主题）：
+  // 冷黑 #0A0A0C 环境底 + 品牌琥珀暖金 #F5B359 强调色。
+  // 与浅色液态玻璃共享同一套设计 token（见 glassMaterial.ts）。
   if (theme.id == 'liquid_glass') {
-    const surface = 'rgba(255, 255, 255, 0.10)'
-    const surfaceStrong = 'rgba(255, 255, 255, 0.16)'
-    const control = 'rgba(255, 255, 255, 0.12)'
-    const controlActive = 'rgba(255, 255, 255, 0.22)'
-    // 玻璃描边 rgba(255,255,255,0.22)（设计规范）
-    const border = 'rgba(255, 255, 255, 0.22)'
-    const borderSoft = 'rgba(255, 255, 255, 0.12)'
-    // 主文字 #F5F2F1 / 次级文字 #B8B0B0（设计规范）
-    const text = '#F5F2F1'
-    const textDim = '#B8B0B0'
-    // 强调色 #F27868
-    const tint = 'rgba(242, 120, 104, 0.95)'
+    const surface = 'rgba(255, 255, 255, 0.08)'
+    const surfaceStrong = 'rgba(255, 255, 255, 0.13)'
+    const control = 'rgba(255, 255, 255, 0.08)'
+    const controlActive = 'rgba(255, 255, 255, 0.16)'
+    const border = 'rgba(255, 255, 255, 0.14)'
+    const borderSoft = 'rgba(255, 255, 255, 0.08)'
+    const text = '#FFFFFF'
+    const textDim = '#98989F'
+    const tint = '#F5B359'
     const glassOverrides: Partial<LX.ActiveTheme> = {
-      // 暖黑环境底，避免纯黑造成层次断裂
-      'c-app-background': '#0B090A',
-      'c-main-background': '#0B090A',
-      'c-content-background': surfaceStrong,
+      'c-app-background': '#0A0A0C',
+      'c-main-background': '#0A0A0C',
+      'c-content-background': '#1C1C1E',
       'c-border-background': border,
       'c-font': text,
       'c-font-label': textDim,
       'c-primary-font': tint,
-      'c-primary-font-hover': 'rgba(242, 120, 104, 0.82)',
-      'c-primary-font-active': 'rgba(242, 120, 104, 0.68)',
+      'c-primary-font-hover': 'rgba(245, 179, 89, 0.85)',
+      'c-primary-font-active': 'rgba(245, 179, 89, 0.70)',
       'c-primary-background': surface,
       'c-primary-background-hover': surfaceStrong,
       'c-primary-background-active': controlActive,
@@ -175,13 +169,13 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
       'c-button-font': text,
       'c-button-font-selected': '#FFFFFF',
       'c-button-background': control,
-      'c-button-background-selected': 'rgba(242, 120, 104, 0.42)',
+      'c-button-background-selected': 'rgba(245, 179, 89, 0.30)',
       'c-button-background-hover': surfaceStrong,
       'c-button-background-active': controlActive,
       'c-list-header-border-bottom': borderSoft,
       'c-badge-primary': tint,
-      'c-badge-secondary': '#E8B27D',
-      'c-badge-tertiary': '#9BB0C4',
+      'c-badge-secondary': '#C07A0A',
+      'c-badge-tertiary': '#8E8E93',
     }
     Object.assign(activeTheme, glassOverrides)
   }

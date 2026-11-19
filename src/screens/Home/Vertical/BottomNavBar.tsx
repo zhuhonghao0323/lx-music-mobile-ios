@@ -1,12 +1,13 @@
 import { memo, useCallback, useMemo, useRef } from 'react'
-import { View, TouchableOpacity, Animated, Image, StyleSheet } from 'react-native'
-import { useTheme } from '@/store/theme/hook'
+import { View, TouchableOpacity, Animated, Image } from 'react-native'
 import { useNavActiveId } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
+import GlassView from '@/components/common/GlassView'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { useWindowSize } from '@/utils/hooks'
+import { useBrandColor, useTokenColor } from '@/theme/glassMaterial'
 import { haptic } from '@/utils/haptics'
 import { setNavActiveId } from '@/core/common'
 import { popToRoot } from '@/navigation/utils'
@@ -18,14 +19,19 @@ const homeIcon = require('@/resources/images/nav_home.png')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const mineIcon = require('@/resources/images/nav_mine.png')
 
-/** 单个悬浮导航图标（首页 / 我的），带按压回弹与 3D 液态质感 */
+/**
+ * 单个导航图标（主页 / 我的）。
+ * 设计：无独立背景圆片，图标+文字直接落在统一玻璃托盘内；
+ * 选中态用品牌色的淡底圆标出，未选中为次级灰，形成克制的层级。
+ */
 const SideButton = memo(({ source, active, label, onPress }: {
   source: number
   active: boolean
   label: string
   onPress: () => void
 }) => {
-  const theme = useTheme()
+  const colors = useTokenColor()
+  const brand = useBrandColor()
   const scale = useRef(new Animated.Value(1)).current
 
   const animateTo = (to: number) => {
@@ -40,18 +46,23 @@ const SideButton = memo(({ source, active, label, onPress }: {
       onPressOut={() => { animateTo(1) }}
       accessibilityRole="button"
       accessibilityLabel={label}
+      style={styles.sideWrap}
     >
-      <Animated.View style={[styles.sideCircle, { transform: [{ scale }] }]}>
-        <View pointerEvents="none" style={styles.sideSheen} />
+      <Animated.View
+        style={[styles.sideCircle, {
+          transform: [{ scale }],
+          backgroundColor: active ? 'rgba(245, 179, 89, 0.16)' : 'transparent',
+        }]}
+      >
         <Image
           source={source}
-          style={[styles.icon, { tintColor: active ? theme['c-primary-font'] : theme['c-font-label'] }]}
+          style={[styles.icon, { tintColor: active ? brand : colors.textSecondary }]}
           resizeMode="contain"
         />
         <Text
           style={styles.sideLabel}
           size={10}
-          color={active ? theme['c-primary-font'] : theme['c-font-label']}
+          color={active ? brand : colors.textSecondary}
           numberOfLines={1}
         >{label}</Text>
       </Animated.View>
@@ -60,11 +71,13 @@ const SideButton = memo(({ source, active, label, onPress }: {
 })
 
 /**
- * 统一底部导航栏（主页 / 中间插槽 / 我的）。
+ * 统一底部导航（主页 / 中间插槽 / 我的）。
  *
- * - 除播放页外，所有界面（Home 三个 Tab、歌单详情等独立页）都用这一套三图标结构
- * - 中间插槽由调用方传入：Home 非播放 Tab 传迷你条胶囊，播放 Tab 传 null（播放按钮在页面内部）
- * - 独立页（歌单详情等）点「首页/我的」时，先 pop 回根页面再切 Tab
+ * 产品级重构：整个底部栏 = 一个 floating Liquid Glass 悬浮托盘，
+ * 主页圆钮、迷你条胶囊、我的圆钮都落在同一材质内，不再各自独立成块。
+ * - 悬浮在内容上方，四周留 12pt 边距，底部留安全区
+ * - 中间插槽：Home 非播放 Tab 传胶囊；播放 Tab 传大播放键
+ * - 独立页点图标先 popToRoot 再切 Tab
  */
 export default memo(({ children, isOverlay = false }: {
   children?: React.ReactNode
@@ -81,10 +94,8 @@ export default memo(({ children, isOverlay = false }: {
   const handlePress = useCallback((id: 'nav_home' | 'nav_mine') => {
     haptic.select()
     if (isOverlay) {
-      // 独立页：先退回根页，再切到目标 Tab
       const homeId = commonState.componentIds.home
       if (homeId) void popToRoot(homeId)
-      // 稍作延迟确保 pop 完成后切 Tab
       setTimeout(() => { setNavActiveId(id) }, 60)
     } else {
       setNavActiveId(id)
@@ -96,67 +107,54 @@ export default memo(({ children, isOverlay = false }: {
 
   return (
     <View style={styles.wrap}>
-      <SideButton
-        source={homeIcon}
-        active={isHomeActive}
-        label={t('nav_home')}
-        onPress={() => { handlePress('nav_home') }}
-      />
-      {/* 中间插槽：固定宽度（屏幕 1/3），不随内容变化 */}
-      <View style={[styles.centerSlot, { width: centerWidth }]}>{children}</View>
-      <SideButton
-        source={mineIcon}
-        active={isMineActive}
-        label={t('nav_mine')}
-        onPress={() => { handlePress('nav_mine') }}
-      />
+      <GlassView material="floating" style={styles.tray}>
+        <SideButton
+          source={homeIcon}
+          active={isHomeActive}
+          label={t('nav_home')}
+          onPress={() => { handlePress('nav_home') }}
+        />
+        {/* 中间插槽：固定宽度（屏幕 1/3），不随内容变化 */}
+        <View style={[styles.centerSlot, { width: centerWidth }]}>{children}</View>
+        <SideButton
+          source={mineIcon}
+          active={isMineActive}
+          label={t('nav_mine')}
+          onPress={() => { handlePress('nav_mine') }}
+        />
+      </GlassView>
     </View>
   )
 })
 
 const styles = createStyle({
   wrap: {
+    // 悬浮：四周留边距，不贴边
+    marginHorizontal: scaleSizeW(12),
+    marginBottom: scaleSizeW(8),
+  },
+  tray: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    // 左右按钮不再贴边，靠「主页/我的 与胶囊的间隙」撑开布局
-    paddingHorizontal: scaleSizeW(10),
-    paddingBottom: scaleSizeW(4),
+    justifyContent: 'space-between',
+    paddingHorizontal: scaleSizeW(8),
+    paddingVertical: scaleSizeW(6),
   },
   centerSlot: {
-    // 宽度由内联样式固定为屏幕 1/3
     flexShrink: 0,
     flexGrow: 0,
-    // 与左右按钮的横向间隙扩大一倍（12 → 24），主页左移、我的右移
-    marginHorizontal: scaleSizeW(24),
+    marginHorizontal: scaleSizeW(6),
+  },
+  sideWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sideCircle: {
     width: scaleSizeW(56),
-    height: scaleSizeW(56),
-    // 圆形（灵动岛级别的圆角弧度）
-    borderRadius: scaleSizeW(28),
+    height: scaleSizeW(52),
+    borderRadius: scaleSizeW(20),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.40)',
-    borderLeftColor: 'rgba(255,255,255,0.22)',
-    borderRightColor: 'rgba(255,255,255,0.14)',
-    borderBottomColor: 'rgba(0,0,0,0.25)',
-    shadowColor: 'rgba(0,0,0,0.45)',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  sideSheen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '52%',
-    backgroundColor: 'rgba(255,255,255,0.14)',
   },
   icon: {
     width: scaleSizeW(24),
