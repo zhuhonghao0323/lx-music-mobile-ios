@@ -534,6 +534,13 @@ final class PlayerManager: NSObject, ObservableObject {
                     thirdPartyQuality: thirdPartyQuality,
                     enableUnblock: enableUnblock
                 )
+            } else if song.source == .bodian {
+                (urlString, resolvedThirdParty) = await bodianResolve(
+                    song: song,
+                    quality: quality,
+                    thirdPartyQuality: thirdPartyQuality,
+                    enableUnblock: enableUnblock
+                )
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(
                     song: song,
@@ -615,6 +622,40 @@ final class PlayerManager: NSObject, ObservableObject {
                 songSource: .migu,
                 miguID: song.miguCopyrightId ?? String(song.id),
                 miguContentId: String(song.id),
+                quality: thirdPartyQuality
+            )
+        }
+        return (urlString, resolved)
+    }
+
+    /// 波点播放地址解析：先走官方 checkRight + audioUrl，取不到再交给自定义音源（source=kw）。
+    /// 未登录时波点只给 30 秒试听片段，日志里会明确标注。
+    private func bodianResolve(
+        song: Song,
+        quality: BeansAudioQuality,
+        thirdPartyQuality: ThirdPartyAudioQuality = .current,
+        enableUnblock: Bool
+    ) async -> (String?, UnblockService.Resolved?) {
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        do {
+            urlString = try await BodianMusicAPI.shared.songURL(id: song.id, quality: quality)
+        } catch {
+            BeansLogger.shared.log(
+                "波点官方地址获取失败：\(song.name) - \(error.localizedDescription)",
+                level: .warn
+            )
+        }
+        BeansLogger.shared.log(
+            "波点解析：\(song.name) 音质=\(quality.level) 官方URL=\(urlString == nil ? "无" : "有")",
+            level: .debug
+        )
+        if urlString == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: song.id,
+                songSource: .bodian,
                 quality: thirdPartyQuality
             )
         }
@@ -1316,6 +1357,17 @@ final class PlayerManager: NSObject, ObservableObject {
                 quality: quality,
                 excludedHosts: excludedHosts
             )
+        case .bodian:
+            // 波点的歌曲 id 就是酷我音乐 id，自定义音源按 kw 处理器解析
+            return await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: song.id,
+                songSource: .bodian,
+                quality: quality,
+                strict: strict,
+                excludedHosts: excludedHosts
+            )
         }
     }
 
@@ -1493,6 +1545,9 @@ final class PlayerManager: NSObject, ObservableObject {
         case .migu:
             // 咪咕没有账号体系，会员歌曲统一交给自定义音源处理
             return false
+        case .bodian:
+            // 波点只能扫码登录，登录后按同一账号继续走官方地址
+            return BodianMusicAuth.shared.isLoggedIn
         }
     }
 

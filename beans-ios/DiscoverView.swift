@@ -42,7 +42,9 @@ struct DiscoverView: View {
     /// 三个平台都保留每日推荐、排行榜和歌单板块，QQ 歌单板块展示官网推荐的热门歌单。
     private var availableSections: [String] { SectionOrderStore.homeDefaults }
     /// 首页数据源：记住上次选择，下次打开仍保持该平台（默认网易云）
-    @AppStorage("beans.homeSource") private var homeSourceRaw = SearchProvider.netease.rawValue
+    @AppStorage("beans.homeSource") private var homeSourceRaw = SearchProvider.all.rawValue
+    /// 老版本首页默认是网易云，升级后一次性切到「全部平台」
+    @AppStorage("beans.homeSourceMigratedAll.v1") private var homeSourceMigratedAll = false
     @AppStorage("beans.homeGreetingText") private var homeGreetingText = ""
     @AppStorage("beans.homeGreetingSize") private var homeGreetingSize = 30.0
     @AppStorage("beans.homeGreetingHeight") private var homeGreetingHeight = 0.0
@@ -82,12 +84,13 @@ struct DiscoverView: View {
     /// 极端情况（只启用咪咕）时仍回退到全部平台，避免首页空白。
     private var homeProviders: [SearchProvider] {
         let feedProviders = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
-        return feedProviders.isEmpty ? platformPrefs.enabledSearchProviders : feedProviders
+        return [.all] + feedProviders
     }
-    /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
+    /// 首页数据源：默认「全部平台」（各平台内容聚合），也可单独看某个平台
     private var source: SearchProvider {
+        if homeSourceRaw == SearchProvider.all.rawValue { return .all }
         guard let saved = SearchProvider(rawValue: homeSourceRaw), homeProviders.contains(saved) else {
-            return homeProviders.first ?? .netease
+            return .all
         }
         return saved
     }
@@ -187,13 +190,24 @@ struct DiscoverView: View {
             }
             .onAppear {
                 guard !homeRenderingPaused else { return }
+                // 老版本默认停在网易云，升级后一次性切到「全部平台」聚合首页
+                if !homeSourceMigratedAll {
+                    homeSourceMigratedAll = true
+                    if homeSourceRaw != SearchProvider.all.rawValue {
+                        homeSourceRaw = SearchProvider.all.rawValue
+                        return
+                    }
+                }
+                if homeSourceRaw == SearchProvider.all.rawValue { return }
                 guard let saved = SearchProvider(rawValue: homeSourceRaw), homeProviders.contains(saved) else {
-                    homeSourceRaw = (homeProviders.first ?? .netease).rawValue
+                    homeSourceRaw = SearchProvider.all.rawValue
                     return
                 }
             }
             .onReceive(platformPrefs.changes) { _ in
                 guard !homeRenderingPaused else { return }
+                // 「全部平台」不是真实平台，不参与可见性校正
+                if source == .all { return }
                 let next = platformPrefs.ensureVisible(source)
                 if next != source {
                     homeSourceRaw = next.rawValue
@@ -224,6 +238,11 @@ struct DiscoverView: View {
                 guard !homeRenderingPaused else { return }
                 guard platformPrefs.isEnabled(SearchProvider.kugou) else { return }
                 reloadAfterLoginUpdate(.kugou)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .beansBodianLoginDidUpdate)) { _ in
+                guard !homeRenderingPaused else { return }
+                guard platformPrefs.isEnabled(SearchProvider.bodian) else { return }
+                reloadAfterLoginUpdate(.bodian)
             }
             .sheet(isPresented: $showSectionSort) {
                 SectionOrderSheet(
@@ -456,51 +475,45 @@ struct DiscoverView: View {
         .accessibilityLabel("切换音乐平台，当前 \(source.rawValue)")
     }
 
-    /// 平台选择（网易云 / QQ音乐 / 酷狗音乐，样式与搜索页一致）
+    /// 平台选择（全部平台 / 网易云 / QQ / 酷狗 / 咪咕 / 波点）：横向可滚动，
+    /// 平台数量变多后不再挤成一排短标签。
     private var providerPicker: some View {
-        HStack(spacing: 4) {
-            ForEach(homeProviders) { p in
-                Button {
-                    BeansHaptics.tap()
-                    if source != p { homeSourceRaw = p.rawValue }
-                } label: {
-                    HStack(spacing: 6) {
-                        if let imageName = p.brandImageName {
-                            Image(imageName)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 14, height: 14)
-                        } else {
-                            Image(systemName: p.icon)
-                                .font(.system(size: 11, weight: .semibold))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(homeProviders) { p in
+                    Button {
+                        BeansHaptics.tap()
+                        if source != p { homeSourceRaw = p.rawValue }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if let imageName = p.brandImageName {
+                                Image(imageName)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: p == .all ? 16 : 14, height: p == .all ? 16 : 14)
+                            } else {
+                                Image(systemName: p.icon)
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            Text(LocalizedStringKey(p == .all ? "全部" : p.rawValue))
+                                .font(BeansFont.appFont(13, .semibold))
                         }
-                        Text(LocalizedStringKey(p.rawValue))
-                            .font(BeansFont.appFont(13, .semibold))
-                    }
-                    .foregroundStyle(source == p ? Color.white : Color.beansComment)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background {
-                        if source == p {
-                            Capsule().fill(p.tint)
-                        } else {
-                            Capsule().fill(.clear)
+                        .foregroundStyle(source == p ? Color.white : Color.beansComment)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
+                        .background {
+                            if source == p {
+                                Capsule().fill(p.tint)
+                            } else {
+                                BeansSurface(shape: Capsule())
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.vertical, 2)
         }
-        .padding(4)
-        .background {
-            if isNativeClean {
-                BeansSurface(shape: Capsule())
-            } else {
-                BeansGlass(shape: Capsule())
-            }
-        }
-        .clipShape(Capsule())
-        .beansCardShadow(radius: isNativeClean ? 2 : 6, y: isNativeClean ? 1 : 2)
     }
 
     private var greeting: String {
@@ -552,7 +565,8 @@ struct DiscoverView: View {
         case .netease: return neteaseTopLists.count
         case .qq: return qqTopLists.count
         case .kugou: return kugouTopLists.count
-        case .migu: return 0
+        case .migu, .bodian: return 0
+        case .all: return allRankEntries.count
         }
     }
 
@@ -566,8 +580,42 @@ struct DiscoverView: View {
         case .netease: return !topLists.isEmpty
         case .qq: return !qqTopLists.isEmpty
         case .kugou: return !kugouTopLists.isEmpty
-        case .migu: return false
+        case .migu, .bodian: return false
+        case .all: return !allRankEntries.isEmpty
         }
+    }
+
+    /// 聚合模式下把三个平台的榜单摊平成统一条目（各取前若干个，避免一屏全是同一平台）
+    private var allRankEntries: [ChartEntry] {
+        var entries: [ChartEntry] = []
+        for chart in neteaseTopLists.prefix(6) {
+            entries.append(ChartEntry(
+                id: "netease-\(chart.id)",
+                name: beansChartName(chart.name),
+                subtitle: beansChartSubtitle(chart.updateFrequency),
+                coverURL: chart.coverURL,
+                route: .topList(chart)
+            ))
+        }
+        for info in qqTopLists.prefix(6) {
+            entries.append(ChartEntry(
+                id: "qq-\(info.id)",
+                name: beansChartName(info.name),
+                subtitle: beansChartSubtitle(info.subTitle),
+                coverURL: info.coverURL,
+                route: .qqTopList(info)
+            ))
+        }
+        for info in kugouTopLists.prefix(6) {
+            entries.append(ChartEntry(
+                id: "kugou-\(info.id)",
+                name: beansChartName(info.name),
+                subtitle: beansChartSubtitle(info.updateFrequency),
+                coverURL: info.coverURL,
+                route: .kugouTopList(info)
+            ))
+        }
+        return entries
     }
 
     // MARK: - 排行榜（竖排行列表）
@@ -620,7 +668,13 @@ struct DiscoverView: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
-                    if source == .netease {
+                    if source == .all {
+                        ForEach(Array(allRankEntries.prefix(min(visibleRankCount, 12)).enumerated()), id: \.element.id) { index, entry in
+                            nativeRankCard(index: index, name: entry.name, subtitle: entry.subtitle, coverURL: entry.coverURL) {
+                                openRoute(entry.route)
+                            }
+                        }
+                    } else if source == .netease {
                         ForEach(Array(neteaseTopLists.prefix(min(visibleRankCount, 10)).enumerated()), id: \.element.id) { index, topList in
                             nativeRankCard(index: index, name: beansChartName(topList.name), subtitle: beansChartSubtitle(topList.updateFrequency), coverURL: topList.coverURL) {
                                 openRoute(DiscoverRoute.topList(topList))
@@ -686,7 +740,15 @@ struct DiscoverView: View {
     /// 排行榜行列表（按平台渲染）
     @ViewBuilder
     private var rankRowsContent: some View {
-        if source == .netease {
+        if source == .all {
+            ForEach(Array(allRankEntries.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, entry in
+                rankRow(index: index, name: entry.name, subtitle: entry.subtitle, coverURL: entry.coverURL) {
+                    BeansHaptics.tap()
+                    openRoute(entry.route)
+                }
+                Divider().overlay(Color.beansComment.opacity(0.12))
+            }
+        } else if source == .netease {
             ForEach(Array(neteaseTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, topList in
                 rankRow(index: index, name: beansChartName(topList.name), subtitle: beansChartSubtitle(topList.updateFrequency), coverURL: topList.coverURL) {
                     BeansHaptics.tap()
@@ -1194,7 +1256,7 @@ struct DiscoverView: View {
             } else if isNativeClean && !playlistsExpanded {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 16) {
-                        ForEach(visiblePersonalizedPlaylists, id: \.id) { (playlist: Playlist) in
+                        ForEach(visiblePersonalizedPlaylists, id: \.uniqueKey) { (playlist: Playlist) in
                             Button {
                                 BeansHaptics.tap()
                                 openRoute(DiscoverRoute.playlist(playlist))
@@ -1223,7 +1285,7 @@ struct DiscoverView: View {
                 }
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    ForEach(visiblePersonalizedPlaylists) { playlist in
+                    ForEach(visiblePersonalizedPlaylists, id: \.uniqueKey) { playlist in
                         Button {
                             openRoute(DiscoverRoute.playlist(playlist))
                         } label: {
@@ -1289,6 +1351,8 @@ struct DiscoverView: View {
         case .qq: return "QQ音乐热门歌单"
         case .kugou: return "歌单广场"
         case .migu: return "咪咕歌单"
+        case .bodian: return "波点推荐歌单"
+        case .all: return "全部平台歌单"
         }
     }
 
@@ -1298,6 +1362,8 @@ struct DiscoverView: View {
         case .qq: return "QQ音乐热门歌单暂未加载成功\n下拉刷新可重新获取"
         case .kugou: return "歌单广场暂时没有内容"
         case .migu: return "咪咕暂未开放歌单接口"
+        case .bodian: return "波点推荐歌单暂时没有内容"
+        case .all: return "各平台歌单暂时没有内容\n下拉刷新可重新获取"
         }
     }
 
@@ -1437,7 +1503,8 @@ struct DiscoverView: View {
     }
 
     private func reloadAfterLoginUpdate(_ provider: SearchProvider) {
-        if source == provider {
+        // 「全部平台」模式下登录任何平台都只需要刷新聚合内容，不要跳走
+        if source == provider || source == .all {
             Task { await load(force: true) }
         } else {
             homeSourceRaw = provider.rawValue
@@ -1495,11 +1562,60 @@ struct DiscoverView: View {
             snapshot.dailySongs = daily
             snapshot.kugouTopLists = top
             snapshot.personalized = pp
+        case .bodian:
+            // 波点只开放推荐歌单，没有每日推荐与榜单
+            async let playlists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 18)) ?? []
+            snapshot.personalized = await playlists
         case .migu:
             // 咪咕不提供首页内容快照
             break
+        case .all:
+            // 各平台并行取，任何一个失败都不影响其它平台的内容
+            async let neteaseTop: [TopList] = (try? await NetEaseAPI.shared.topLists()) ?? []
+            async let neteaseDaily: [Song] = (try? await NetEaseAPI.shared.dailyRecommend()) ?? []
+            async let neteasePlaylists: [Playlist] = await NetEaseAPI.shared.recommendedHomePlaylists(
+                loggedIn: auth.isLoggedIn,
+                limit: 12
+            )
+            async let qqTop: [QQTopInfo] = (try? await QQMusicAPI.shared.topLists()) ?? []
+            async let qqPlaylists: [Playlist] = (try? await QQMusicAPI.shared.hotPlaylists(limit: 12)) ?? []
+            async let kugouTop: [KugouTopInfo] = (try? await KugouMusicAPI.shared.topLists(limit: 10)) ?? []
+            async let kugouPlaylists: [Playlist] = (try? await KugouMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
+            async let bodianPlaylists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
+            // async let 已经并行发起，这里逐个取值即可
+            let nt = await neteaseTop
+            let nd = await neteaseDaily
+            let np = await neteasePlaylists
+            let qt = await qqTop
+            let qp = await qqPlaylists
+            let kt = await kugouTop
+            let kp = await kugouPlaylists
+            let bp = await bodianPlaylists
+            snapshot.topLists = nt
+            snapshot.dailySongs = nd
+            snapshot.qqTopLists = qt
+            snapshot.kugouTopLists = kt
+            snapshot.personalized = Self.interleavePlaylists([np, qp, kp, bp])
         }
         return snapshot
+    }
+
+    /// 各平台歌单轮转交错，避免「全部」模式下一屏全是同一个平台
+    private static func interleavePlaylists(_ groups: [[Playlist]]) -> [Playlist] {
+        var queues = groups.filter { !$0.isEmpty }
+        var result: [Playlist] = []
+        while !queues.isEmpty {
+            var next: [[Playlist]] = []
+            for queue in queues {
+                if let head = queue.first {
+                    result.append(head)
+                    if queue.count > 1 { next.append(Array(queue.dropFirst())) }
+                }
+            }
+            queues = next
+        }
+        var seen = Set<String>()
+        return result.filter { seen.insert($0.uniqueKey).inserted }
     }
 
     private func loadKugouDailySongs(limit: Int) async -> [Song] {
@@ -2316,6 +2432,10 @@ private struct HomeUnifiedSearchSheet: View {
             return (try? await KugouMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
         case .migu:
             return (try? await MiguMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
+        case .bodian:
+            return (try? await BodianMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
+        case .all:
+            return []
         }
     }
 

@@ -113,6 +113,7 @@ enum ThirdPartyAudioQuality: String, CaseIterable, Identifiable, Sendable {
         case .qq: return supported(providerCode: "tx")
         case .kugou: return supported(providerCode: "kg")
         case .migu: return supported(providerCode: "mg")
+        case .bodian: return supported(providerCode: "kw")
         }
     }
 
@@ -139,12 +140,13 @@ enum ThirdPartyAudioQuality: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// 歌曲来源（网易云 / QQ音乐 / 酷狗音乐）
+/// 歌曲来源（网易云 / QQ音乐 / 酷狗音乐 / 咪咕音乐 / 波点音乐）
 enum SongSource: String, Codable, Sendable {
     case netease
     case qq
     case kugou
     case migu
+    case bodian
 
     /// 兼容旧版本地收藏：未知或已下线来源统一回退为网易云
     init(from decoder: Decoder) throws {
@@ -190,6 +192,7 @@ struct Song: Identifiable, Hashable, Codable {
         case .kugou: return "kugou-\(id)"
         case .netease: return "netease-\(id)"
         case .migu: return "migu-\(id)"
+        case .bodian: return "bodian-\(id)"
         }
     }
 
@@ -205,6 +208,8 @@ struct Song: Identifiable, Hashable, Codable {
         case .kugou:
             return fee != 0
         case .migu:
+            return fee != 0
+        case .bodian:
             return fee != 0
         }
     }
@@ -330,8 +335,10 @@ struct Playlist: Identifiable, Hashable, Codable {
     let specialType: Int
     /// 歌单来源（网易云 / QQ音乐），非网易云歌单用对应接口加载
     let source: SongSource
+    /// 平台侧的非数字标识：酷狗云歌单的 global_collection_id、波点歌单 id 等
+    var externalID: String?
 
-    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0, source: SongSource = .netease) {
+    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0, source: SongSource = .netease, externalID: String? = nil) {
         self.id = id
         self.name = name
         self.coverURL = coverURL
@@ -339,6 +346,7 @@ struct Playlist: Identifiable, Hashable, Codable {
         self.creatorName = ""
         self.specialType = 0
         self.source = source
+        self.externalID = externalID
     }
 
     init?(json: [String: Any]) {
@@ -351,6 +359,7 @@ struct Playlist: Identifiable, Hashable, Codable {
         creatorName = (json["creator"] as? [String: Any])?["nickname"] as? String ?? ""
         specialType = json["specialType"] as? Int ?? 0
         source = .netease
+        externalID = nil
     }
 
     init?(personalizedJSON json: [String: Any]) {
@@ -363,10 +372,21 @@ struct Playlist: Identifiable, Hashable, Codable {
         creatorName = ""
         specialType = json["specialType"] as? Int ?? 0
         source = .netease
+        externalID = nil
     }
 
     var isNetEaseLikedPlaylist: Bool {
         source == .netease && (specialType == 5 || name == "我喜欢的音乐" || name.localizedCaseInsensitiveContains("liked songs"))
+    }
+
+    /// 波点的「我喜欢」歌单
+    var isBodianLikedPlaylist: Bool {
+        source == .bodian && (name.contains("喜欢") || name.contains("红心"))
+    }
+
+    /// 跨平台唯一键：聚合多个平台的歌单时，数字 id 会撞车，用来源 + 平台侧 id 区分
+    var uniqueKey: String {
+        "\(source.rawValue)-\(externalID ?? String(id))"
     }
 }
 

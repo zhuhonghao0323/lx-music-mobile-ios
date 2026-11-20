@@ -39,6 +39,10 @@ struct PlaylistView: View {
         case .migu:
             // 咪咕无账号体系，歌单缓存不按账号区分
             return "migu"
+        case .bodian:
+            // 波点按当前登录账号隔离缓存，未登录用固定值
+            let bodianAuth = BodianMusicAuth.shared
+            return bodianAuth.isLoggedIn ? bodianAuth.uid : "bodian-guest"
         }
     }
 
@@ -189,7 +193,7 @@ struct PlaylistView: View {
         BeansLogger.shared.log("歌单页面打开 source=\(playlist.source.rawValue) id=\(playlist.id) name=\(playlist.name) advertisedCount=\(playlist.trackCount)", level: .info)
         do {
             if playlist.source == .kugou {
-                tracks = try await KugouMusicAPI.shared.playlistSongs(listID: playlist.id)
+                tracks = try await KugouMusicAPI.shared.playlistSongs(listID: playlist.id, externalID: playlist.externalID)
             } else if playlist.source == .qq {
                 tracks = try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
                 // 云端收藏接口临时被风控或返回空时，至少展示已同步到本机的 QQ 收藏，
@@ -197,6 +201,12 @@ struct PlaylistView: View {
                 if tracks.isEmpty, playlist.id == QQMusicAPI.qqLikedPlaylistID {
                     tracks = favorites.qqFavoriteSongs
                     BeansLogger.shared.log("QQ 我的喜欢页面网络结果为空，使用本地收藏回退 count=\(tracks.count)", level: tracks.isEmpty ? .warn : .info)
+                }
+            } else if playlist.source == .bodian {
+                tracks = try await BodianMusicAPI.shared.playlistTracks(playlistID: playlist.externalID ?? String(playlist.id))
+                if tracks.isEmpty, playlist.isBodianLikedPlaylist {
+                    tracks = favorites.bodianFavoriteSongs
+                    BeansLogger.shared.log("波点我的喜欢页面网络结果为空，使用本地收藏回退 count=\(tracks.count)", level: tracks.isEmpty ? .warn : .info)
                 }
             } else {
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)

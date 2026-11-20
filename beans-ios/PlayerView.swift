@@ -2797,6 +2797,12 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://music.migu.cn/v3/search?keyword=\(encoded)")
+        case .bodian:
+            if song.id > 0 {
+                return URL(string: "https://www.kuwo.cn/play_detail/\(song.id)")
+            }
+            let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://www.kuwo.cn/search/list?key=\(encoded)")
         }
     }
 
@@ -2932,6 +2938,10 @@ struct PlayerView: View {
             apply(LyricParser.parse(raw))
         } else if song.source == .migu {
             if let raw = await MiguMusicAPI.shared.lyric(urlString: song.miguLyricUrl) {
+                apply(LyricParser.parse(raw))
+            }
+        } else if song.source == .bodian {
+            if let raw = await BodianMusicAPI.shared.lyric(id: song.id) {
                 apply(LyricParser.parse(raw))
             }
         } else if song.source == .qq, let mid = song.qqMid {

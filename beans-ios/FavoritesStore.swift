@@ -13,18 +13,22 @@ final class FavoritesStore: ObservableObject {
     @Published private(set) var kugouFavoriteSongs: [Song] = []
     /// 咪咕红心收藏（咪咕无账号体系，仅本地持久化）
     @Published private(set) var miguFavoriteSongs: [Song] = []
+    /// 波点红心收藏（本地持久化；波点的红心歌单写入接口未验证，先不入云端）
+    @Published private(set) var bodianFavoriteSongs: [Song] = []
 
     private let defaults = UserDefaults.standard
     private let neteaseKey = "beans.fav.netease.v1"
     private let qqKey = "beans.fav.qq.v1"
     private let kugouKey = "beans.fav.kugou.v1"
     private let miguKey = "beans.fav.migu.v1"
+    private let bodianKey = "beans.fav.bodian.v1"
 
     private init() {
         qqFavoriteSongs = Self.loadSongs(qqKey)
         neteaseFavoriteSongs = Self.loadSongs(neteaseKey)
         kugouFavoriteSongs = Self.loadSongs(kugouKey)
         miguFavoriteSongs = Self.loadSongs(miguKey)
+        bodianFavoriteSongs = Self.loadSongs(bodianKey)
     }
 
     /// 该歌曲是否已收藏
@@ -42,6 +46,8 @@ final class FavoritesStore: ObservableObject {
             return kugouFavoriteSongs.contains { $0.identityKey == song.identityKey }
         case .migu:
             return miguFavoriteSongs.contains { $0.identityKey == song.identityKey }
+        case .bodian:
+            return bodianFavoriteSongs.contains { $0.identityKey == song.identityKey }
         }
     }
 
@@ -85,6 +91,10 @@ final class FavoritesStore: ObservableObject {
             let liked = !isLiked(song)
             updateMigu(song, liked: liked)
             return true
+        case .bodian:
+            let liked = !isLiked(song)
+            updateBodian(song, liked: liked)
+            return true
         }
     }
 
@@ -101,6 +111,15 @@ final class FavoritesStore: ObservableObject {
         guard let songs = try? await QQMusicAPI.shared.favoriteSongs(), !songs.isEmpty else { return }
         qqFavoriteSongs = songs
         saveSongs(qqFavoriteSongs, key: qqKey)
+    }
+
+    /// 登录波点后从云端同步「我喜欢」。只有云端明确返回歌曲时才覆盖本地，避免空响应误清空。
+    @MainActor
+    func syncBodianFromCloud() async {
+        guard BodianMusicAuth.shared.isLoggedIn else { return }
+        guard let songs = try? await BodianMusicAPI.shared.likedSongs(), !songs.isEmpty else { return }
+        bodianFavoriteSongs = songs
+        saveSongs(bodianFavoriteSongs, key: bodianKey)
     }
 
     private func updateNetease(_ song: Song, liked: Bool) {
@@ -147,6 +166,16 @@ final class FavoritesStore: ObservableObject {
             miguFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
         }
         saveSongs(miguFavoriteSongs, key: miguKey)
+    }
+
+    private func updateBodian(_ song: Song, liked: Bool) {
+        if liked {
+            bodianFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+            bodianFavoriteSongs.insert(song, at: 0)
+        } else {
+            bodianFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+        }
+        saveSongs(bodianFavoriteSongs, key: bodianKey)
     }
 
     private static func loadSongs(_ key: String) -> [Song] {

@@ -331,8 +331,10 @@ struct RootView: View {
 
     @ViewBuilder
     private var platformSelectionMenu: some View {
-        let homeOptions = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
-        let current = SearchProvider(rawValue: homeSourceRaw) ?? homeOptions.first ?? .netease
+        let homeOptions = [SearchProvider.all] + platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        let current: SearchProvider = homeSourceRaw == SearchProvider.all.rawValue
+            ? .all
+            : (SearchProvider(rawValue: homeSourceRaw) ?? homeOptions.first ?? .netease)
         Text("主页平台")
         ForEach(homeOptions) { provider in
             Button {

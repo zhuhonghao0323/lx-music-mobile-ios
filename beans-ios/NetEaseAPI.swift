@@ -534,6 +534,17 @@ final class NetEaseAPI {
         return sub.compactMap { $0["name"] as? String }
     }
 
+    /// 带分组的官方分类：groupIndex 对应官网的 0 语种 / 1 风格 / 2 场景 / 3 情感 / 4 主题
+    func playlistCatlistGrouped() async -> [NetEasePlaylistCategory] {
+        guard let json = try? await request("/api/playlist/catlist", payload: [:], crypto: "weapi") else { return [] }
+        let sub = json["sub"] as? [[String: Any]] ?? []
+        return sub.compactMap { item in
+            guard let name = item["name"] as? String, !name.isEmpty else { return nil }
+            let group = item["category"] as? Int ?? 1
+            return NetEasePlaylistCategory(name: name, groupIndex: group)
+        }
+    }
+
     func personalizedPlaylists(limit: Int = 20) async throws -> [Playlist] {
         let json = try await request("/api/personalized/playlist", payload: ["limit": limit, "n": limit], crypto: "weapi")
         let list = json["result"] as? [[String: Any]] ?? []
@@ -676,4 +687,12 @@ enum NetEaseError: LocalizedError {
         case .unknown(let message): return message
         }
     }
+}
+
+/// 网易云官方歌单分类项（groupIndex：0 语种 / 1 风格 / 2 场景 / 3 情感 / 4 主题）
+struct NetEasePlaylistCategory: Identifiable, Hashable {
+    let name: String
+    let groupIndex: Int
+
+    var id: String { "\(groupIndex)-\(name)" }
 }

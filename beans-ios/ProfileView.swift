@@ -65,6 +65,8 @@ struct ProfileView: View {
             case .qq: return "QQ Music"
             case .kugou: return "Kugou Music"
             case .migu: return "Migu Music"
+            case .bodian: return "Bodian Music"
+            case .all: return "All Platforms"
             }
         }.joined(separator: " / ")
     }
@@ -874,6 +876,7 @@ struct AccountHubSheet: View {
     @EnvironmentObject private var auth: AuthStore
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
+    @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
     @AppStorage("beans.language") private var languageRaw = AppLanguage.chinese.rawValue
     @Environment(\.dismiss) private var dismiss
@@ -881,9 +884,11 @@ struct AccountHubSheet: View {
     @State private var showNeteaseLogin = false
     @State private var showQQLogin = false
     @State private var showKugouLogin = false
+    @State private var showBodianLogin = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
     @State private var confirmKugouLogout = false
+    @State private var confirmBodianLogout = false
 
     private var isEnglish: Bool { languageRaw == AppLanguage.english.rawValue }
     private var displayPlatformSummary: String {
@@ -894,6 +899,8 @@ struct AccountHubSheet: View {
             case .qq: return "QQ Music"
             case .kugou: return "Kugou Music"
             case .migu: return "Migu Music"
+            case .bodian: return "Bodian Music"
+            case .all: return "All Platforms"
             }
         }.joined(separator: " / ")
     }
@@ -908,6 +915,7 @@ struct AccountHubSheet: View {
                         if platformPrefs.isEnabled(SearchProvider.netease) { neteaseCard }
                         if platformPrefs.isEnabled(SearchProvider.qq) { qqCard }
                         if platformPrefs.isEnabled(SearchProvider.kugou) { kugouCard }
+                        if platformPrefs.isEnabled(SearchProvider.bodian) { bodianCard }
                         Text(isEnglish ? "Sign in to \(displayPlatformSummary) to sync playlists and improve playback availability" : "\(platformPrefs.summaryText) 登录后可同步歌单并提升可播成功率")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
@@ -938,6 +946,10 @@ struct AccountHubSheet: View {
             KugouLoginSheet()
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showBodianLogin) {
+            BodianLoginSheet()
+                .environmentObject(theme)
+        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -959,6 +971,13 @@ struct AccountHubSheet: View {
                 kugouAuth.logout()
                 WebLoginDataCleaner.clearKugou()
                 ToastCenter.shared.show("已退出酷狗音乐")
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("退出波点音乐？", isPresented: $confirmBodianLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                bodianAuth.logout()
+                ToastCenter.shared.show("已退出波点音乐")
             }
             Button("取消", role: .cancel) {}
         }
@@ -1111,6 +1130,56 @@ struct AccountHubSheet: View {
                 Text(kugouAuth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(kugouAuth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background { BeansSurface(shape: Capsule()) }
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+
+    private var bodianCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if bodianAuth.isLoggedIn { confirmBodianLogout = true } else { showBodianLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                Image("BrandBodian")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color(red: 0.10, green: 0.80, blue: 0.62).opacity(0.25), radius: 10, y: 4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("波点音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    HStack(spacing: 6) {
+                        Group {
+                            if bodianAuth.isLoggedIn {
+                                Text(bodianAuth.nickname.isEmpty ? NSLocalizedString("已登录", comment: "") : bodianAuth.nickname)
+                            } else {
+                                Text(LocalizedStringKey("未登录 · App 扫码同步歌单"))
+                            }
+                        }
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        if bodianAuth.isLoggedIn, let badge = bodianAuth.vipBadge {
+                            VIPBadgeView(text: badge)
+                        }
+                    }
+                }
+                Spacer()
+                Text(bodianAuth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(bodianAuth.isLoggedIn ? Color.red : Color.beansAmber)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background { BeansSurface(shape: Capsule()) }

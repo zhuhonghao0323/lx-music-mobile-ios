@@ -9,6 +9,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
     case qq = "QQ音乐"
     case kugou = "酷狗音乐"
     case migu = "咪咕音乐"
+    case bodian = "波点音乐"
 
     var id: String { rawValue }
 
@@ -22,6 +23,8 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
             return LinearGradient(colors: [Color(red: 0.12, green: 0.58, blue: 0.95), Color(red: 0.02, green: 0.32, blue: 0.72)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .migu:
             return LinearGradient(colors: [Color(red: 0.98, green: 0.36, blue: 0.42), Color(red: 0.85, green: 0.16, blue: 0.36)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .bodian:
+            return LinearGradient(colors: [Color(red: 0.10, green: 0.80, blue: 0.62), Color(red: 0.03, green: 0.55, blue: 0.48)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -31,6 +34,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .qq: return "play.rectangle.fill"
         case .kugou: return "music.note"
         case .migu: return "dot.radiowaves.left.and.right"
+        case .bodian: return "b.circle.fill"
         }
     }
 
@@ -40,6 +44,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .qq: return "BrandQQ"
         case .kugou: return "BrandKugou"
         case .migu: return nil
+        case .bodian: return "BrandBodian"
         }
     }
 }
@@ -51,6 +56,7 @@ private extension LibraryProvider {
         case .qq: return .qq
         case .kugou: return .kugou
         case .migu: return .migu
+        case .bodian: return .bodian
         }
     }
 }
@@ -84,6 +90,10 @@ struct LibraryView: View {
     @State private var kugouPlaylists: [Playlist] = []
     @State private var kugouLoading = false
     @State private var kugouSavedAt = Date.distantPast
+    @State private var bodianPlaylists: [Playlist] = []
+    @State private var bodianLoading = false
+    @State private var bodianSavedAt = Date.distantPast
+    @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
     private var libraryProviders: [LibraryProvider] { platformPrefs.enabledLibraryProviders }
 
@@ -99,6 +109,10 @@ struct LibraryView: View {
         SyncedPlaylistOrderStore.shared.ordered(kugouPlaylists, source: .kugou)
     }
 
+    private var orderedBodianPlaylists: [Playlist] {
+        SyncedPlaylistOrderStore.shared.ordered(bodianPlaylists, source: .bodian)
+    }
+
     private var qqCacheAccountID: String {
         let raw = qqAuth.rawUin
         return raw.isEmpty ? qqAuth.playlistUin : raw
@@ -106,6 +120,10 @@ struct LibraryView: View {
 
     private var kugouCacheAccountID: String {
         kugouAuth.userId
+    }
+
+    private var bodianCacheAccountID: String {
+        bodianAuth.isLoggedIn ? bodianAuth.uid : "bodian-guest"
     }
 
     private var syncedPlaylistBinding: Binding<[Playlist]> {
@@ -116,6 +134,7 @@ struct LibraryView: View {
                 case .qq: return orderedQQPlaylists
                 case .kugou: return orderedKugouPlaylists
                 case .migu: return []
+                case .bodian: return orderedBodianPlaylists
                 }
             },
             set: { value in
@@ -124,6 +143,7 @@ struct LibraryView: View {
                 case .qq: qqPlaylists = value
                 case .kugou: kugouPlaylists = value
                 case .migu: break
+                case .bodian: bodianPlaylists = value
                 }
                 SyncedPlaylistOrderStore.shared.save(value, source: source.songSource)
             }
@@ -175,6 +195,7 @@ struct LibraryView: View {
                             case .qq: qqSection
                             case .kugou: kugouSection
                             case .migu: miguSection
+                            case .bodian: bodianSection
                             }
                         case "最近播放":
                             historySection
@@ -221,6 +242,11 @@ struct LibraryView: View {
             guard platformPrefs.isEnabled(SearchProvider.kugou) else { return }
             source = .kugou
             Task { await loadKugouPlaylists(force: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .beansBodianLoginDidUpdate)) { _ in
+            guard platformPrefs.isEnabled(SearchProvider.bodian) else { return }
+            source = .bodian
+            Task { await loadBodianPlaylists(force: true) }
         }
         .sheet(isPresented: $showHistory) {
             HistoryView()
@@ -344,6 +370,7 @@ struct LibraryView: View {
         case .qq: return "QQ 音乐收藏与歌单"
         case .kugou: return "酷狗云端歌单"
         case .migu: return "咪咕红心收藏"
+        case .bodian: return bodianAuth.isLoggedIn ? "波点云端歌单与收藏" : "波点红心收藏（未登录）"
         }
     }
 
@@ -566,6 +593,8 @@ struct LibraryView: View {
         case .migu:
             // 咪咕没有云端歌单，收藏为本地数据，无需刷新
             break
+        case .bodian:
+            await loadBodianPlaylists(force: force)
         }
     }
 
@@ -679,6 +708,83 @@ struct LibraryView: View {
         }
     }
 
+    /// 波点模式整体内容：云端歌单（自建 / 收藏 / 我喜欢）+ 本地红心兜底
+    private var bodianSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            SectionHeader(
+                title: "我的波点歌单",
+                trailing: bodianAuth.isLoggedIn ? "\(bodianPlaylists.count) 个" : nil
+            )
+            if !bodianAuth.isLoggedIn {
+                EmptyStateView(icon: "qrcode", text: "扫码登录波点音乐后即可同步云端歌单")
+            } else if bodianLoading {
+                LoadingStateView()
+            } else if bodianPlaylists.isEmpty {
+                EmptyStateView(icon: "music.note.list", text: "暂未同步到波点歌单，下拉刷新试试")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(orderedBodianPlaylists, id: \.uniqueKey) { playlist in
+                        Button {
+                            openRoute(LibraryRoute.playlist(playlist))
+                        } label: {
+                            HStack(spacing: 12) {
+                                CoverImage(url: playlist.coverURL, size: 56, cornerRadius: 12)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(playlist.name)
+                                        .font(BeansFont.appFont(15, .medium))
+                                        .foregroundStyle(Color.beansLabel)
+                                        .lineLimit(1)
+                                    Text(beansSongCountText(playlist.trackCount))
+                                        .font(BeansFont.appFont(12))
+                                        .foregroundStyle(Color.beansComment)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.beansComment.opacity(0.6))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        Divider().overlay(Color.beansComment.opacity(0.12))
+                    }
+                }
+                .padding(.vertical, 6)
+                .background {
+                    BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .beansCardShadow(radius: 8, y: 3)
+            }
+
+            SectionHeader(
+                title: "波点红心收藏",
+                trailing: favorites.bodianFavoriteSongs.isEmpty ? nil : "\(favorites.bodianFavoriteSongs.count) 首"
+            )
+            if favorites.bodianFavoriteSongs.isEmpty {
+                EmptyStateView(icon: "heart", text: "还没有波点收藏\n在波点歌曲上点 ♡ 后会出现在这里")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(favorites.bodianFavoriteSongs, id: \.identityKey) { song in
+                        SongCell(song: song, suppressNativeCleanRowGlass: isNativeClean) {
+                            if let index = favorites.bodianFavoriteSongs.firstIndex(of: song) {
+                                player.play(songs: favorites.bodianFavoriteSongs, startAt: index)
+                            }
+                        }
+                        Divider().overlay(Color.beansComment.opacity(0.15))
+                    }
+                }
+                .padding(.vertical, 6)
+                .background {
+                    BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+        }
+    }
+
     private var kugouPlaylistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "我的酷狗歌单", trailing: kugouAuth.isLoggedIn ? "\(kugouPlaylists.count) 个" : nil)
@@ -788,6 +894,35 @@ struct LibraryView: View {
         kugouLoading = false
     }
 
+    private func loadBodianPlaylists(force: Bool = false) async {
+        guard bodianAuth.isLoggedIn else {
+            bodianPlaylists = []
+            bodianLoading = false
+            return
+        }
+        let cache = SyncedPlaylistCache.shared
+        if bodianPlaylists.isEmpty,
+           let cached = cache.cachedPlaylists(source: .bodian, accountID: bodianCacheAccountID) {
+            bodianPlaylists = cached.playlists
+            bodianSavedAt = cached.savedAt
+        }
+        if !force, !bodianPlaylists.isEmpty, Date().timeIntervalSince(bodianSavedAt) < cache.playlistTTL { return }
+        bodianLoading = bodianPlaylists.isEmpty
+        do {
+            let list = try await BodianMusicAPI.shared.userPlaylists()
+            if !list.isEmpty {
+                bodianPlaylists = list
+                bodianSavedAt = Date()
+                cache.savePlaylists(list, source: .bodian, accountID: bodianCacheAccountID)
+            }
+            // 歌单拿到后再同步一次「我喜欢」，红心收藏也能跨设备
+            await favorites.syncBodianFromCloud()
+        } catch {
+            BeansLogger.shared.log("波点歌单同步失败：\(error.localizedDescription)", level: .error)
+        }
+        bodianLoading = false
+    }
+
     private func fillQQPlaylistCovers(_ list: [Playlist]) async {
         let missing = list.filter { $0.coverURL == nil }
         guard !missing.isEmpty else { return }
@@ -853,6 +988,8 @@ struct LibraryView: View {
             ToastCenter.shared.show("酷狗歌单暂不支持新建")
         case .migu:
             ToastCenter.shared.show("咪咕暂不支持新建歌单")
+        case .bodian:
+            ToastCenter.shared.show("波点歌单暂不支持新建")
         }
     }
 
@@ -896,6 +1033,8 @@ struct LibraryView: View {
             ToastCenter.shared.show("酷狗歌单暂不支持删除")
         case .migu:
             ToastCenter.shared.show("咪咕暂不支持删除歌单")
+        case .bodian:
+            ToastCenter.shared.show("波点歌单暂不支持删除")
         }
     }
 

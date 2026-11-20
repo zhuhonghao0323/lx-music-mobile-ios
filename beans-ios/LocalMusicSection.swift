@@ -243,7 +243,7 @@ struct LocalMusicSection: View {
                     return name.contains("喜欢") || name.contains("收藏") || name.contains("红心")
                 }
                 if let liked {
-                    let kugouSongs = try await KugouMusicAPI.shared.playlistSongs(listID: liked.id)
+                    let kugouSongs = try await KugouMusicAPI.shared.playlistSongs(listID: liked.id, externalID: liked.externalID)
                     songs.append(contentsOf: kugouSongs)
                     details.append(platformSongCount("酷狗音乐", kugouSongs.count))
                 } else {
@@ -714,6 +714,11 @@ struct LocalSearchAddSheet: View {
                     songs = try await KugouMusicAPI.shared.searchSongs(keyword: trimmed)
                 case .migu:
                     songs = try await MiguMusicAPI.shared.searchSongs(keyword: trimmed, limit: 30)
+                case .bodian:
+                    songs = try await BodianMusicAPI.shared.searchSongs(keyword: trimmed, limit: 30)
+                case .all:
+                    // 该面板只在真实平台间切换，落到「全部」时按网易云处理，避免空结果
+                    songs = try await NetEaseAPI.shared.search(keyword: trimmed, limit: 30)
                 }
                 guard !Task.isCancelled else { return }
                 results = songs

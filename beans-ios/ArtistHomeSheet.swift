@@ -48,7 +48,7 @@ struct ArtistHomeSheet: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 artistHeader
                                 hotSongsSection
-                                if artistSource == .netease || artistSource == .migu {
+                                if artistSource == .netease || artistSource == .migu || artistSource == .bodian {
                                     albumsSection
                                 }
                             }
@@ -93,7 +93,7 @@ struct ArtistHomeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                Text(artistSource == .netease
+                Text(artistSource == .netease || artistSource == .migu || artistSource == .bodian
                      ? beansLocalized("热门歌曲 \(hotSongs.count) 首 · 专辑 \(albums.count) 张", "Popular songs: \(hotSongs.count) · Albums: \(albums.count)")
                      : beansLocalized("热门歌曲 \(hotSongs.count) 首", "Popular songs: \(hotSongs.count)"))
                     .font(BeansFont.appFont(12))
@@ -299,9 +299,30 @@ struct ArtistHomeSheet: View {
             await loadKugouArtist()
         } else if artistSource == .migu {
             await loadMiguArtist()
+        } else if artistSource == .bodian {
+            await loadBodianArtist()
         } else {
             await loadNetEaseArtist()
         }
+    }
+
+    /// 波点没有歌手详情接口，用「歌手名搜索」兜底热歌与专辑
+    private func loadBodianArtist() async {
+        let songs = (try? await BodianMusicAPI.shared.searchSongs(keyword: artistName, limit: 80)) ?? []
+        let matched = songs.filter { $0.artists.contains(artistName) }
+        let list = matched.isEmpty ? songs : matched
+        artist = Artist(
+            id: "bodian-\(artistName)",
+            name: artistName,
+            coverURL: list.first?.coverURL,
+            source: .bodian
+        )
+        hotSongs = list
+        albums = SearchAggregator.albums(from: list).filter { $0.artistName.contains(artistName) }
+        if hotSongs.isEmpty && albums.isEmpty {
+            errorMessage = "未找到歌手「\(artistName)」"
+        }
+        loading = false
     }
 
     /// 咪咕没有歌手详情接口，用「歌手名搜索」兜底热歌与专辑

@@ -969,7 +969,68 @@ final class KugouMusicAPI {
         ]
     }
 
-    func playlistSongs(listID: Int) async throws -> [Song] {
+    /// 云歌单歌曲：`get_other_list_file_nofilt` 只认 global_collection_id，公开接口不用登录，
+    /// 是 KuGouMusicApi / LIZI 里实测可用的那条路径（v4 get_list_all_file 常返回空）。
+    private func collectionSongs(
+        collectionID: String,
+        page: Int,
+        pageSize: Int
+    ) async throws -> (rows: [[String: Any]], total: Int) {
+        let auth = KugouMusicAuth.shared
+        var params = baseParams()
+        params["area_code"] = "1"
+        params["begin_idx"] = "\(max(0, (page - 1) * pageSize))"
+        params["plat"] = "1"
+        params["type"] = "1"
+        params["mode"] = "1"
+        params["personal_switch"] = "1"
+        params["extend_fields"] = "abtags,hot_cmt,popularization"
+        params["pagesize"] = "\(pageSize)"
+        params["global_collection_id"] = collectionID
+        params["signature"] = androidSignature(params: params, data: "")
+        let response = try await request(
+            "/pubsongs/v2/get_other_list_file_nofilt",
+            baseURL: gateway,
+            method: "GET",
+            params: params,
+            body: nil,
+            headers: [
+                "User-Agent": androidUA,
+                "dfid": auth.dfid,
+                "mid": auth.mid,
+                "Cookie": auth.cookieHeader,
+            ]
+        )
+        let payload = response.json["data"] as? [String: Any] ?? [:]
+        let rows = (payload["songs"] as? [[String: Any]])
+            ?? (payload["info"] as? [[String: Any]])
+            ?? (payload["list"] as? [[String: Any]])
+            ?? []
+        let total = Self.int(payload["count"] ?? payload["total"] ?? response.json["total"])
+        return (rows, total)
+    }
+
+    func playlistSongs(listID: Int, externalID: String? = nil) async throws -> [Song] {
+        // 1) 自己的云歌单：优先公开的 gcid 接口
+        if let gcid = externalID?.trimmingCharacters(in: .whitespacesAndNewlines), !gcid.isEmpty {
+            var collected: [[String: Any]] = []
+            var page = 1
+            let pageSize = 200
+            while page <= 60 {
+                guard let result = try? await collectionSongs(collectionID: gcid, page: page, pageSize: pageSize) else { break }
+                collected.append(contentsOf: result.rows)
+                if result.rows.isEmpty || result.rows.count < pageSize { break }
+                if result.total > 0 && collected.count >= result.total { break }
+                page += 1
+            }
+            let mapped = collected.compactMap(Self.mapTrack)
+            BeansLogger.shared.log(
+                "酷狗云歌单歌曲：gcid=\(gcid) 原始 \(collected.count) 首 可播放 \(mapped.count) 首",
+                level: mapped.isEmpty ? .warn : .info
+            )
+            if !mapped.isEmpty { return mapped }
+        }
+        // 2) 公开 special 页（歌单广场里的歌单）
         if listID >= 1000,
            let songs = try? await officialWebPlaylistSongs(listID: listID),
            !songs.isEmpty {
@@ -997,7 +1058,15 @@ final class KugouMusicAPI {
             ]
             let json = try await cloudlistRequest("/v4/get_list_all_file", params: ["listid": pid, "page": "\(page)", "pagesize": "200"], data: body)
             let pageTracks = Self.deepArrays(json, names: ["songs", "songlist", "list", "info", "files", "data"])
-            BeansLogger.shared.log("酷狗歌单歌曲：listid=\(pid) page=\(page) 返回 \(pageTracks.count) 首", level: .debug)
+            let status = Self.deepInt(json, names: ["status", "error_code", "errcode", "code"])
+            BeansLogger.shared.log(
+                "酷狗歌单歌曲：listid=\(pid) page=\(page) 返回 \(pageTracks.count) 首 status=\(status)",
+                level: pageTracks.isEmpty ? .warn : .debug
+            )
+            if pageTracks.isEmpty && page == 1 {
+                let hint = Self.deepString(json, names: ["error", "msg", "error_msg", "info"])
+                BeansLogger.shared.log("酷狗歌单歌曲为空：status=\(status) msg=\(hint)", level: .warn)
+            }
             all.append(contentsOf: pageTracks)
             if all.count >= maxSongs { break }
             if pageTracks.count < pageSize { break }
@@ -1855,7 +1924,17 @@ final class KugouMusicAPI {
         let name = string(raw["name"] ?? raw["listname"] ?? raw["list_name"] ?? raw["specialname"] ?? raw["title"])
         let cover = string(raw["pic"] ?? raw["img"] ?? raw["cover"] ?? raw["sizable_cover"] ?? raw["list_pic"]).replacingOccurrences(of: "{size}", with: "240")
         let count = int(raw["count"] ?? raw["song_count"] ?? raw["total"] ?? raw["file_count"] ?? raw["songcount"])
-        return Playlist(id: id, name: name.isEmpty ? "酷狗歌单" : name, coverURL: URL(string: cover), trackCount: count, source: .kugou)
+        // 云歌单的歌曲接口只认 global_collection_id，必须和数字 listid 一起带出去
+        let gcid = string(raw["global_collection_id"] ?? raw["globalCollectionId"] ?? raw["global_collect_id"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Playlist(
+            id: id,
+            name: name.isEmpty ? "酷狗歌单" : name,
+            coverURL: URL(string: cover),
+            trackCount: count,
+            source: .kugou,
+            externalID: gcid.isEmpty ? nil : gcid
+        )
     }
 
     private static func mapTrack(_ raw: [String: Any]) -> Song? {

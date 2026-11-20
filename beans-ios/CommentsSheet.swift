@@ -55,6 +55,8 @@ struct CommentsSheet: View {
                         }
                     } else if song.source == .migu {
                         EmptyStateView(icon: "bubble.left", text: "咪咕暂不支持查看评论")
+                    } else if song.source == .bodian {
+                        EmptyStateView(icon: "bubble.left", text: "波点暂不支持查看评论")
                     } else if song.source == .kugou {
                         kugouCommentList
                     } else if song.source == .qq {
@@ -128,8 +130,8 @@ struct CommentsSheet: View {
             loading = true
         }
         errorMessage = nil
-        // 咪咕没有公开评论接口，直接展示空状态
-        if song.source == .migu {
+        // 咪咕 / 波点没有公开评论接口，直接展示空状态
+        if song.source == .migu || song.source == .bodian {
             loading = false
             return
         }

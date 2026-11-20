@@ -205,6 +205,8 @@ enum UnblockService {
         case .migu:
             guard let miguID, !miguID.isEmpty else { return nil }
             songIDs = [miguID]
+        case .bodian where neteaseID > 0:
+            songIDs = [String(neteaseID)]
         default:
             return nil
         }
@@ -323,6 +325,8 @@ enum UnblockService {
         case .migu:
             guard let miguID, !miguID.isEmpty else { return nil }
             songIDs = [miguID]
+        case .bodian where neteaseID > 0:
+            songIDs = [String(neteaseID)]
         default:
             return nil
         }
@@ -503,7 +507,7 @@ enum UnblockService {
         let sourceDefault = ThirdPartyAudioQuality(sourceValue: source.quality)
         let platformDefault: ThirdPartyAudioQuality = {
             switch songSource {
-            case .netease, .qq, .kugou, .migu:
+            case .netease, .qq, .kugou, .migu, .bodian:
                 return .kb320
             }
         }()
@@ -627,6 +631,7 @@ enum UnblockService {
         case .qq: return "tx"
         case .kugou: return "kg"
         case .migu: return "mg"
+        case .bodian: return "kw"
         }
     }
 

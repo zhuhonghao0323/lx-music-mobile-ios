@@ -43,17 +43,45 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     case qq = "QQ音乐"
     case kugou = "酷狗音乐"
     case migu = "咪咕音乐"
+    case bodian = "波点音乐"
+    /// 首页聚合模式：把各平台首页内容合并展示。不是真实平台，因此不参与平台启用/排序。
+    case all = "全部平台"
+
+    /// 真实平台列表（排除聚合模式）。`allCases` 被它覆盖，所以平台启用开关、排序、
+    /// 搜索页的平台选择器都不会出现「全部平台」。
+    static var allCases: [SearchProvider] {
+        [.netease, .qq, .kugou, .migu, .bodian]
+    }
+
+    /// 是否是真实平台（可登录、可搜索、可播放）。
+    var isRealPlatform: Bool { self != .all }
 
     /// 平台是否提供首页内容（每日推荐 / 排行榜 / 歌单广场）。
-    /// 咪咕目前只做搜索、播放、歌词，不提供这些板块。
+    /// 咪咕目前只做搜索、播放、歌词，不提供这些板块；聚合模式视作提供。
     var supportsHomeFeed: Bool {
         switch self {
-        case .netease, .qq, .kugou: return true
+        case .netease, .qq, .kugou, .bodian, .all: return true
         case .migu: return false
         }
     }
 
     var id: String { rawValue }
+
+    /// 平台是否提供排行榜（咪咕、波点没有公开榜单接口）
+    var supportsCharts: Bool {
+        switch self {
+        case .netease, .qq, .kugou, .all: return true
+        case .migu, .bodian: return false
+        }
+    }
+
+    /// 平台是否提供歌单广场内容
+    var supportsPlaylistSquare: Bool {
+        switch self {
+        case .netease, .qq, .kugou, .bodian, .all: return true
+        case .migu: return false
+        }
+    }
 
     /// 主题色渐变：网易云红 / QQ 绿
     var tint: LinearGradient {
@@ -70,6 +98,12 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .migu: return LinearGradient(
             colors: [Color(red: 0.98, green: 0.36, blue: 0.42), Color(red: 0.85, green: 0.16, blue: 0.36)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .bodian: return LinearGradient(
+            colors: [Color(red: 0.10, green: 0.80, blue: 0.62), Color(red: 0.03, green: 0.55, blue: 0.48)],
+            startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .all: return LinearGradient(
+            colors: [Color(red: 0.45, green: 0.42, blue: 0.92), Color(red: 0.20, green: 0.66, blue: 0.86)],
+            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -79,6 +113,8 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .qq: return "play.rectangle.fill"
         case .kugou: return "music.note"
         case .migu: return "dot.radiowaves.left.and.right"
+        case .bodian: return "b.circle.fill"
+        case .all: return "square.grid.2x2.fill"
         }
     }
 
@@ -88,6 +124,30 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .qq: return "BrandQQ"
         case .kugou: return "BrandKugou"
         case .migu: return nil
+        case .bodian: return "BrandBodian"
+        case .all: return "BrandAll"
+        }
+    }
+
+    /// 平台短名（用于歌曲行的小角标）
+    var shortName: String {
+        switch self {
+        case .netease: return "网易云"
+        case .qq: return "QQ"
+        case .kugou: return "酷狗"
+        case .migu: return "咪咕"
+        case .bodian: return "波点"
+        case .all: return "全部"
+        }
+    }
+
+    init(songSource: SongSource) {
+        switch songSource {
+        case .netease: self = .netease
+        case .qq: self = .qq
+        case .kugou: self = .kugou
+        case .migu: self = .migu
+        case .bodian: self = .bodian
         }
     }
 }
@@ -98,6 +158,48 @@ enum SearchResultType: String, CaseIterable, Identifiable {
     case album = "专辑"
 
     var id: String { rawValue }
+}
+
+/// 没有独立歌手/专辑搜索接口的平台（目前是波点），从歌曲结果里归并出条目。
+enum SearchAggregator {
+    static func artists(from songs: [Song]) -> [Artist] {
+        var seen = Set<String>()
+        var result: [Artist] = []
+        for song in songs {
+            for name in song.artists.components(separatedBy: " / ") {
+                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, trimmed != "未知歌手" else { continue }
+                guard seen.insert(trimmed).inserted else { continue }
+                result.append(Artist(
+                    id: trimmed,
+                    name: trimmed,
+                    coverURL: song.coverURL,
+                    source: song.source
+                ))
+            }
+        }
+        return result
+    }
+
+    static func albums(from songs: [Song]) -> [Album] {
+        var seen = Set<String>()
+        var result: [Album] = []
+        for song in songs {
+            let name = song.album.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            let key = "\(name)|\(song.artists)"
+            guard seen.insert(key).inserted else { continue }
+            result.append(Album(
+                id: key,
+                name: name,
+                artistName: song.artists,
+                coverURL: song.coverURL,
+                source: song.source,
+                trackCount: nil
+            ))
+        }
+        return result
+    }
 }
 
 struct SearchView: View {
@@ -452,7 +554,11 @@ struct SearchView: View {
                     historyStore.record(word)
                     Task { await startSearch(word) }
                 }
-                SectionHeader(title: provider == .netease ? "网易云音乐热搜" : provider == .qq ? "QQ音乐热搜" : "酷狗音乐热搜")
+                SectionHeader(title: provider == .netease
+                        ? "网易云音乐热搜"
+                        : provider == .qq
+                        ? "QQ音乐热搜"
+                        : (provider == .bodian ? "波点音乐热搜" : "酷狗音乐热搜"))
                 if hotWords.isEmpty {
                     LoadingStateView()
                 } else {
@@ -795,6 +901,9 @@ struct SearchView: View {
             hotWords = await KugouMusicAPI.shared.hotWords()
         } else if provider == .migu {
             hotWords = []
+        } else if provider == .bodian {
+            // 波点没有热搜榜接口，留空走默认提示
+            hotWords = []
         } else if let words = try? await NetEaseAPI.shared.hotSearch() {
             hotWords = words
         }
@@ -879,6 +988,33 @@ struct SearchView: View {
                     let albums = try await MiguMusicAPI.shared.searchAlbums(keyword: trimmed)
                     guard !Task.isCancelled else { return }
                     await MainActor.run { albumResults = albums }
+                case (.bodian, .song):
+                    let songs = try await BodianMusicAPI.shared.searchSongs(keyword: trimmed, limit: 40)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        songResults = songs
+                        if !songs.isEmpty { BeansHaptics.success() }
+                    }
+                case (.bodian, .artist):
+                    // 波点没有独立的歌手搜索接口，从歌曲结果里归并歌手，避免给出空页面
+                    let songs = (try? await BodianMusicAPI.shared.searchSongs(keyword: trimmed, limit: 60)) ?? []
+                    let artists = SearchAggregator.artists(from: songs)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { artistResults = artists }
+                case (.bodian, .album):
+                    // 同上：波点没有专辑搜索，用歌曲结果里的专辑字段归并
+                    let songs = (try? await BodianMusicAPI.shared.searchSongs(keyword: trimmed, limit: 60)) ?? []
+                    let albums = SearchAggregator.albums(from: songs)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { albumResults = albums }
+                case (.all, _):
+                    // 「全部平台」只用于首页聚合，不参与搜索
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        songResults = []
+                        artistResults = []
+                        albumResults = []
+                    }
                 }
                 let count = await MainActor.run {
                     selectedType == .song ? songResults.count : (selectedType == .artist ? artistResults.count : albumResults.count)
@@ -1018,6 +1154,13 @@ struct AlbumDetailView: View {
                     artistName: album.artistName,
                     limit: 60
                 )) ?? []
+            case .bodian:
+                result = await searchFallbackSongs(
+                    queries: [albumSearchQuery, album.name],
+                    search: { query in
+                        (try? await BodianMusicAPI.shared.searchSongs(keyword: query, limit: 100)) ?? []
+                    }
+                )
             }
             if !result.isEmpty {
                 cache.save(result, for: cacheKey)

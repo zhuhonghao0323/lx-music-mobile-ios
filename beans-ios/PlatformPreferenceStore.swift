@@ -18,6 +18,7 @@ final class PlatformPreferenceStore: ObservableObject {
 
     /// 新增平台时给老用户自动补上，避免「升级后看不到新平台」。
     private static let miguMigratedKey = "beans.platformMigration.migu.v1"
+    private static let bodianMigratedKey = "beans.platformMigration.bodian.v1"
 
     private init() {
         let saved = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
@@ -31,6 +32,11 @@ final class PlatformPreferenceStore: ObservableObject {
                 initialSelected.insert(SearchProvider.migu.rawValue)
                 UserDefaults.standard.set(Array(initialSelected), forKey: Self.key)
                 UserDefaults.standard.set(true, forKey: Self.miguMigratedKey)
+            }
+            if !UserDefaults.standard.bool(forKey: Self.bodianMigratedKey) {
+                initialSelected.insert(SearchProvider.bodian.rawValue)
+                UserDefaults.standard.set(Array(initialSelected), forKey: Self.key)
+                UserDefaults.standard.set(true, forKey: Self.bodianMigratedKey)
             }
         }
         selectedRaw = initialSelected
@@ -141,6 +147,7 @@ extension LibraryProvider {
         case .qq: return .qq
         case .kugou: return .kugou
         case .migu: return .migu
+        case .bodian: return .bodian
         }
     }
 }

@@ -15,14 +15,19 @@ final class FavoritePlaylistStore: ObservableObject {
     }
 
     func contains(_ playlist: Playlist) -> Bool {
-        playlists.contains { $0.id == playlist.id && $0.source == playlist.source }
+        playlists.contains { isSame($0, playlist) }
+    }
+
+    /// 数字 id 在不同平台会撞车，波点歌单 id 还是哈希出来的，必须用 uniqueKey 兜一层
+    private func isSame(_ lhs: Playlist, _ rhs: Playlist) -> Bool {
+        lhs.uniqueKey == rhs.uniqueKey || (lhs.id == rhs.id && lhs.source == rhs.source)
     }
 
     /// 返回操作后的收藏状态
     @discardableResult
     func toggle(_ playlist: Playlist) -> Bool {
         if contains(playlist) {
-            playlists.removeAll { $0.id == playlist.id && $0.source == playlist.source }
+            playlists.removeAll { isSame($0, playlist) }
             save()
             return false
         }
