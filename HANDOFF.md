@@ -1,7 +1,56 @@
 # LX Music iOS 重构项目 · 交接文档
 
-> 生成时间：2026-11-20
-> 交接时最新提交：`b9b55cc2`（分支 `ios-adaptation`）
+> 生成时间：2026-11-20（最后更新：2026-11-20 17:40）
+> 交接时最新提交：`1d45f268`（分支 `ios-adaptation`）
+> 下文「一 ~ N」为首次交接时的内容，其中提交号、Token 等已过期，仅作历史参考；
+> **接手请先读下面的「零、云端继续做」**。
+
+---
+
+## 零、云端继续做（手机 WorkBuddy「云端工作」）
+
+电脑关机后，手机 App 用「云端工作」执行环境接手。云端沙箱是 **Linux**，没有 Xcode，**改完必须靠 GitHub Actions 出包**。
+
+### 0.1 快速开始（可直接粘给云端会话）
+
+```
+克隆 https://github.com/zhuhonghao0323/lx-music-mobile-ios ，切到 ios-adaptation 分支。
+这是一个 SwiftUI 的 iOS 音乐 App（beans-ios/，用 XcodeGen 生成工程，beans-project.yml 定义）。
+云端没有 Xcode，不要尝试本地编译；改完 push 到 ios-adaptation，GitHub Actions
+(.github/workflows/beans-ipa.yml, macos-26) 会自动构建并覆盖 release tag beans-latest。
+请先读 HANDOFF.md 的「零、云端继续做」，再按下面待办继续。
+```
+
+### 0.2 云端要注意的坑
+
+| 事项 | 说明 |
+|---|---|
+| 沙箱不持久 | 任务结束沙箱可能被清理，**改完立刻 commit & push**，不要只留在云端 |
+| 不能本地编译 | Linux 无 xcodebuild；编译错误靠 CI 的 `ci-failure.log`（失败时工作流会把 `grep "error:"` 提交回分支） |
+| 推送凭据 | 仓库是 public，clone 免认证，**push 需要 PAT**（fine-grained，仅该仓库 Contents: Read and write），用完在 GitHub 撤销 |
+| 不需要代理 | 云端直连 GitHub，不要再加 `http.proxy=127.0.0.1:7897`（那是本机 Windows 才需要的） |
+| 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
+| 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
+
+### 0.3 当前状态（2026-11-20）
+
+已完成并 CI 通过（`1d45f268`，版本 **1.11.0 (80)**）：
+
+- 波点音乐接入（搜索 / 推荐歌单 / 扫码登录 / 播放 / 歌词 / 收藏）
+- 首页默认「全部」平台聚合歌单，左上角图标下拉切换
+- 歌单广场三列网格 + 推荐/最热/最新 + 分类筛选弹窗
+- **酷狗云歌单修复**：gcid → `t.kugou.com/v1/songlist/batch_decode` 反解 specialid → `mobiles.kugou.com/api/v5/special/song` 分页取全量（原来 1602 首点进去 0 首）
+- **歌单分两类**：账号同步歌单 + 导入歌单（`ImportedPlaylistStore` / `PlaylistImportService` / `ImportPlaylistSheet`，本地 JSON 落盘，可更新/重命名/删除；歌单广场长按可导入）
+- **播放手势**：封面右滑歌词、上划下一曲、下滑上一曲、左滑下一首；歌词页左滑返回；双击封面收藏；评论入口移到右上角菜单
+
+待真机验证：
+
+1. 之前那个 1602 首的酷狗歌单能否正常列出歌曲
+2. 三种封面风格（Apple Music / 经典 / 黑胶）的手势手感、是否与滚动/点击冲突
+3. 导入歌单：网易云、QQ、酷狗（gcid / specialid 两种链接）、波点的抓取与「更新」
+4. 波点扫码登录同步、VIP 状态识别
+
+关键文件索引：`beans-ios/KugouMusicAPI.swift`（歌单/播放）、`beans-ios/ImportedPlaylistStore.swift`、`beans-ios/PlaylistImportService.swift`、`beans-ios/LibraryView.swift`（两类歌单 UI）、`beans-ios/PlayerView.swift` + `ReferencePlaybackView.swift` + `VinylPlayerView.swift`（手势）。
 
 ---
 
