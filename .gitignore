@@ -66,3 +66,6 @@ buck-out/
 
 # testing
 /coverage
+
+# CI 失败日志（仅排查用，由工作流强制提交时忽略）
+ci-failure.log
