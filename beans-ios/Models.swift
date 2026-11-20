@@ -173,6 +173,8 @@ struct Song: Identifiable, Hashable, Codable {
     let kugouQualityHashes: [String: String]?
     /// 咪咕音乐版权 id（source == .migu 时用于播放地址、歌词与音源脚本解析）
     let miguCopyrightId: String?
+    /// 咪咕歌词直链（搜索结果里直接给出 LRC 地址）
+    let miguLyricUrl: String?
     /// 付费/VIP 标记（网易云：0 免费、1 VIP、4 付费单曲；QQ：0 免费、非 0 付费）
     let fee: Int
 
@@ -207,7 +209,7 @@ struct Song: Identifiable, Hashable, Codable {
         }
     }
 
-    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, qqMediaMid: String? = nil, kugouHash: String? = nil, kugouAlbumAudioId: String? = nil, kugouAlbumId: String? = nil, kugouQualityHashes: [String: String]? = nil, miguCopyrightId: String? = nil, fee: Int = 0) {
+    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, qqMediaMid: String? = nil, kugouHash: String? = nil, kugouAlbumAudioId: String? = nil, kugouAlbumId: String? = nil, kugouQualityHashes: [String: String]? = nil, miguCopyrightId: String? = nil, miguLyricUrl: String? = nil, fee: Int = 0) {
         self.id = id
         self.name = name
         self.artists = artists
@@ -222,6 +224,7 @@ struct Song: Identifiable, Hashable, Codable {
         self.kugouAlbumId = kugouAlbumId
         self.kugouQualityHashes = kugouQualityHashes
         self.miguCopyrightId = miguCopyrightId
+        self.miguLyricUrl = miguLyricUrl
         self.fee = fee
     }
 
@@ -253,10 +256,11 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumId = nil
         kugouQualityHashes = nil
         miguCopyrightId = nil
+        miguLyricUrl = nil
         fee = json["fee"] as? Int ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, qqMediaMid, kugouHash, kugouAlbumAudioId, kugouAlbumId, kugouQualityHashes, miguCopyrightId, fee }
+    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, qqMediaMid, kugouHash, kugouAlbumAudioId, kugouAlbumId, kugouQualityHashes, miguCopyrightId, miguLyricUrl, fee }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -274,6 +278,7 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumId = try c.decodeIfPresent(String.self, forKey: .kugouAlbumId)
         kugouQualityHashes = try c.decodeIfPresent([String: String].self, forKey: .kugouQualityHashes)
         miguCopyrightId = try c.decodeIfPresent(String.self, forKey: .miguCopyrightId)
+        miguLyricUrl = try c.decodeIfPresent(String.self, forKey: .miguLyricUrl)
         fee = try c.decodeIfPresent(Int.self, forKey: .fee) ?? 0
     }
 
@@ -293,6 +298,7 @@ struct Song: Identifiable, Hashable, Codable {
         try c.encodeIfPresent(kugouAlbumId, forKey: .kugouAlbumId)
         try c.encodeIfPresent(kugouQualityHashes, forKey: .kugouQualityHashes)
         try c.encodeIfPresent(miguCopyrightId, forKey: .miguCopyrightId)
+        try c.encodeIfPresent(miguLyricUrl, forKey: .miguLyricUrl)
         try c.encode(fee, forKey: .fee)
     }
 }

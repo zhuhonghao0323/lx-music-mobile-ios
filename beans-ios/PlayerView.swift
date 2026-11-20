@@ -2930,6 +2930,10 @@ struct PlayerView: View {
         if song.source == .kugou, let hash = song.kugouHash {
             let raw = await KugouMusicAPI.shared.lyric(hash: hash, duration: song.duration)
             apply(LyricParser.parse(raw))
+        } else if song.source == .migu {
+            if let raw = await MiguMusicAPI.shared.lyric(urlString: song.miguLyricUrl) {
+                apply(LyricParser.parse(raw))
+            }
         } else if song.source == .qq, let mid = song.qqMid {
             if let raw = try? await QQMusicAPI.shared.lyric(songmid: mid) {
                 apply(LyricParser.parse(raw))

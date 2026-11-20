@@ -174,15 +174,18 @@ final class MiguMusicAPI {
             let cover = imageURL(from: item["imgItems"])
             let vip = (string(item["vipType"]) ?? "").isEmpty == false
             let charged = (string(item["chargeAuditions"]) ?? "0") != "0"
+            let seconds = Double(Int(string(item["duration"]) ?? "") ?? 0)
+            let lyricURL = string(item["lyricUrl"]).flatMap { $0.hasPrefix("http") ? $0 : nil }
             return Song(
                 id: numericID,
                 name: name,
                 artists: singers.joined(separator: " / "),
                 album: albumName,
                 coverURL: cover,
-                duration: 0,
+                duration: seconds,
                 source: .migu,
                 miguCopyrightId: copyrightId,
+                miguLyricUrl: lyricURL,
                 fee: (vip || charged) ? 1 : 0
             )
         }

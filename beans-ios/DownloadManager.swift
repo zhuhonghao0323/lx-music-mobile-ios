@@ -167,6 +167,8 @@ final class DownloadManager {
             qqMid: song.qqMid,
             qqMediaMid: song.qqMediaMid,
             kugouID: thirdPartyKugouID,
+            miguID: song.miguCopyrightId,
+            miguContentId: String(song.id),
             quality: quality
         ) {
             BeansLogger.shared.log(
@@ -194,6 +196,15 @@ final class DownloadManager {
             )
         } else if song.source == .kugou {
             guard let urlString = try? await KugouMusicAPI.shared.songURL(song: song, quality: quality.beansQuality),
+                  let url = URL(string: urlString) else { return nil }
+            return ResolvedDownloadURL(url: url, actualQuality: quality, sourceName: nil)
+        } else if song.source == .migu {
+            guard let copyrightId = song.miguCopyrightId,
+                  let urlString = try? await MiguMusicAPI.shared.songURL(
+                    copyrightId: copyrightId,
+                    contentId: String(song.id),
+                    quality: quality.beansQuality
+                  ),
                   let url = URL(string: urlString) else { return nil }
             return ResolvedDownloadURL(url: url, actualQuality: quality, sourceName: nil)
         } else {

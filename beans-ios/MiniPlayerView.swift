@@ -165,6 +165,8 @@ struct MiniPlayerView: View {
         var raw: String?
         if song.source == .kugou, let hash = song.kugouHash {
             raw = await KugouMusicAPI.shared.lyric(hash: hash, duration: song.duration)
+        } else if song.source == .migu {
+            raw = await MiguMusicAPI.shared.lyric(urlString: song.miguLyricUrl)
         } else if song.source == .qq, let mid = song.qqMid {
             raw = try? await QQMusicAPI.shared.lyric(songmid: mid)
         } else {

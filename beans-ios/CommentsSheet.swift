@@ -53,6 +53,8 @@ struct CommentsSheet: View {
                         ErrorStateView(message: errorMessage) {
                             Task { await load(reset: true) }
                         }
+                    } else if song.source == .migu {
+                        EmptyStateView(icon: "bubble.left", text: "咪咕暂不支持查看评论")
                     } else if song.source == .kugou {
                         kugouCommentList
                     } else if song.source == .qq {
@@ -126,6 +128,11 @@ struct CommentsSheet: View {
             loading = true
         }
         errorMessage = nil
+        // 咪咕没有公开评论接口，直接展示空状态
+        if song.source == .migu {
+            loading = false
+            return
+        }
         do {
             if song.source == .kugou {
                 let mixSongID = song.kugouAlbumAudioId ?? ""

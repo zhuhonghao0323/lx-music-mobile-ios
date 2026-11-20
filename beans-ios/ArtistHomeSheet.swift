@@ -48,7 +48,7 @@ struct ArtistHomeSheet: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 artistHeader
                                 hotSongsSection
-                                if artistSource == .netease {
+                                if artistSource == .netease || artistSource == .migu {
                                     albumsSection
                                 }
                             }
@@ -297,9 +297,32 @@ struct ArtistHomeSheet: View {
             await loadQQArtist()
         } else if artistSource == .kugou {
             await loadKugouArtist()
+        } else if artistSource == .migu {
+            await loadMiguArtist()
         } else {
             await loadNetEaseArtist()
         }
+    }
+
+    /// 咪咕没有歌手详情接口，用「歌手名搜索」兜底热歌与专辑
+    private func loadMiguArtist() async {
+        do {
+            let artists = try await MiguMusicAPI.shared.searchArtists(keyword: artistName, limit: 5)
+            if let matched = artists.first(where: { $0.name == artistName }) ?? artists.first {
+                artist = matched
+            }
+            async let songs = (try? MiguMusicAPI.shared.artistSongs(artistName: artistName, limit: 80)) ?? []
+            async let albums = (try? MiguMusicAPI.shared.searchAlbums(keyword: artistName, limit: 12)) ?? []
+            let (s, a) = await (songs, albums)
+            hotSongs = s
+            self.albums = a.filter { $0.artistName.contains(artistName) }
+            if hotSongs.isEmpty && self.albums.isEmpty {
+                errorMessage = "未找到歌手「\(artistName)」"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        loading = false
     }
 
     private func loadNetEaseArtist() async {
