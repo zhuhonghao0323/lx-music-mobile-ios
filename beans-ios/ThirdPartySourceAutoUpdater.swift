@@ -182,7 +182,7 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
             var request = URLRequest(url: url)
             request.timeoutInterval = 20
             request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.setValue("BeansMusic/1.0", forHTTPHeaderField: "User-Agent")
+            request.setValue("ZMusic/1.0", forHTTPHeaderField: "User-Agent")
             // 分发服务器会按 Accept 决定返回脚本还是 JSON 错误体
             request.setValue("text/javascript,application/javascript,*/*", forHTTPHeaderField: "Accept")
             let (data, response) = try await URLSession.shared.data(for: request)

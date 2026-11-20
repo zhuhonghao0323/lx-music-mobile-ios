@@ -33,18 +33,26 @@
 | 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
 | 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
 
-### 0.3 当前状态（2026-11-20 22:00 更新，版本 **1.11.1 (81)**）
+### 0.3 当前状态（2026-11-20 23:5x，版本 **1.12.0 (82)**）
 
-上一版 `1d45f268`（1.11.0 / 80）已 CI 通过；`1419b859` 只是文档提交。1.11.1 在 1.11.0 基础上做了下面四件事（对应上一轮的待验证项）：
+1.11.1 之后这一轮按用户 12 条反馈改：
 
-| 待验证项 | 本轮做的处理 | 仍需真机确认 |
+| # | 反馈 | 处理 |
 |---|---|---|
-| ① 1602 首酷狗云歌单能否列出 | `specialSongs` 分页重写：酷狗会把 `pagesize` 悄悄截断（100/300），旧逻辑按请求的 1000 算页码，第 2 页从 1000 起翻、整段跳歌。现在首页发现被截断就用真实条数当步长，且不再 `rows.count < pageSize` 就提前收尾 | 打开歌单看总数是否接近 1602 |
-| ② 三种封面风格手势 | Apple Music 风格补上「左滑下一首」（原来 `guard dx > 0` 直接 return，与经典/黑胶不一致）；经典、黑胶原本已有上/下/右滑，无需改 | 手感、是否与歌词滚动/点击冲突 |
-| ③ 导入歌单抓取与更新 | 详情页改为**本地优先**：`PlaylistView` 命中 `ImportedPlaylistStore` 就直接读本机歌曲（离线可用、秒开），右上角新增「更新」按钮（转圈 + Toast）；链接解析补齐酷狗 m 站 `plist/list`、`listid=`，波点分享页优先取 `id=` 参数 | 网易云 / QQ / 酷狗（gcid、specialid 两种链接）/ 波点各导一个试试 |
-| ④ 波点登录同步与 VIP | 登录返回里按 `vipType` / `vip_type` / `vipLevel` / `isVip` 等字段判定角标，持久化到 `BodianMusicAuth.vipBadge`，我的页直接显示；同时把 `userInfo` 的 key 列表打进日志，方便下一轮按真实字段名改 | 会员号登录后我的页是否出 VIP/SVIP 角标；不出就看日志 `波点登录返回：userInfo keys=...` |
+| 1 | 主页「全部」连点闪退 | `DiscoverView.openRoute` 加连点保护（同一路由 0.8s 内只入栈一次）+ 推迟到下一 runloop 入栈，避免视图更新中改导航栈 |
+| 2 | 主页波点无歌单 | 根因：推荐歌单接口是分组结构 `data.lists[].playLists[]`，旧解析把分组当歌单、全被丢弃。`BodianMusicAPI.playlists(from:)` 已加分组分支 |
+| 3 | 播放手势 | 统一为：封面左滑返回、右滑歌词、上滑下一曲、下滑上一曲；左/右滑切歌全部删除（经典 `handleSwipeEnd`、AM `coverSwipeGesture`、黑胶 `VinylTurntableView`） |
+| 4 | 切歌动画 | 新增 `switchSongAnimated`（PlayerView）+ `coverSwitchOffset`（AM）：内容先滑出、换歌后从另一侧滑回 |
+| 5 | 搜索默认全部 | `SearchProvider.all` 进入搜索页平台选择器，默认 `beans.search.provider = 全部平台`，`SearchAggregator.songs` 并行聚合 + 轮转交错 + 歌名/歌手去重 |
+| 6 | 音乐库到底部晃动 | 加 `beansScrollBounceBasedOnSize()`（iOS 16.4+ `scrollBounceBehavior(.basedOnSize)`）；仍未确认是否彻底 |
+| 7 | 音乐库歌单墙 | 新增 `LibraryWall.swift`：3 列 × 2 行横向歌单墙 + 「全部」3 列网格；长按可更新/重命名/隐藏/删除，隐藏记在 `HiddenPlaylistStore` |
+| 8 | 歌单歌曲汇总 | 同一文件：`LibraryAllSongsSection` + `LibraryAllSongsSheet`，按「歌名+歌手」去重，默认露 8 首，全部页可按语言（按字符脚本粗判）/歌手筛选 + 搜索 |
+| 9 | 波点热搜空白 | `BodianMusicAPI.hotWords()` 走酷我热词服务 `hotword.kuwo.cn/hotword.s`，失败回退内置词表 |
+| 10 | 主页删我的歌单 | `personalizedSection` 移除 `myPlaylistsSection` |
+| 11 | 图标/名称 | `CFBundleDisplayName` → `Z Music`；AppIcon 换成 LX Music 官方图标（仓库里没有「猫头」素材，待用户提供后替换） |
+| 12 | 品牌词 | 可见文案 `Beans Music` → `Z Music`，单独 `Beans` → `Zhu`；**目录名（BeansData/BeansLogs…）未动，避免丢数据** |
 
-关键文件索引：`beans-ios/KugouMusicAPI.swift`（歌单/播放）、`beans-ios/PlaylistView.swift`（歌单详情：本地优先 + 更新）、`beans-ios/ImportedPlaylistStore.swift`、`beans-ios/PlaylistImportService.swift`（链接解析）、`beans-ios/LibraryView.swift`（两类歌单 UI）、`beans-ios/PlayerView.swift` + `ReferencePlaybackView.swift` + `VinylPlayerView.swift`（手势）、`beans-ios/BodianMusicAuth.swift` + `BodianMusicAPI.swift`（波点登录/VIP）。
+注意：`LibraryView` 里旧的 `playlistsSection / qqSection / kugouSection / bodianSection` 已不再被渲染（保留代码，咪咕仍用 `miguSection`），后续可删。
 
 ---
 

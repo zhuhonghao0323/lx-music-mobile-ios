@@ -95,6 +95,10 @@ struct LibraryView: View {
     @State private var bodianSavedAt = Date.distantPast
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
+    @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
+    @ObservedObject private var localLibrary = LocalLibraryStore.shared
+    @State private var showAllPlaylistsSheet = false
+    @State private var showAllSongsSheet = false
     @State private var showImportSheet = false
     @State private var importPreset: Playlist?
     @State private var refreshingImportKeys: Set<String> = []
@@ -200,15 +204,15 @@ struct LibraryView: View {
                             LocalMusicSection()
                         case "我的歌单":
                             VStack(alignment: .leading, spacing: 26) {
-                                switch source {
-                                case .netease: playlistsSection
-                                case .qq: qqSection
-                                case .kugou: kugouSection
-                                case .migu: miguSection
-                                case .bodian: bodianSection
-                                }
-                                // 咪咕没有公开歌单接口，不显示导入分组
-                                if source != .migu {
+                                if source == .migu {
+                                    miguSection
+                                } else {
+                                    playlistsWallSection
+                                    LibraryAllSongsSection(songs: aggregatedSongs) {
+                                        showAllSongsSheet = true
+                                    } onPlay: { list, index in
+                                        player.play(songs: list, startAt: index)
+                                    }
                                     importedSection
                                 }
                             }
@@ -226,6 +230,7 @@ struct LibraryView: View {
                 .frame(maxWidth: .infinity)
             }
             .beansScrollIndicatorsHidden()
+            .beansScrollBounceBasedOnSize()
             .refreshable {
                 await refreshCurrentSource(force: true)
             }
@@ -291,6 +296,16 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showImportSheet) {
             ImportPlaylistSheet(defaultSource: source.songSource, presetPlaylist: importPreset)
+                .environmentObject(theme)
+        }
+        .sheet(isPresented: $showAllPlaylistsSheet) {
+            LibraryAllPlaylistsSheet(items: wallItems)
+                .environmentObject(theme)
+                .environmentObject(player)
+        }
+        .sheet(isPresented: $showAllSongsSheet) {
+            LibraryAllSongsSheet(songs: aggregatedSongs)
+                .environmentObject(player)
                 .environmentObject(theme)
         }
         .alert("重命名歌单", isPresented: $showRenameAlert) {
@@ -438,6 +453,86 @@ struct LibraryView: View {
         .buttonStyle(.plain)
     }
 
+
+    // MARK: - 歌单墙（3 列 × 2 行，可一直右滑）
+
+    private var playlistsWallSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "歌单", trailing: wallItems.isEmpty ? nil : "全部") {
+                BeansHaptics.tap()
+                showAllPlaylistsSheet = true
+            }
+            if wallItems.isEmpty {
+                EmptyStateView(icon: "music.note.list", text: "还没有歌单\n同步账号歌单或导入歌单后会显示在这里")
+            } else {
+                PlaylistWallView(items: wallItems)
+            }
+        }
+    }
+
+    /// 当前平台账号同步回来的歌单
+    private var syncedWallPlaylists: [Playlist] {
+        switch source {
+        case .netease: return auth.isLoggedIn ? auth.playlists : []
+        case .qq: return qqAuth.isLoggedIn ? qqPlaylists : []
+        case .kugou: return kugouAuth.isLoggedIn ? kugouPlaylists : []
+        case .bodian: return bodianAuth.isLoggedIn ? bodianPlaylists : []
+        case .migu: return []
+        }
+    }
+
+    /// 音乐库要展示的全部歌单：账号同步 + 本机导入，隐藏的不再出现
+    private var wallItems: [LibraryWallItem] {
+        var items: [LibraryWallItem] = []
+        for playlist in syncedWallPlaylists {
+            let id = "synced-\(playlist.source.rawValue)-\(playlist.id)"
+            guard !hiddenPlaylists.isHidden(id) else { continue }
+            items.append(
+                LibraryWallItem(
+                    id: id,
+                    name: playlist.name,
+                    coverURL: playlist.coverURL,
+                    count: playlist.trackCount,
+                    subtitle: playlist.trackCount > 0 ? beansSongCountText(playlist.trackCount) : "歌单",
+                    onOpen: { openRoute(LibraryRoute.playlist(playlist)) },
+                    onDelete: { requestDelete(playlist) }
+                )
+            )
+        }
+        for entry in importedStore.playlists(for: source.songSource) {
+            let id = "imported-\(entry.key)"
+            guard !hiddenPlaylists.isHidden(id) else { continue }
+            items.append(
+                LibraryWallItem(
+                    id: id,
+                    name: entry.name,
+                    coverURL: entry.coverURL,
+                    count: entry.songs.count,
+                    subtitle: "本机 \(entry.songs.count) 首",
+                    onOpen: { openRoute(LibraryRoute.playlist(entry.playlist)) },
+                    onUpdate: { Task { await refreshImported(entry) } },
+                    onRename: {
+                        renameTarget = entry
+                        renameText = entry.name
+                        showRenameAlert = true
+                    },
+                    onDelete: {
+                        pendingDeleteImport = entry
+                        showDeleteImportConfirm = true
+                    }
+                )
+            )
+        }
+        return items
+    }
+
+    /// 所有歌单里的歌曲汇总：歌手名 + 歌名相同只留一首
+    private var aggregatedSongs: [Song] {
+        var groups: [[Song]] = []
+        groups.append(importedStore.items.flatMap { $0.songs })
+        groups.append(localLibrary.playlists.flatMap { $0.songs })
+        return LibrarySongAggregator.merge(groups)
+    }
 
     private var playlistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -431,6 +431,13 @@ extension View {
         if #available(iOS 16, *) { self.scrollContentBackground(.hidden) } else { self }
     }
 
+    /// 内容不足一屏时不再回弹；低版本保持系统默认。
+    /// 音乐库滑到底部时整页上下晃，主要是回弹带着整块背景一起动。
+    @ViewBuilder
+    func beansScrollBounceBasedOnSize() -> some View {
+        if #available(iOS 16.4, *) { self.scrollBounceBehavior(.basedOnSize, axes: .vertical) } else { self }
+    }
+
     /// 在歌单、排行榜等详情页底部保留可用的迷你播放器。
     func beansDetailMiniPlayer() -> some View {
         modifier(BeansDetailMiniPlayerModifier())

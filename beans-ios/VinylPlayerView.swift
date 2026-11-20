@@ -48,6 +48,9 @@ struct VinylTurntableView: View {
     var onDoubleTap: (() -> Void)? = nil
     var onNextTrack: (() -> Void)? = nil
     var onPreviousTrack: (() -> Void)? = nil
+    /// 左滑返回、右滑看歌词（与 Apple Music / 经典封面一致）
+    var onSwipeBack: (() -> Void)? = nil
+    var onSwipeLyrics: (() -> Void)? = nil
 
     @State private var rotationState = RecordRotationState()
     @State private var dragOffset: CGFloat = 0
@@ -130,24 +133,23 @@ struct VinylTurntableView: View {
                 }
 
                 if translation < -swipeThreshold || velocity < -100 {
-                    withAnimation(.easeOut(duration: 0.20)) {
-                        dragOffset = -discSize * 1.25
-                    }
-                    onNextTrack?()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                        dragOffset = discSize * 1.25
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.80)) {
-                            dragOffset = 0
-                            isDragging = false
-                        }
-                    }
-                } else if translation > swipeThreshold || velocity > 100 {
-                    // 右滑不再切上一首，改成打开歌词页
+                    // 左滑返回（不再切歌）
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
                         dragOffset = 0
                         isDragging = false
                     }
-                    onTap?()
+                    onSwipeBack?()
+                } else if translation > swipeThreshold || velocity > 100 {
+                    // 右滑打开歌词页
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
+                        dragOffset = 0
+                        isDragging = false
+                    }
+                    if let onSwipeLyrics = onSwipeLyrics {
+                        onSwipeLyrics()
+                    } else {
+                        onTap?()
+                    }
                 } else {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
                         dragOffset = 0

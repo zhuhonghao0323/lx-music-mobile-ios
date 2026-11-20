@@ -73,7 +73,7 @@ struct ProfileView: View {
 
     private var appVersionText: String {
         let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2"
-        return "Beans Music · \(ver)"
+        return "Z Music · \(ver)"
     }
 
     /// 登录状态的合并提示（展示各平台真实昵称）
@@ -1577,7 +1577,7 @@ struct SettingsView: View {
             isPresented: $showExportBackup,
             document: backupDoc,
             contentType: .json,
-            defaultFilename: "Beans设置备份-\(Self.backupDateString())"
+            defaultFilename: "Zhu设置备份-\(Self.backupDateString())"
         ) { result in
             switch result {
             case .success:
@@ -2778,7 +2778,7 @@ struct SettingsView: View {
         }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         payload["beans.backup.meta"] = [
-            "app": "Beans Music",
+            "app": "Z Music",
             "created": ISO8601DateFormatter().string(from: Date()),
             "version": version,
             "includedAccounts": includeAccounts,
@@ -3021,7 +3021,7 @@ struct SettingsView: View {
 
     private var footerNote: some View {
         VStack(spacing: 6) {
-            Text("Beans Music · 仅供学习交流，纯 AI 实现此应用")
+            Text("Z Music · 仅供学习交流，纯 AI 实现此应用")
                 .font(BeansFont.appFont(11))
                 .foregroundStyle(Color.beansComment.opacity(0.7))
             Text("接入网易云音乐、QQ 音乐等公开接口")
@@ -3186,7 +3186,7 @@ struct EqualizerSettingsView: View {
             .toggleStyle(.switch)
             .tint(Color.beansAmber)
 
-            Text(beansLocalized("均衡器仅处理 Beans 当前播放的音乐，不影响其他 App。", "The equalizer only processes music playing in Beans."))
+            Text(beansLocalized("均衡器仅处理 Zhu 当前播放的音乐，不影响其他 App。", "The equalizer only processes music playing in Beans."))
                 .font(BeansFont.appFont(11))
                 .foregroundStyle(Color.beansComment)
                 .frame(maxWidth: .infinity, alignment: .leading)

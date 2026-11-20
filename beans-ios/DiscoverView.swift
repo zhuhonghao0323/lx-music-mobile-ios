@@ -112,6 +112,9 @@ struct DiscoverView: View {
     @State private var neteaseCat = "全部"
     /// 官方歌单分类列表
     @State private var playlistCats: [String] = []
+    /// 导航连点保护：记录上一次入栈的路由与时间
+    @State private var lastRouteKey = ""
+    @State private var lastRoutePushAt = Date.distantPast
 
     var body: some View {
         let _ = theme.accent
@@ -307,10 +310,21 @@ struct DiscoverView: View {
     }
 
     private func openRoute(_ route: DiscoverRoute) {
-        if #available(iOS 16.0, *) {
-            navigationPath.append(route)
-        } else {
-            legacyRoute = route
+        // 连点保护：同一入口短时间内重复点击只入栈一次。
+        // 之前「我的歌单 · 全部」连点会重复 push 同一页面，栈里堆叠多个大视图后闪退。
+        let now = Date()
+        let key = String(describing: route)
+        if key == lastRouteKey, now.timeIntervalSince(lastRoutePushAt) < 0.8 { return }
+        lastRouteKey = key
+        lastRoutePushAt = now
+        // 推迟到下一个 runloop，避免在视图更新过程中改导航栈（AttributeGraph 崩溃）
+        DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+                guard navigationPath.count < 20 else { return }
+                navigationPath.append(route)
+            } else {
+                legacyRoute = route
+            }
         }
     }
 
@@ -1244,9 +1258,6 @@ struct DiscoverView: View {
 
     private var personalizedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !favoritePlaylists.playlists.isEmpty || !localLibrary.playlists.isEmpty {
-                myPlaylistsSection
-            }
             SectionHeader(title: playlistSectionTitle, trailing: "全部") {
                 BeansHaptics.tap()
                 openRoute(.playlistSquare)

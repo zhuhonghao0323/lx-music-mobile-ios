@@ -200,6 +200,52 @@ enum SearchAggregator {
         }
         return result
     }
+
+    /// 「全部平台」搜索：各平台并行请求，按平台顺序轮转交错，再按「歌名 + 歌手」去重。
+    static func songs(keyword: String, providers: [SearchProvider], perProviderLimit: Int) async -> [Song] {
+        let parts = await withTaskGroup(of: (Int, [Song]).self) { group -> [(Int, [Song])] in
+            for (index, provider) in providers.enumerated() {
+                group.addTask {
+                    (index, await SearchAggregator.search(provider: provider, keyword: keyword, limit: perProviderLimit))
+                }
+            }
+            var collected: [(Int, [Song])] = []
+            for await part in group { collected.append(part) }
+            return collected.sorted { $0.0 < $1.0 }
+        }
+        var queues = parts.map { $0.1 }.filter { !$0.isEmpty }
+        var result: [Song] = []
+        var seen = Set<String>()
+        while !queues.isEmpty {
+            var next: [[Song]] = []
+            for queue in queues {
+                if let head = queue.first {
+                    let key = "\(head.name.lowercased())|\(head.artists.lowercased())"
+                    if seen.insert(key).inserted { result.append(head) }
+                    if queue.count > 1 { next.append(Array(queue.dropFirst())) }
+                }
+            }
+            queues = next
+        }
+        return result
+    }
+
+    private static func search(provider: SearchProvider, keyword: String, limit: Int) async -> [Song] {
+        switch provider {
+        case .netease:
+            return (try? await NetEaseAPI.shared.search(keyword: keyword, limit: limit)) ?? []
+        case .qq:
+            return (try? await QQMusicAPI.shared.searchSongs(keyword: keyword)) ?? []
+        case .kugou:
+            return (try? await KugouMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
+        case .migu:
+            return (try? await MiguMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
+        case .bodian:
+            return (try? await BodianMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
+        case .all:
+            return []
+        }
+    }
 }
 
 struct SearchView: View {
@@ -211,10 +257,18 @@ struct SearchView: View {
     @AppStorage(PlatformPreferenceStore.hidePickerKey) private var hidePlatformPicker = false
 
     @State private var keyword = ""
-    @AppStorage("beans.search.provider") private var providerRaw = SearchProvider.netease.rawValue
-    @State private var provider: SearchProvider = .netease
+    @AppStorage("beans.search.provider") private var providerRaw = SearchProvider.all.rawValue
+    @State private var provider: SearchProvider = .all
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
-    private var searchProviders: [SearchProvider] { platformPrefs.enabledSearchProviders }
+    /// 搜索页平台选择：「全部平台」排在最前，聚合各平台结果；只启用一个平台时不显示它
+    private var searchProviders: [SearchProvider] {
+        let enabled = platformPrefs.enabledSearchProviders
+        return enabled.count > 1 ? [SearchProvider.all] + enabled : enabled
+    }
+    /// 「全部平台」聚合搜索时要查询的真实平台
+    private var aggregateProviders: [SearchProvider] {
+        platformPrefs.enabledSearchProviders
+    }
     /// 已加载热门搜索的 provider（避免切 tab 反复加载）
     @State private var hotLoadedProvider: SearchProvider?
     @State private var resultType: SearchResultType = .song
@@ -295,9 +349,15 @@ struct SearchView: View {
             Task { await startSearch(trimmed) }
         }
         .onAppear {
-            provider = platformPrefs.ensureVisible(SearchProvider(rawValue: providerRaw) ?? .netease)
+            let saved = SearchProvider(rawValue: providerRaw) ?? .all
+            // 「全部平台」不是真实平台，不参与启用校验
+            provider = saved == .all ? .all : platformPrefs.ensureVisible(saved)
         }
         .onReceive(platformPrefs.changes) { _ in
+            guard provider != .all else {
+                hotLoadedProvider = nil
+                return
+            }
             let next = platformPrefs.ensureVisible(provider)
             if next != provider {
                 provider = next
@@ -554,11 +614,7 @@ struct SearchView: View {
                     historyStore.record(word)
                     Task { await startSearch(word) }
                 }
-                SectionHeader(title: provider == .netease
-                        ? "网易云音乐热搜"
-                        : provider == .qq
-                        ? "QQ音乐热搜"
-                        : (provider == .bodian ? "波点音乐热搜" : "酷狗音乐热搜"))
+                SectionHeader(title: hotSectionTitle)
                 if hotWords.isEmpty {
                     LoadingStateView()
                 } else {
@@ -892,6 +948,17 @@ struct SearchView: View {
         Task { await startSearch(name) }
     }
 
+    private var hotSectionTitle: String {
+        switch provider {
+        case .netease: return "网易云音乐热搜"
+        case .qq: return "QQ音乐热搜"
+        case .kugou: return "酷狗音乐热搜"
+        case .bodian: return "波点音乐热搜"
+        case .migu: return "咪咕音乐热搜"
+        case .all: return "热门搜索"
+        }
+    }
+
     private func loadHotWords() async {
         if provider == .qq {
             if let words = try? await QQMusicAPI.shared.hotKeys() {
@@ -902,8 +969,7 @@ struct SearchView: View {
         } else if provider == .migu {
             hotWords = []
         } else if provider == .bodian {
-            // 波点没有热搜榜接口，留空走默认提示
-            hotWords = []
+            hotWords = await BodianMusicAPI.shared.hotWords()
         } else if let words = try? await NetEaseAPI.shared.hotSearch() {
             hotWords = words
         }
@@ -1007,14 +1073,23 @@ struct SearchView: View {
                     let albums = SearchAggregator.albums(from: songs)
                     guard !Task.isCancelled else { return }
                     await MainActor.run { albumResults = albums }
-                case (.all, _):
-                    // 「全部平台」只用于首页聚合，不参与搜索
+                case (.all, .song):
+                    let songs = await SearchAggregator.songs(keyword: trimmed, providers: aggregateProviders, perProviderLimit: 15)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
-                        songResults = []
-                        artistResults = []
-                        albumResults = []
+                        songResults = songs
+                        if !songs.isEmpty { BeansHaptics.success() }
                     }
+                case (.all, .artist):
+                    let songs = await SearchAggregator.songs(keyword: trimmed, providers: aggregateProviders, perProviderLimit: 20)
+                    let artists = SearchAggregator.artists(from: songs)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { artistResults = artists }
+                case (.all, .album):
+                    let songs = await SearchAggregator.songs(keyword: trimmed, providers: aggregateProviders, perProviderLimit: 20)
+                    let albums = SearchAggregator.albums(from: songs)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { albumResults = albums }
                 }
                 let count = await MainActor.run {
                     selectedType == .song ? songResults.count : (selectedType == .artist ? artistResults.count : albumResults.count)

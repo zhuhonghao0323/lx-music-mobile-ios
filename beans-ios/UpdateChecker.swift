@@ -48,7 +48,7 @@ struct UpdateChecker {
 
     static func fetchLatest() async throws -> ReleaseInfo {
         var request = URLRequest(url: latestAPI)
-        request.setValue("Beans-Music/\(currentVersion)", forHTTPHeaderField: "User-Agent")
+        request.setValue("Z-Music/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

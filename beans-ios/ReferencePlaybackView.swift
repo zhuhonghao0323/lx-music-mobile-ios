@@ -31,6 +31,8 @@ struct ReferencePlaybackView: View {
     let onAddToLocalPlaylist: () -> Void
     let onDownload: () -> Void
     let onPlayerSettings: () -> Void
+    /// 关闭播放页（封面左滑返回）
+    let onClose: () -> Void
 
     @AppStorage("beans.lyricOffset") private var lyricOffset = 0.0
     @AppStorage("beans.appleMusic.showVolume") private var showVolumeControl = false
@@ -48,6 +50,8 @@ struct ReferencePlaybackView: View {
     @State private var lyricsViewportHeight: CGFloat = 0
     @State private var isDraggingLyrics = false
     @State private var resumeTask: Task<Void, Never>?
+    /// 上/下滑切歌时封面整块的位移（滑出 → 换歌 → 滑入）
+    @State private var coverSwitchOffset: CGFloat = 0
 
     private func layoutEntry(_ part: AppleMusicLayoutPart) -> PlayerLayoutEntry {
         appleLayout.entry(for: part)
@@ -192,6 +196,7 @@ struct ReferencePlaybackView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
+        .offset(y: coverSwitchOffset)
     }
 
     private var compactTrackHeader: some View {
@@ -579,7 +584,7 @@ struct ReferencePlaybackView: View {
             }
     }
 
-    /// 封面页手势：右滑看歌词、上划下一曲、下滑上一曲、左滑下一首（与经典封面一致）
+    /// 封面页手势：上滑下一曲、下滑上一曲、右滑看歌词、左滑返回
     private var coverSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 26)
             .onEnded { value in
@@ -587,25 +592,38 @@ struct ReferencePlaybackView: View {
                 let dy = value.translation.height
                 guard max(abs(dx), abs(dy)) > 42 else { return }
                 if abs(dx) > abs(dy) {
-                    if dx < 0 {
-                        BeansHaptics.medium()
-                        player.next()
-                        return
-                    }
                     BeansHaptics.tap()
-                    if lyrics.isEmpty {
+                    if dx < 0 {
+                        // 左滑返回（与系统返回手势一致）
+                        onClose()
+                    } else if lyrics.isEmpty {
                         ToastCenter.shared.show("暂无歌词")
                     } else {
                         withAnimation(.easeInOut(duration: 0.22)) { showLyrics = true }
                     }
-                } else if dy < 0 {
-                    BeansHaptics.medium()
-                    player.next()
                 } else {
-                    BeansHaptics.medium()
-                    player.previous()
+                    switchSong(up: dy < 0)
                 }
             }
+    }
+
+    /// 上下切歌：封面先滑出屏幕，换歌后从另一侧滑回，符合 iOS 的「翻页」手感
+    private func switchSong(up: Bool) {
+        BeansHaptics.medium()
+        let travel: CGFloat = 420
+        let out: CGFloat = up ? -travel : travel
+        withAnimation(.easeIn(duration: 0.16)) {
+            coverSwitchOffset = out
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            if up { player.next() } else { player.previous() }
+            coverSwitchOffset = -out
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                    coverSwitchOffset = 0
+                }
+            }
+        }
     }
 
     /// 歌词页手势：左滑回到专辑封面

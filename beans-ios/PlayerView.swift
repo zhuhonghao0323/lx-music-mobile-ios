@@ -123,6 +123,8 @@ struct PlayerView: View {
     @AppStorage("beans.appleMusic.showLyricPreview") private var appleShowLyricPreview = true
     /// 侧边滑动手势当前位移（刷视频式切歌过渡）
     @State private var swipeOffset: CGFloat = 0
+    /// 上下滑动切歌时内容区的位移（滑出 → 换歌 → 滑入）
+    @State private var verticalSwitchOffset: CGFloat = 0
     @State private var coverDrag: CGSize = .zero
     @State private var coverSwitchPulse = false
     @State private var animatedSongKey = ""
@@ -400,6 +402,9 @@ struct PlayerView: View {
                         },
                         onPlayerSettings: {
                             openPlayerSettings()
+                        },
+                        onClose: {
+                            isPresented = false
                         }
                     )
 
@@ -438,6 +443,7 @@ struct PlayerView: View {
                             .ignoresSafeArea()
 
                         content(geo: geo)
+                            .offset(y: verticalSwitchOffset)
 
                         controlDeck(bottomInset: geo.safeAreaInsets.bottom)
                             .frame(maxWidth: .infinity)
@@ -480,6 +486,7 @@ struct PlayerView: View {
                         VStack(spacing: 0) {
                             headerBar
                             content(geo: geo)
+                                .offset(y: verticalSwitchOffset)
                         }
                         .foregroundStyle(palette.text)
 
@@ -781,7 +788,7 @@ struct PlayerView: View {
                         .font(BeansFont.appFont(12, .semibold))
                         .foregroundStyle(palette.secondary)
                         .lineLimit(1)
-                    Text(song?.album ?? "Beans Music")
+                    Text(song?.album ?? "Z Music")
                         .font(BeansFont.appFont(10))
                         .foregroundStyle(palette.secondary.opacity(0.85))
                         .lineLimit(1)
@@ -978,8 +985,16 @@ struct PlayerView: View {
                     BeansHaptics.success()
                     toggleLocalFavorite(song)
                 },
-                onNextTrack: { player.next() },
-                onPreviousTrack: { player.previous() }
+                onNextTrack: { switchSongAnimated(up: true) },
+                onPreviousTrack: { switchSongAnimated(up: false) },
+                onSwipeBack: { isPresented = false },
+                onSwipeLyrics: {
+                    if lyrics.isEmpty {
+                        ToastCenter.shared.show("暂无歌词")
+                    } else {
+                        toggleLyrics()
+                    }
+                }
             )
 
             if showPreview {
@@ -2919,11 +2934,13 @@ struct PlayerView: View {
         let dy = value.translation.height
         if abs(dx) >= abs(dy) {
             if dx < -70 {
+                // 左滑：返回（关闭播放页），不再切歌
                 BeansHaptics.tap()
                 coverDrag = .zero
-                flySwipe(direction: -1)
+                swipeOffset = 0
+                isPresented = false
             } else if dx > 70 {
-                // 右滑不再切上一首，改成打开歌词页
+                // 右滑：打开歌词页
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     swipeOffset = 0
                     coverDrag = .zero
@@ -2945,12 +2962,30 @@ struct PlayerView: View {
                 swipeOffset = 0
                 coverDrag = .zero
             }
-            BeansHaptics.medium()
-            if dy < 0 { player.next() } else { player.previous() }
+            switchSongAnimated(up: dy < 0)
         } else {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 swipeOffset = 0
                 coverDrag = .zero
+            }
+        }
+    }
+
+    /// 上/下滑切歌：内容区先滑出，换歌后从另一侧滑回，贴近 iOS「翻页」手感
+    private func switchSongAnimated(up: Bool) {
+        BeansHaptics.medium()
+        let travel: CGFloat = 420
+        let out: CGFloat = up ? -travel : travel
+        withAnimation(.easeIn(duration: 0.16)) {
+            verticalSwitchOffset = out
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            if up { player.next() } else { player.previous() }
+            verticalSwitchOffset = -out
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                    verticalSwitchOffset = 0
+                }
             }
         }
     }

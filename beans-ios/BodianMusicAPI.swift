@@ -69,6 +69,36 @@ final class BodianMusicAPI {
         return Self.songs(from: json, field: "resultList")
     }
 
+    /// 热搜词。波点自身没有热榜接口，用酷我系的热词服务（波点就是酷我做的），
+    /// 失败时退回内置词表，保证搜索页不会是空白。
+    func hotWords(limit: Int = 12) async -> [String] {
+        if let url = URL(string: "http://hotword.kuwo.cn/hotword.s?prod=kwplayer_ar_9.1.2.1&corp=kuwo&k=hotword") {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 8
+            request.setValue(Self.desktopHeaders(deviceId: BodianMusicAuth.shared.deviceId)["User-Agent"] ?? "Dart/3.3 (dart:io)", forHTTPHeaderField: "User-Agent")
+            if let (data, _) = try? await session.data(for: request),
+               let text = String(data: data, encoding: .utf8) {
+                let lines = text
+                    .components(separatedBy: .newlines)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty && !$0.hasPrefix("TEXT=") }
+                // 「歌名 歌手」这种带空格的条目容易搜不准，只用单词条
+                let singleWord = lines.filter { !$0.contains(" ") && !$0.contains("\t") }
+                var seen = Set<String>()
+                let unique = singleWord.filter { seen.insert($0).inserted }
+                if unique.count >= 6 { return Array(unique.prefix(limit)) }
+                let all = lines.filter { seen.insert($0).inserted }
+                if !all.isEmpty { return Array(all.prefix(limit)) }
+            }
+        }
+        return Array(Self.fallbackHotWords.prefix(limit))
+    }
+
+    private static let fallbackHotWords = [
+        "周杰伦", "林俊杰", "陈奕迅", "薛之谦", "邓紫棋",
+        "凤凰传奇", "五月天", "毛不易", "告五人", "热门歌曲"
+    ]
+
     // MARK: - 歌单
 
     /// 推荐歌单（首页 / 歌单广场用，匿名可访问）
@@ -439,6 +469,21 @@ final class BodianMusicAPI {
                     // 单对象形态：只在它确实是歌单（有名字）时返回
                     return [single]
                 }
+            }
+            // 推荐歌单接口返回的是「分组」结构：data.lists[].playLists[]
+            // 之前把 lists 里的分组对象直接当歌单解析，全被丢弃，首页波点就成了空白。
+            if let groups = dict["lists"] as? [[String: Any]], !groups.isEmpty {
+                var grouped: [Playlist] = []
+                for group in groups {
+                    if let array = (group["playLists"] as? [[String: Any]])
+                        ?? (group["playlists"] as? [[String: Any]])
+                        ?? (group["list"] as? [[String: Any]]) {
+                        grouped.append(contentsOf: array.compactMap(playlist(from:)))
+                    } else if let single = playlist(from: group) {
+                        grouped.append(single)
+                    }
+                }
+                if !grouped.isEmpty { return grouped }
             }
             for key in keys {
                 if let array = dict[key] as? [[String: Any]], !array.isEmpty {
