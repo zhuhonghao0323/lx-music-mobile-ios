@@ -47,9 +47,10 @@ struct AllChartsView: View {
     @State private var errorText: String?
     @State private var loadedSources: Set<String> = []
 
-    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台
+    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台（只启用咪咕时回退到全部）
     private var providers: [SearchProvider] {
-        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        let feedProviders = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        return feedProviders.isEmpty ? platformPrefs.enabledSearchProviders : feedProviders
     }
     private var source: SearchProvider {
         guard let saved = SearchProvider(rawValue: homeSourceRaw), providers.contains(saved) else {
@@ -295,9 +296,10 @@ struct PlaylistSquareView: View {
         }
     }
 
-    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台
+    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台（只启用咪咕时回退到全部）
     private var providers: [SearchProvider] {
-        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        let feedProviders = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        return feedProviders.isEmpty ? platformPrefs.enabledSearchProviders : feedProviders
     }
     private var source: SearchProvider {
         guard let saved = SearchProvider(rawValue: homeSourceRaw), providers.contains(saved) else {

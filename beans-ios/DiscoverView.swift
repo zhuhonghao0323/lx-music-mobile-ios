@@ -78,9 +78,11 @@ struct DiscoverView: View {
     @AppStorage(PlatformPreferenceStore.hidePickerKey) private var hidePlatformPicker = false
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
     @AppStorage("beans.showSongVIPBadge") private var showSongVIPBadge = true
-    /// 咪咕只提供搜索/播放/歌词，没有每日推荐、排行榜、歌单接口，不作首页数据源
+    /// 咪咕只提供搜索/播放/歌词，没有每日推荐、排行榜、歌单接口，不作首页数据源。
+    /// 极端情况（只启用咪咕）时仍回退到全部平台，避免首页空白。
     private var homeProviders: [SearchProvider] {
-        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        let feedProviders = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        return feedProviders.isEmpty ? platformPrefs.enabledSearchProviders : feedProviders
     }
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     private var source: SearchProvider {
