@@ -537,26 +537,78 @@ struct PlaylistSquareView: View {
 
 // MARK: - 我的歌单
 
-/// 收藏歌单列表页。「我的歌单」板块的「全部」入口。
+/// 主页「我的歌单」与「我的歌单」页共用的条目：本地自建歌单 + 收藏歌单。
+struct MyPlaylistEntry: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let coverURL: URL?
+    let subtitle: String
+    let route: DiscoverRoute
+    let isLocal: Bool
+
+    static func all(local: [LocalPlaylist], favorites: [Playlist]) -> [MyPlaylistEntry] {
+        let localItems = local.map { playlist in
+            MyPlaylistEntry(
+                id: "local-\(playlist.id.uuidString)",
+                name: playlist.name,
+                coverURL: playlist.songs.first?.coverURL,
+                subtitle: "本机 · \(playlist.songs.count) 首",
+                route: .localPlaylist(playlist.id),
+                isLocal: true
+            )
+        }
+        let favoriteItems = favorites.map { playlist in
+            MyPlaylistEntry(
+                id: "\(playlist.source.rawValue)-\(playlist.id)",
+                name: playlist.name,
+                coverURL: playlist.coverURL,
+                subtitle: playlist.trackCount > 0
+                    ? "\(FavoritePlaylistsView.providerTitle(playlist.source)) · \(playlist.trackCount) 首"
+                    : FavoritePlaylistsView.providerTitle(playlist.source),
+                route: .playlist(playlist),
+                isLocal: false
+            )
+        }
+        return localItems + favoriteItems
+    }
+}
+
+/// 我的歌单列表页：本地自建歌单 + 收藏的广场歌单。
 struct FavoritePlaylistsView: View {
     var onOpen: (DiscoverRoute) -> Void
 
     @ObservedObject private var favorites = FavoritePlaylistStore.shared
+    @ObservedObject private var localLibrary = LocalLibraryStore.shared
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
 
     private var isNativeClean: Bool { BeansUIStyle(rawValue: uiStyleRaw) == .nativeClean }
 
+    private var entries: [MyPlaylistEntry] {
+        MyPlaylistEntry.all(local: localLibrary.playlists, favorites: favorites.playlists)
+    }
+
+    static func providerTitle(_ source: SongSource) -> String {
+        switch source {
+        case .netease: return "网易云音乐"
+        case .qq: return "QQ音乐"
+        case .kugou: return "酷狗音乐"
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if favorites.playlists.isEmpty {
-                    EmptyStateView(icon: "heart", text: "还没有收藏的歌单\n在歌单广场点 ♡ 收藏")
-                        .padding(.top, 60)
+                if entries.isEmpty {
+                    EmptyStateView(
+                        icon: "heart",
+                        text: "还没有歌单\n在歌单广场点 ♡ 收藏，或在音乐库新建本地歌单"
+                    )
+                    .padding(.top, 60)
                 } else {
                     VStack(spacing: 0) {
-                        ForEach(Array(favorites.playlists.enumerated()), id: \.offset) { index, playlist in
-                            row(playlist)
-                            if index < favorites.playlists.count - 1 {
+                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                            row(entry)
+                            if index < entries.count - 1 {
                                 Divider().overlay(Color.beansComment.opacity(0.12))
                             }
                         }
@@ -585,37 +637,23 @@ struct FavoritePlaylistsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private static func providerTitle(_ source: SongSource) -> String {
-        switch source {
-        case .netease: return "网易云音乐"
-        case .qq: return "QQ音乐"
-        case .kugou: return "酷狗音乐"
-        }
-    }
-
-    private func row(_ playlist: Playlist) -> some View {
+    private func row(_ entry: MyPlaylistEntry) -> some View {
         HStack(spacing: 12) {
             Button {
                 BeansHaptics.tap()
-                onOpen(.playlist(playlist))
+                onOpen(entry.route)
             } label: {
                 HStack(spacing: 12) {
-                    CoverImage(url: playlist.coverURL, size: 52, cornerRadius: 12)
+                    CoverImage(url: entry.coverURL, size: 52, cornerRadius: 12)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(playlist.name)
+                        Text(entry.name)
                             .font(BeansFont.appFont(15, .semibold))
                             .foregroundStyle(Color.beansLabel)
                             .lineLimit(1)
-                        HStack(spacing: 6) {
-                            Text(Self.providerTitle(playlist.source))
-                                .font(BeansFont.appFont(11, .medium))
-                                .foregroundStyle(Color.beansComment)
-                            if playlist.trackCount > 0 {
-                                Text(beansSongCountText(playlist.trackCount))
-                                    .font(BeansFont.appFont(11))
-                                    .foregroundStyle(Color.beansComment)
-                            }
-                        }
+                        Text(entry.subtitle)
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansComment)
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 8)
                 }
@@ -623,18 +661,20 @@ struct FavoritePlaylistsView: View {
             }
             .buttonStyle(.plain)
 
-            Button {
-                BeansHaptics.select()
-                favorites.remove(id: playlist.id, source: playlist.source)
-                ToastCenter.shared.show("已取消收藏")
-            } label: {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.beansAmber)
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
+            if !entry.isLocal, case let .playlist(playlist) = entry.route {
+                Button {
+                    BeansHaptics.select()
+                    favorites.remove(id: playlist.id, source: playlist.source)
+                    ToastCenter.shared.show("已取消收藏")
+                } label: {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, 9)
     }

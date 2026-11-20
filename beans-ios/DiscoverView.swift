@@ -13,6 +13,8 @@ enum DiscoverRoute: Hashable {
     case playlistSquare
     /// 我的歌单（收藏歌单）
     case favoritePlaylists
+    /// 本地自建歌单详情
+    case localPlaylist(UUID)
 }
 
 struct DiscoverView: View {
@@ -21,6 +23,7 @@ struct DiscoverView: View {
     @EnvironmentObject private var player: PlayerManager
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
     @ObservedObject private var favoritePlaylists = FavoritePlaylistStore.shared
+    @ObservedObject private var localLibrary = LocalLibraryStore.shared
 
     @State private var topLists: [TopList] = []
     @State private var dailySongs: [Song] = []
@@ -271,6 +274,11 @@ struct DiscoverView: View {
             FavoritePlaylistsView { route in openRoute(route) }
                 .environmentObject(player)
                 .environmentObject(auth)
+        case .localPlaylist(let id):
+            LocalPlaylistDetailSheet(playlistID: id)
+                .environmentObject(player)
+                .environmentObject(auth)
+                .environmentObject(theme)
         }
     }
 
@@ -1092,27 +1100,36 @@ struct DiscoverView: View {
         return ["全部"] + Array(playlistCats.prefix(18))
     }
 
-    /// 我收藏的歌单：横向卡片，右侧「全部」进入完整列表
+    /// 我的歌单（本地自建 + 收藏）：横向卡片，右侧「全部」进入完整列表
     private var myPlaylistsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let entries = MyPlaylistEntry.all(
+            local: localLibrary.playlists,
+            favorites: favoritePlaylists.playlists
+        )
+        return VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "我的歌单", trailing: "全部") {
                 BeansHaptics.tap()
                 openRoute(.favoritePlaylists)
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
-                    ForEach(Array(favoritePlaylists.playlists.prefix(8).enumerated()), id: \.offset) { _, playlist in
+                    ForEach(Array(entries.prefix(10).enumerated()), id: \.element.id) { _, entry in
                         Button {
                             BeansHaptics.tap()
-                            openRoute(.playlist(playlist))
+                            openRoute(entry.route)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                CoverImage(url: playlist.coverURL, size: 128, cornerRadius: 14)
-                                Text(playlist.name)
+                                CoverImage(url: entry.coverURL, size: 128, cornerRadius: 14)
+                                Text(entry.name)
                                     .font(BeansFont.appFont(13, .semibold))
                                     .foregroundStyle(Color.beansLabel)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.leading)
+                                    .frame(width: 128, alignment: .leading)
+                                Text(entry.subtitle)
+                                    .font(BeansFont.appFont(11))
+                                    .foregroundStyle(Color.beansComment)
+                                    .lineLimit(1)
                                     .frame(width: 128, alignment: .leading)
                             }
                             .frame(width: 128, alignment: .leading)
@@ -1127,7 +1144,7 @@ struct DiscoverView: View {
 
     private var personalizedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !favoritePlaylists.playlists.isEmpty {
+            if !favoritePlaylists.playlists.isEmpty || !localLibrary.playlists.isEmpty {
                 myPlaylistsSection
             }
             SectionHeader(title: playlistSectionTitle, trailing: "全部") {

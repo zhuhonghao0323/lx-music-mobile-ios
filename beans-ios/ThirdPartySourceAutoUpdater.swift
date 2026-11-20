@@ -7,7 +7,6 @@ import Foundation
 /// 2. 每次检查重新拉取远程脚本，先确认新内容仍能被解析成音源（避免把可用配置覆盖成垃圾），
 ///    再比对脚本内容指纹与 `@version`，有变化才写回本地；
 /// 3. 默认 12 小时最多检查一次，也可以在音源管理面板手动点「检查更新」。
-@MainActor
 final class ThirdPartySourceAutoUpdater: ObservableObject {
     static let shared = ThirdPartySourceAutoUpdater()
 
@@ -42,6 +41,7 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
 
     /// 进入音源管理面板 / 启动时调用：只有超过间隔才真正发请求
     @discardableResult
+    @MainActor
     func autoCheckIfNeeded(store: UnblockSourceStore = .shared) async -> Int {
         guard autoUpdateEnabled else { return 0 }
         let last = defaults.object(forKey: Self.lastRunKey) as? Date ?? .distantPast
@@ -51,6 +51,7 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
 
     /// 全量检查（手动触发时 silent = false，会写 lastMessage）
     @discardableResult
+    @MainActor
     func checkAll(store: UnblockSourceStore = .shared, silent: Bool = false) async -> Int {
         guard phase != .checking else { return 0 }
         let candidates = store.sources.filter { $0.enabled && !($0.updateURL ?? "").isEmpty }
@@ -87,6 +88,7 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
         return updatedCount
     }
 
+    @MainActor
     private func summary(updated: Int, failed: Int) -> String {
         var parts: [String] = []
         if updated > 0 {
@@ -106,6 +108,7 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
         case failed
     }
 
+    @MainActor
     private func check(_ source: ThirdPartySource) async -> Outcome {
         guard let rawURL = source.updateURL,
               let url = URL(string: rawURL),
