@@ -139,7 +139,10 @@ final class ThirdPartySourceAutoUpdater: ObservableObject {
             if let current = source.script, !current.isEmpty {
                 changed = Self.fingerprint(current) != Self.fingerprint(incomingScript)
             } else {
-                changed = true
+                // 纯配置型音源没有脚本内容，按 URL 模板与请求头比对
+                let templateChanged = !candidate.template.isEmpty && candidate.template != source.template
+                let headersChanged = candidate.headers.contains { source.headers[$0.key] != $0.value }
+                changed = templateChanged || headersChanged
             }
             let versionChanged = {
                 guard let incomingVersion else { return false }
