@@ -14,6 +14,8 @@ struct ThirdPartySourceManagerSheet: View {
     @State private var importErrorMessage = ""
     @State private var showFilePicker = false
     @State private var editingDraft: ThirdPartySourceDraft?
+    @ObservedObject private var updater = ThirdPartySourceAutoUpdater.shared
+    @AppStorage(ThirdPartySourceAutoUpdater.autoUpdateKey) private var autoUpdateSources = true
 
     var body: some View {
         NavigationView {
@@ -67,6 +69,74 @@ struct ThirdPartySourceManagerSheet: View {
         } message: {
             Text(importErrorMessage)
         }
+        .task {
+            await updater.autoCheckIfNeeded(store: store)
+        }
+    }
+
+    /// 自动更新开关 + 手动检查
+    private var autoUpdateControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { autoUpdateSources },
+                set: { value in
+                    autoUpdateSources = value
+                    updater.setAutoUpdateEnabled(value)
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(beansLocalized("音源自动更新", "Auto-update sources"))
+                        .font(BeansFont.appFont(14, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(beansLocalized(
+                        "每 12 小时检查一次从链接导入的音源脚本，版本有变化时自动替换。",
+                        "Checks URL-imported source scripts every 12 hours and replaces them when the version changes."
+                    ))
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .tint(Color.beansAmber)
+
+            HStack(spacing: 10) {
+                Button {
+                    BeansHaptics.tap()
+                    Task { await updater.checkAll(store: store) }
+                } label: {
+                    HStack(spacing: 6) {
+                        if updater.phase == .checking {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        Text(beansLocalized("检查更新", "Check now"))
+                    }
+                    .font(BeansFont.appFont(12, .semibold))
+                    .foregroundStyle(Color.beansLabel)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background { BeansSurface(shape: Capsule()) }
+                }
+                .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+                .disabled(updater.phase == .checking)
+
+                Text(beansLocalized(
+                    "\(updater.updatableCount(in: store.sources)) 个可更新",
+                    "\(updater.updatableCount(in: store.sources)) updatable"
+                ))
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+                Spacer(minLength: 0)
+            }
+
+            if let message = updater.lastMessage {
+                Text(message)
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansAmber)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private var headerCard: some View {
@@ -102,6 +172,10 @@ struct ThirdPartySourceManagerSheet: View {
                     .foregroundStyle(Color.beansAmber)
                     .lineLimit(2)
             }
+
+            Divider().overlay(Color.beansComment.opacity(0.12))
+
+            autoUpdateControls
         }
         .padding(16)
         .background {
@@ -291,7 +365,7 @@ struct ThirdPartySourceManagerSheet: View {
         }
         do {
             let sources = try await ThirdPartySourceImportParser.fetch(url: url)
-            try await finishImport(sources)
+            try await finishImport(sources, origin: url.absoluteString)
         } catch {
             await showImportError(message: error.localizedDescription)
         }
@@ -306,10 +380,14 @@ struct ThirdPartySourceManagerSheet: View {
         }
     }
 
-    private func finishImport(_ sources: [ThirdPartySource]) async throws {
-        let normalized = sources.map { source in
+    private func finishImport(_ sources: [ThirdPartySource], origin: String? = nil) async throws {
+        let normalized = sources.map { source -> ThirdPartySource in
             var updated = source
             updated.id = UUID().uuidString
+            if let origin, !origin.isEmpty {
+                updated.updateURL = origin
+                updated.lastCheckedAt = Date()
+            }
             return updated
         }
         guard !normalized.isEmpty else {

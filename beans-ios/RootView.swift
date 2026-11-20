@@ -378,6 +378,8 @@ struct BeansNowPlayingPresentation<Content: View>: View {
     let content: Content
     @ObservedObject private var appleLayout = AppleMusicLayoutStore.shared
     @State private var dragOffset: CGFloat = 0
+    /// 左边缘右滑返回的横向位移
+    @State private var backDragOffset: CGFloat = 0
 
     init(
         isPresented: Binding<Bool>,
@@ -400,9 +402,60 @@ struct BeansNowPlayingPresentation<Content: View>: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .offset(y: usesSystemInteractiveDismissal ? 0 : dragOffset)
+            .offset(
+                x: usesSystemInteractiveDismissal ? 0 : backDragOffset,
+                y: usesSystemInteractiveDismissal ? 0 : dragOffset
+            )
+            .overlay(alignment: .leading) {
+                backSwipeEdge
+            }
         }
-        .onAppear { dragOffset = 0 }
+        .onAppear {
+            dragOffset = 0
+            backDragOffset = 0
+        }
+    }
+
+    /// 左边缘右滑返回：和系统返回手势一致的心理模型，播放页随时可以右滑退出。
+    private var backSwipeEdge: some View {
+        Color.clear
+            .frame(width: 26)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .highPriorityGesture(backSwipeGesture)
+            .accessibilityHidden(true)
+    }
+
+    private var backSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                guard value.translation.width > 0,
+                      abs(value.translation.width) > abs(value.translation.height) else { return }
+                guard !usesSystemInteractiveDismissal else { return }
+                backDragOffset = min(value.translation.width, 460)
+            }
+            .onEnded { value in
+                let width = value.translation.width
+                let predicted = value.predictedEndTranslation.width
+                let isHorizontal = width > 0 && width > abs(value.translation.height)
+                if isHorizontal, width > 78 || predicted > 150 {
+                    BeansHaptics.medium()
+                    if usesSystemInteractiveDismissal {
+                        isPresented = false
+                    } else {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.94)) {
+                            backDragOffset = 520
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                            isPresented = false
+                        }
+                    }
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                        backDragOffset = 0
+                    }
+                }
+            }
     }
 
     @ViewBuilder

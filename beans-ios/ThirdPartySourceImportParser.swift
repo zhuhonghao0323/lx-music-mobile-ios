@@ -242,9 +242,23 @@ enum ThirdPartySourceImportParser {
             headers: headers,
             quality: quality,
             script: text,
-            enabled: true
+            enabled: true,
+            version: extractScriptVersion(text)
         )
         return [source]
+    }
+
+    /// 从脚本头部注释里读取 `@version`，供自动更新比对。
+    static func extractScriptVersion(_ text: String) -> String? {
+        guard let block = extractCommentBlock(text) else { return nil }
+        for line in block.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleaned = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "* "))
+            guard cleaned.lowercased().hasPrefix("@version") else { continue }
+            let value = cleaned.dropFirst("@version".count).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return nil
     }
 
     private static func looksLikeScript(_ text: String) -> Bool {

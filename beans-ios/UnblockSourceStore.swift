@@ -16,9 +16,18 @@ struct ThirdPartySource: Identifiable, Codable, Hashable, Sendable {
     var quality: String = "320k"
     var script: String?
     var enabled: Bool = true
+    /// 脚本声明的版本号（`@version`），用于自动更新比对
+    var version: String?
+    /// 脚本来源地址（远程导入时记录），自动更新时从这里重新拉取
+    var updateURL: String?
+    /// 最近一次成功检查更新的时间
+    var lastCheckedAt: Date?
+    /// 最近一次真正更新脚本内容的时间
+    var lastUpdatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, template, urlPath, headers, quality, script, enabled
+        case version, updateURL, lastCheckedAt, lastUpdatedAt
     }
 
     init(
@@ -30,7 +39,11 @@ struct ThirdPartySource: Identifiable, Codable, Hashable, Sendable {
         headers: [String: String] = [:],
         quality: String = "320k",
         script: String? = nil,
-        enabled: Bool = true
+        enabled: Bool = true,
+        version: String? = nil,
+        updateURL: String? = nil,
+        lastCheckedAt: Date? = nil,
+        lastUpdatedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -41,6 +54,10 @@ struct ThirdPartySource: Identifiable, Codable, Hashable, Sendable {
         self.quality = quality
         self.script = script
         self.enabled = enabled
+        self.version = version
+        self.updateURL = updateURL
+        self.lastCheckedAt = lastCheckedAt
+        self.lastUpdatedAt = lastUpdatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -54,6 +71,10 @@ struct ThirdPartySource: Identifiable, Codable, Hashable, Sendable {
         quality = try container.decodeIfPresent(String.self, forKey: .quality) ?? headers["quality"] ?? "320k"
         script = try container.decodeIfPresent(String.self, forKey: .script)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        version = try container.decodeIfPresent(String.self, forKey: .version)
+        updateURL = try container.decodeIfPresent(String.self, forKey: .updateURL)
+        lastCheckedAt = try container.decodeIfPresent(Date.self, forKey: .lastCheckedAt)
+        lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
     }
 }
 

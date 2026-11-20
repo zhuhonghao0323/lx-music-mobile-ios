@@ -1,12 +1,18 @@
 import SwiftUI
 import UIKit
 
-private enum DiscoverRoute: Hashable {
+enum DiscoverRoute: Hashable {
     case topList(TopList)
     case playlist(Playlist)
     case qqTopList(QQTopInfo)
     case kugouTopList(KugouTopInfo)
     case dailySongs([Song])
+    /// 全部排行榜
+    case allCharts
+    /// 全部歌单（歌单广场）
+    case playlistSquare
+    /// 我的歌单（收藏歌单）
+    case favoritePlaylists
 }
 
 struct DiscoverView: View {
@@ -14,6 +20,7 @@ struct DiscoverView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var player: PlayerManager
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
+    @ObservedObject private var favoritePlaylists = FavoritePlaylistStore.shared
 
     @State private var topLists: [TopList] = []
     @State private var dailySongs: [Song] = []
@@ -252,6 +259,18 @@ struct DiscoverView: View {
             DailySongsSheet(songs: songs)
                 .environmentObject(player)
                 .environmentObject(auth)
+        case .allCharts:
+            AllChartsView { route in openRoute(route) }
+                .environmentObject(player)
+                .environmentObject(auth)
+        case .playlistSquare:
+            PlaylistSquareView { route in openRoute(route) }
+                .environmentObject(player)
+                .environmentObject(auth)
+        case .favoritePlaylists:
+            FavoritePlaylistsView { route in openRoute(route) }
+                .environmentObject(player)
+                .environmentObject(auth)
         }
     }
 
@@ -345,6 +364,35 @@ struct DiscoverView: View {
                 }
                 Spacer()
                 HStack(spacing: 10) {
+                    if !hidePlatformPicker {
+                        Button {
+                            BeansHaptics.select()
+                            showHomePlatformMenu = true
+                        } label: {
+                            Group {
+                                if let imageName = source.brandImageName {
+                                    Image(imageName)
+                                        .resizable()
+                                        .scaledToFit()
+                                } else {
+                                    Image(systemName: source.icon)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(Color.beansLabel)
+                                }
+                            }
+                            .frame(width: 17, height: 17)
+                            .frame(width: 34, height: 34)
+                            .background {
+                                if isNativeClean {
+                                    BeansSurface(shape: Circle())
+                                } else {
+                                    BeansGlass(shape: Circle())
+                                }
+                            }
+                        }
+                        .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+                        .accessibilityLabel("切换平台，当前 \(source.rawValue)")
+                    }
                     if !homeHeaderHideSort {
                         GlassIconButton(systemName: "arrow.up.arrow.down") {
                             BeansHaptics.tap()
@@ -446,19 +494,12 @@ struct DiscoverView: View {
 
     /// 网易云排行榜：全部榜单保留，热歌榜置顶
     private var neteaseTopLists: [TopList] {
+        // 官方重点榜单置顶，其余榜单按接口顺序补齐（不再丢弃，否则「排行榜」会显得很少）
         let preferredIDs = [19_723_756, 3_779_629, 2_884_035, 3_778_678, 60_198]
-        let byID = Dictionary(uniqueKeysWithValues: topLists.map { ($0.id, $0) })
+        let byID = Dictionary(topLists.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let preferred = preferredIDs.compactMap { byID[$0] }
-        if !preferred.isEmpty {
-            return preferred
-        }
-        var list = topLists
-        if let hot = list.first(where: { $0.name.contains("热歌榜") }),
-           let idx = list.firstIndex(where: { $0.id == hot.id }), idx != 0 {
-            list.remove(at: idx)
-            list.insert(hot, at: 0)
-        }
-        return list
+        let rest = topLists.filter { !preferredIDs.contains($0.id) }
+        return preferred + rest
     }
 
     /// 每平台排行榜最多 10 个（收起只显示前 3，展开显示前 10）
@@ -471,7 +512,7 @@ struct DiscoverView: View {
     }
 
     private var displayedRankCount: Int {
-        ranksExpanded ? min(visibleRankCount, 10) : min(visibleRankCount, 3)
+        ranksExpanded ? visibleRankCount : min(visibleRankCount, 3)
     }
 
     /// 当前平台是否有排行榜数据（网易云用 topLists，QQ 用 qqTopLists）
@@ -491,7 +532,10 @@ struct DiscoverView: View {
             nativeCleanTopListsSection
         } else {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "排行榜")
+            SectionHeader(title: "排行榜", trailing: "全部") {
+                BeansHaptics.tap()
+                openRoute(.allCharts)
+            }
             VStack(spacing: 0) {
                 if ranksExpanded {
                     rankToggleButton(label: "收起", icon: "chevron.up")
@@ -499,7 +543,7 @@ struct DiscoverView: View {
                 }
                 rankRowsContent
                 if !ranksExpanded, visibleRankCount > 3 {
-                    rankToggleButton(label: "展开全部（\(min(visibleRankCount, 10))）", icon: "chevron.down")
+                    rankToggleButton(label: "展开全部（\(visibleRankCount)）", icon: "chevron.down")
                 }
             }
             .padding(.horizontal, 14)
@@ -524,7 +568,10 @@ struct DiscoverView: View {
 
     private var nativeCleanTopListsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "排行榜")
+            SectionHeader(title: "排行榜", trailing: "全部") {
+                BeansHaptics.tap()
+                openRoute(.allCharts)
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
                     if source == .netease {
@@ -1045,9 +1092,48 @@ struct DiscoverView: View {
         return ["全部"] + Array(playlistCats.prefix(18))
     }
 
+    /// 我收藏的歌单：横向卡片，右侧「全部」进入完整列表
+    private var myPlaylistsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "我的歌单", trailing: "全部") {
+                BeansHaptics.tap()
+                openRoute(.favoritePlaylists)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 14) {
+                    ForEach(Array(favoritePlaylists.playlists.prefix(8).enumerated()), id: \.offset) { _, playlist in
+                        Button {
+                            BeansHaptics.tap()
+                            openRoute(.playlist(playlist))
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                CoverImage(url: playlist.coverURL, size: 128, cornerRadius: 14)
+                                Text(playlist.name)
+                                    .font(BeansFont.appFont(13, .semibold))
+                                    .foregroundStyle(Color.beansLabel)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(width: 128, alignment: .leading)
+                            }
+                            .frame(width: 128, alignment: .leading)
+                        }
+                        .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
     private var personalizedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: playlistSectionTitle)
+            if !favoritePlaylists.playlists.isEmpty {
+                myPlaylistsSection
+            }
+            SectionHeader(title: playlistSectionTitle, trailing: "全部") {
+                BeansHaptics.tap()
+                openRoute(.playlistSquare)
+            }
             if visiblePersonalizedPlaylists.isEmpty {
                 EmptyStateView(icon: "music.note.list", text: playlistEmptyText)
             } else if isNativeClean && !playlistsExpanded {
