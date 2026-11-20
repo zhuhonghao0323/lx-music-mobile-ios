@@ -152,9 +152,14 @@ struct SwiftUIPlayerView: View {
 
       Spacer()
 
-      Text("正在播放")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
+      VStack(spacing: 0) {
+        Text("正在播放")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+        Text("SwiftUI · v3")
+          .font(.system(size: 8))
+          .foregroundStyle(.tertiary)
+      }
 
       Spacer()
 

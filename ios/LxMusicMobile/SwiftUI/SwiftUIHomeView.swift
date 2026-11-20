@@ -46,6 +46,12 @@ struct SwiftUIHomeView: View {
   private var content: some View {
     NavigationStack {
       ScrollView {
+        Text("SwiftUI · v3")
+          .font(.system(size: 8))
+          .foregroundStyle(.tertiary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, DS.Space.sm)
+
         LazyVGrid(columns: columns, spacing: DS.Space.sm) {
           ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             Button {
