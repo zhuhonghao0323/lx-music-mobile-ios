@@ -1,0 +1,53 @@
+name: Beans
+
+options:
+  deploymentTarget:
+    iOS: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+
+targets:
+  Beans:
+    type: application
+    platform: iOS
+    sources: [beans-ios]
+    resources:
+      - beans-ios/en.lproj
+      - beans-ios/zh-Hans.lproj
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.beans.app
+        MARKETING_VERSION: "1.9.1"
+        CURRENT_PROJECT_VERSION: "78"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_OBJC_BRIDGING_HEADER: beans-ios/Beans-Bridging-Header.h
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: beans-ios/Info.plist
+      properties:
+        CFBundleDisplayName: LX Music
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIBackgroundModes: [audio]
+        UILaunchScreen:
+          UIImageName: LaunchBackground
+          UIColorName: LaunchBackgroundColor
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        CADisableMinimumFrameDurationOnPhone: true
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+
+schemes:
+  Beans:
+    build:
+      targets:
+        Beans: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,78 @@
+name: Build Beans SwiftUI IPA
+
+on:
+  push:
+    branches:
+      - ios-adaptation
+    paths:
+      - 'beans-ios/**'
+      - 'beans-project.yml'
+      - '.github/workflows/beans-ipa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-beans-ipa:
+    name: Beans IPA
+    runs-on: macos-15
+    env:
+      DERIVED_DATA_PATH: build/DerivedData
+      ARCHIVE_PATH: build/Beans.xcarchive
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec beans-project.yml
+
+      - name: Build unsigned app
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Beans.xcodeproj \
+            -scheme Beans \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive 2>&1 | tee build/xcodebuild.log
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          echo "APP: $APP_PATH"
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -qry "beans-music-ios-unsigned.ipa" Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beans-ios-ipa-unsigned
+          path: build/beans-music-ios-unsigned.ipa
+
+      - name: Release unsigned IPA
+        if: github.ref == 'refs/heads/ios-adaptation'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beans-latest
+          name: Beans Music 未签名 IPA (SwiftUI)
+          prerelease: false
+          draft: false
+          files: build/beans-music-ios-unsigned.ipa
+          # 关键：同名资产必须覆盖，否则新包不会替换旧包
+          overwrite_files: true
