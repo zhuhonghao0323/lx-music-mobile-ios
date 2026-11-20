@@ -133,6 +133,14 @@ struct SwiftUIPlayerView: View {
           .frame(height: bottomH)
       }
       .frame(width: geo.size.width, height: h)
+      .overlay {
+        LXDebugOverlay(lines: [
+          "PLAYER geo: w=\(Int(geo.size.width)) h=\(Int(h))",
+          LXDiagInsets(),
+          "header=\(Int(headerH)) info=\(Int(infoH)) bottom=\(Int(bottomH))",
+          "coverH=\(Int(coverH)) screenH=\(Int(UIScreen.main.bounds.height))",
+        ])
+      }
     }
   }
 

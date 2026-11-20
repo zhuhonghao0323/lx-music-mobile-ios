@@ -16,8 +16,14 @@ struct SwiftUIMineView: View {
   private var lists: [PlaylistItem] { PlaylistItem.decode(state["lists"] as? String) }
 
   var body: some View {
-    GeometryReader { _ in
+    GeometryReader { geo in
       content
+        .overlay {
+          LXDebugOverlay(lines: [
+            "MINE geo: w=\(Int(geo.size.width)) h=\(Int(geo.size.height))",
+            LXDiagInsets(),
+          ])
+        }
     }
   }
 

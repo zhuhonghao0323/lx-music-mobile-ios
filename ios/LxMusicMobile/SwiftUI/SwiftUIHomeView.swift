@@ -38,8 +38,14 @@ struct SwiftUIHomeView: View {
   var body: some View {
     // GeometryReader 让首帧就拿到确定尺寸，
     // 避免 RN 容器尺寸未定时内容顶到状态栏、与导航栏重叠
-    GeometryReader { _ in
+    GeometryReader { geo in
       content
+        .overlay {
+          LXDebugOverlay(lines: [
+            "HOME geo: w=\(Int(geo.size.width)) h=\(Int(geo.size.height))",
+            LXDiagInsets(),
+          ])
+        }
     }
   }
 
