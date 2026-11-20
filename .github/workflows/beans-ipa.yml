@@ -47,26 +47,29 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             archive 2>&1 | tee build/xcodebuild.log
 
-      # 编译失败时把 Swift 报错写进 Run Summary，方便在网页上直接看到问题行
+      # 编译失败时把日志发布回仓库（ci-failure.log），便于本地直接读取报错
       - name: Report build errors
         if: failure()
         shell: bash
         run: |
           LOG=build/xcodebuild.log
           {
-            echo "### 编译报错（error: 行）"
-            echo '```text'
+            echo "=== $(date -u) ==="
+            echo "--- error: 行 ---"
             if [ -f "$LOG" ]; then
-              grep -E "error:" "$LOG" | head -n 60 || echo "(没有匹配到 error: 行)"
+              grep -E "error:" "$LOG" | head -n 80 || echo "(没有匹配到 error: 行)"
             else
-              echo "(缺少 $LOG)"
+              echo "(缺少 $LOG，可能失败在更早的步骤)"
             fi
-            echo '```'
-            echo "### 日志末尾 100 行"
-            echo '```text'
-            if [ -f "$LOG" ]; then tail -n 100 "$LOG" || true; fi
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY" || true
+            echo "--- 日志末尾 120 行 ---"
+            if [ -f "$LOG" ]; then tail -n 120 "$LOG" || true; fi
+          } > ci-failure.log 2>&1 || true
+          git config user.name "beans-ci"
+          git config user.email "beans-ci@users.noreply.github.com"
+          git add -f ci-failure.log
+          git commit -m "ci: 记录一次编译失败日志 [skip ci]" || true
+          git pull --rebase --autostash origin ios-adaptation || true
+          git push origin HEAD:ios-adaptation || true
 
       - name: Package unsigned IPA
         shell: bash
