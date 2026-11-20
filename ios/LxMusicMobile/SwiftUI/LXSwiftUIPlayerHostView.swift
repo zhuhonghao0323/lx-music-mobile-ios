@@ -32,12 +32,14 @@ final class LXSwiftUIPlayerHostView: UIView {
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)
     // 用 safeAreaLayoutGuide 约束，内容自动避开状态栏/Home 指示条
-    let insets = LXWindowSafeInsets()
+    // RN 传入的 frame 已经在安全区内（geo h 已扣除状态栏/Home 条），
+    // 这里若再扣一次 safeArea 会双重避让 → 顶部白条、内容被压缩。
+    // 直接贴 superView 四边即可。
     NSLayoutConstraint.activate([
-      host.view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
-      host.view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
-      host.view.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
-      host.view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
+      host.view.leadingAnchor.constraint(equalTo: leadingAnchor),
+      host.view.trailingAnchor.constraint(equalTo: trailingAnchor),
+      host.view.topAnchor.constraint(equalTo: topAnchor),
+      host.view.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
     hostingController = host
   }

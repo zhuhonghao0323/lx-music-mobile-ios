@@ -34,6 +34,14 @@ struct SwiftUIPlayerView: View {
     }
     .tint(.primary)
     .statusBarHidden(false)
+    .overlay {
+      GeometryReader { g in
+        LXDebugOverlay(lines: [
+          "PLAYER BODY w=\(Int(g.size.width)) h=\(Int(g.size.height))",
+          LXDiagInsets(),
+        ])
+      }
+    }
     .sheet(isPresented: $showSourceSheet) {
       OptionSheet(title: "切换音源",
                   options: bridge.sourceOptions,
