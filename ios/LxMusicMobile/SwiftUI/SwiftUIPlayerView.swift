@@ -106,33 +106,38 @@ struct SwiftUIPlayerView: View {
   // 否则底部控件会被挤出屏幕（上一版就是这个错误）。
   private var contentLayer: some View {
     VStack(spacing: 0) {
-      // ---- 顶部：返回 + 标题 + 更多（不占用可伸缩空间）----
       header
-        .padding(.horizontal, DS.Space.md)
 
-      // ---- 中部：封面 + 歌曲信息 + 歌词（可伸缩）----
-      VStack(spacing: DS.Space.sm) {
-        Spacer(minLength: 0)
-        cover
-          .padding(.horizontal, DS.Space.md)
-        songInfo
-        lyrics
-        Spacer(minLength: 0)
+      // 中部：封面 + 信息 + 歌词，放进 ScrollView 保证小屏也能完整显示
+      ScrollView(.vertical, showsIndicators: false) {
+        VStack(spacing: DS.Space.md) {
+          cover
+          songInfo
+          lyrics
+        }
+        .frame(maxWidth: .infinity)
       }
       .frame(maxHeight: .infinity)
 
-      // ---- 底部：进度 + 控制 + 功能 + 导航（固定，永不被裁）----
-      VStack(spacing: DS.Space.sm) {
-        progress
-        controls
-        actions
-        bottomNav
-      }
-      .padding(.horizontal, DS.Space.md)
-      .padding(.bottom, DS.Space.xs)
+      // 底部固定控件区（safeAreaInset 保证不受 home 指示条遮挡）
+      bottomControls
     }
   }
 
+  /// 底部固定区：进度 / 播放控制 / 功能 / 导航
+  private var bottomControls: some View {
+    VStack(spacing: DS.Space.sm) {
+      progress
+      controls
+      actions
+      bottomNav
+    }
+    .padding(.horizontal, DS.Space.md)
+    .padding(.top, DS.Space.xs)
+    .background(
+      LinearGradient(colors: [.clear, Color.black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
+    )
+  }
 
   // MARK: - 顶栏
   private var header: some View {
@@ -172,29 +177,35 @@ struct SwiftUIPlayerView: View {
   // MARK: - 层 3：实体封面
   @ViewBuilder
   private var cover: some View {
-    Group {
-      if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
-        AsyncImage(url: url) { phase in
-          if case .success(let image) = phase {
-            image.resizable().scaledToFill()
-          } else {
-            coverPlaceholder
+    GeometryReader { geo in
+      let side = min(geo.size.width, 420)
+      Group {
+        if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
+          AsyncImage(url: url) { phase in
+            if case .success(let image) = phase {
+              image.resizable().scaledToFill()
+            } else {
+              coverPlaceholder
+            }
           }
+          .id(bridge.picUrl)
+        } else {
+          coverPlaceholder
         }
-      } else {
-        coverPlaceholder
       }
+      .frame(width: side, height: side)
+      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+          .stroke(.white.opacity(0.12), lineWidth: 0.5)
+      }
+      .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+      .frame(width: geo.size.width, height: side)
     }
-    .aspectRatio(1, contentMode: .fit)
-    .frame(maxWidth: .infinity)
-    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: 20, style: .continuous)
-        .stroke(.white.opacity(0.12), lineWidth: 0.5)
-    }
-    .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
+    // 关键：给 GeometryReader 一个固定的正方形高度，
+    // 防止 AsyncImage 加载后固有尺寸撑破布局（这正是封面出来后界面全乱的根因）
+    .frame(height: min(UIScreen.main.bounds.width - 48, 420))
   }
-
 
   private var coverPlaceholder: some View {
     ZStack {

@@ -61,10 +61,7 @@ export default memo(() => {
       case 'playResult': {
         const idx = Number(payload.index ?? -1)
         const list = searchMusicState.listInfos[searchMusicState.source]?.list ?? []
-        if (idx >= 0 && idx < list.length) {
-          const target = { musicInfo: list[idx] }
-          handlePlay(target as never, idx)
-        }
+        if (idx >= 0 && idx < list.length) handlePlay('', idx)
         break
       }
       case 'switchSource': break

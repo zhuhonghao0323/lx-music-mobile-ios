@@ -12,6 +12,9 @@ import { createStyle } from '@/utils/tools'
 import { useActiveListId } from '@/store/list/hook'
 import ListOperations from './ListOperations'
 
+import { isSwiftUIPageSupported } from '@/screens/SwiftUIPages/swiftUIPageBridge'
+import MylistSwiftUIContainer from '@/screens/SwiftUIPages/MylistContainer'
+
 /** 歌单内一排功能按钮（风格统一）：排序 / 重复 / 添加本地 / 更新 / 导入 / 导出 / 移除 */
 type OpAction = 'sort' | 'duplicate' | 'localFile' | 'sync' | 'import' | 'export' | 'remove'
 
@@ -25,7 +28,7 @@ const ACTIONS: Array<{ id: OpAction, icon: string, label: string, needsOnline?: 
   { id: 'remove', icon: 'remove', label: '移除' },
 ]
 
-export default () => {
+const MylistContent = () => {
   const theme = useTheme()
   const activeListId = useActiveListId()
 
@@ -71,6 +74,15 @@ export default () => {
       <ListOperations />
     </View>
   )
+}
+
+/**
+ * 歌单详情 —— 平台分发。
+ * iOS 使用 SwiftUI（切换歌单菜单 + 功能按钮排 + 歌曲列表），其它保留 RN 实现。
+ */
+export default () => {
+  if (isSwiftUIPageSupported) return <MylistSwiftUIContainer />
+  return <MylistContent />
 }
 
 const styles = createStyle({

@@ -21,6 +21,7 @@
 		3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */; };
 		3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */; };
 	3A5E0000000000000000B00A /* LXHapticsModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A00A /* LXHapticsModule.m */; };
+		3A5E0000000000000000B017 /* SwiftUIMylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A017 /* SwiftUIMylistView.swift */; };
 		3A5E0000000000000000B015 /* SwiftUILeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A015 /* SwiftUILeaderboardView.swift */; };
 		3A5E0000000000000000B016 /* SwiftUISettingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A016 /* SwiftUISettingView.swift */; };
 		3A5E0000000000000000B014 /* LXSwiftUIModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 3A5E0000000000000000A014 /* LXSwiftUIModuleBridge.m */; };
@@ -64,6 +65,7 @@
 		3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXSwiftUIPlayerModule.swift; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerModule.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXSwiftUIPlayerViewManager.m; path = LxMusicMobile/SwiftUI/LXSwiftUIPlayerViewManager.m; sourceTree = "<group>"; };
 	3A5E0000000000000000A00A /* LXHapticsModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXHapticsModule.m; path = LxMusicMobile/LXHapticsModule.m; sourceTree = "<group>"; };
+		3A5E0000000000000000A017 /* SwiftUIMylistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUIMylistView.swift; path = LxMusicMobile/SwiftUI/SwiftUIMylistView.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A015 /* SwiftUILeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUILeaderboardView.swift; path = LxMusicMobile/SwiftUI/SwiftUILeaderboardView.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A016 /* SwiftUISettingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftUISettingView.swift; path = LxMusicMobile/SwiftUI/SwiftUISettingView.swift; sourceTree = "<group>"; };
 		3A5E0000000000000000A014 /* LXSwiftUIModuleBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXSwiftUIModuleBridge.m; path = LxMusicMobile/SwiftUI/LXSwiftUIModuleBridge.m; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				3A5E0000000000000000A005 /* LXSwiftUIPlayerModule.swift */,
 				3A5E0000000000000000A006 /* LXSwiftUIPlayerViewManager.m */,
 				3A5E0000000000000000A00A /* LXHapticsModule.m */,
+				3A5E0000000000000000A017 /* SwiftUIMylistView.swift */,
 				3A5E0000000000000000A015 /* SwiftUILeaderboardView.swift */,
 				3A5E0000000000000000A016 /* SwiftUISettingView.swift */,
 				3A5E0000000000000000A014 /* LXSwiftUIModuleBridge.m */,
@@ -479,6 +482,7 @@
 				3A5E0000000000000000B005 /* LXSwiftUIPlayerModule.swift in Sources */,
 				3A5E0000000000000000B006 /* LXSwiftUIPlayerViewManager.m in Sources */,
 				3A5E0000000000000000B00A /* LXHapticsModule.m in Sources */,
+				3A5E0000000000000000B017 /* SwiftUIMylistView.swift in Sources */,
 				3A5E0000000000000000B015 /* SwiftUILeaderboardView.swift in Sources */,
 				3A5E0000000000000000B016 /* SwiftUISettingView.swift in Sources */,
 				3A5E0000000000000000B014 /* LXSwiftUIModuleBridge.m in Sources */,

@@ -28,9 +28,6 @@ final class LXSwiftUIPlayerHostView: UIView {
 
     let host = UIHostingController(rootView: SwiftUIPlayerView())
     host.view.backgroundColor = .clear
-    // 关键：不要让 UIKit 再插一次 safeArea，否则首帧尺寸计算错误，
-    // 表现为内容顶到状态栏、与顶部导航重叠，切页后才恢复。
-    host.safeAreaRegions = []
     host.view.insetsLayoutMarginsFromSafeArea = false
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)

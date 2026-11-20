@@ -59,10 +59,7 @@ export default memo(() => {
       case 'playSong': {
         const idx = Number(payload.index ?? -1)
         const list = leaderboardState.listDetailInfo.list
-        if (idx >= 0 && idx < list.length) {
-          const target = { musicInfo: list[idx] }
-          handlePlay(target as never, idx)
-        }
+        if (idx >= 0 && idx < list.length) handlePlay('', idx)
         break
       }
       default: break

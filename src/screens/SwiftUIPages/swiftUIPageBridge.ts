@@ -38,6 +38,7 @@ export const NativeHomeView = safeRequireView('LXSwiftUIHomeView')
 export const NativeSearchView = safeRequireView('LXSwiftUISearchView')
 export const NativeLeaderboardView = safeRequireView('LXSwiftUILeaderboardView')
 export const NativeSettingView = safeRequireView('LXSwiftUISettingView')
+export const NativeMylistView = safeRequireView('LXSwiftUIMylistView')
 
 let emitter: NativeEventEmitter | null = null
 const getEmitter = () => {
@@ -77,6 +78,8 @@ export type PageCommand =
   | 'refresh'
   | 'openSettingPage'
   | 'back'
+  | 'switchList'
+  | 'searchInList'
 
 export const onPageCommand = (
   handler: (pageId: string, command: PageCommand, payload: Record<string, unknown>) => void,

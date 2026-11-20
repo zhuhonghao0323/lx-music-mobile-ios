@@ -65,3 +65,12 @@ RCT_EXPORT_MODULE(LXSwiftUISettingView)
 + (BOOL)requiresMainQueueSetup { return YES; }
 - (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUISettingHostView"); }
 @end
+
+// ---- 歌单详情 ----
+@interface LXSwiftUIMylistViewManager : RCTViewManager
+@end
+@implementation LXSwiftUIMylistViewManager
+RCT_EXPORT_MODULE(LXSwiftUIMylistView)
++ (BOOL)requiresMainQueueSetup { return YES; }
+- (UIView *)view { return LXMakeSwiftUIHost(self, @"LXSwiftUIMylistHostView"); }
+@end
