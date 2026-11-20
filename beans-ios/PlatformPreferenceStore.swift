@@ -21,16 +21,19 @@ final class PlatformPreferenceStore: ObservableObject {
 
     private init() {
         let saved = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
+        // 先用局部变量算好，再一次性赋给存储属性（初始化期间不能读 self）
+        var initialSelected: Set<String>
         if saved.isEmpty {
-            selectedRaw = Set(SearchProvider.allCases.map(\.rawValue))
+            initialSelected = Set(SearchProvider.allCases.map(\.rawValue))
         } else {
-            selectedRaw = Set(saved.map(Self.migrateRawValue))
+            initialSelected = Set(saved.map(Self.migrateRawValue))
             if !UserDefaults.standard.bool(forKey: Self.miguMigratedKey) {
-                selectedRaw.insert(SearchProvider.migu.rawValue)
-                UserDefaults.standard.set(Array(selectedRaw), forKey: Self.key)
+                initialSelected.insert(SearchProvider.migu.rawValue)
+                UserDefaults.standard.set(Array(initialSelected), forKey: Self.key)
                 UserDefaults.standard.set(true, forKey: Self.miguMigratedKey)
             }
         }
+        selectedRaw = initialSelected
         orderedRaw = UserDefaults.standard.stringArray(forKey: Self.orderKey)?
             .map(Self.migrateRawValue) ?? []
         normalize()
