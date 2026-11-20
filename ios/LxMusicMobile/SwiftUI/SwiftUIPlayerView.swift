@@ -107,19 +107,23 @@ struct SwiftUIPlayerView: View {
   private var contentLayer: some View {
     VStack(spacing: 0) {
       header
+        .padding(.horizontal, DS.Space.md)
+        .padding(.top, DS.Space.xs)
 
-      // 中部：封面 + 信息 + 歌词，放进 ScrollView 保证小屏也能完整显示
-      ScrollView(.vertical, showsIndicators: false) {
-        VStack(spacing: DS.Space.md) {
-          cover
-          songInfo
-          lyrics
-        }
-        .frame(maxWidth: .infinity)
-      }
-      .frame(maxHeight: .infinity)
+      // 封面：按屏幕高度的 34%，保证底部控件有余量
+      cover
+        .frame(height: UIScreen.main.bounds.height * 0.34)
+        .padding(.horizontal, DS.Space.md)
+        .padding(.top, DS.Space.sm)
 
-      // 底部固定控件区（safeAreaInset 保证不受 home 指示条遮挡）
+      songInfo
+        .padding(.top, DS.Space.sm)
+
+      lyrics
+        .padding(.top, DS.Space.xs)
+
+      Spacer(minLength: 0)
+
       bottomControls
     }
   }
@@ -152,14 +156,9 @@ struct SwiftUIPlayerView: View {
 
       Spacer()
 
-      VStack(spacing: 0) {
-        Text("正在播放")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-        Text("SwiftUI · v3")
-          .font(.system(size: 8))
-          .foregroundStyle(.tertiary)
-      }
+      Text("正在播放")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
 
       Spacer()
 
@@ -182,34 +181,27 @@ struct SwiftUIPlayerView: View {
   // MARK: - 层 3：实体封面
   @ViewBuilder
   private var cover: some View {
-    GeometryReader { geo in
-      let side = min(geo.size.width, 420)
-      Group {
-        if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
-          AsyncImage(url: url) { phase in
-            if case .success(let image) = phase {
-              image.resizable().scaledToFill()
-            } else {
-              coverPlaceholder
-            }
+    Group {
+      if let url = URL(string: bridge.picUrl), !bridge.picUrl.isEmpty {
+        AsyncImage(url: url) { phase in
+          if case .success(let image) = phase {
+            image.resizable().scaledToFill()
+          } else {
+            coverPlaceholder
           }
-          .id(bridge.picUrl)
-        } else {
-          coverPlaceholder
         }
+        .id(bridge.picUrl)
+      } else {
+        coverPlaceholder
       }
-      .frame(width: side, height: side)
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .stroke(.white.opacity(0.12), lineWidth: 0.5)
-      }
-      .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
-      .frame(width: geo.size.width, height: side)
     }
-    // 关键：给 GeometryReader 一个固定的正方形高度，
-    // 防止 AsyncImage 加载后固有尺寸撑破布局（这正是封面出来后界面全乱的根因）
-    .frame(height: min(UIScreen.main.bounds.width - 48, 420))
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .clipped()
+    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
+        .stroke(.white.opacity(0.12), lineWidth: 0.5)
+    }
   }
 
   private var coverPlaceholder: some View {

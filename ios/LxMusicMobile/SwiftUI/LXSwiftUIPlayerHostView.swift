@@ -31,11 +31,12 @@ final class LXSwiftUIPlayerHostView: UIView {
     host.view.insetsLayoutMarginsFromSafeArea = false
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)
+    // 用 safeAreaLayoutGuide 约束，内容自动避开状态栏/Home 指示条
     NSLayoutConstraint.activate([
-      host.view.leadingAnchor.constraint(equalTo: leadingAnchor),
-      host.view.trailingAnchor.constraint(equalTo: trailingAnchor),
-      host.view.topAnchor.constraint(equalTo: topAnchor),
-      host.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+      host.view.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
+      host.view.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
+      host.view.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+      host.view.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
     ])
     hostingController = host
   }
