@@ -46,13 +46,12 @@ enum PlaylistImportService {
         guard !text.isEmpty else { return nil }
         let lower = text.lowercased()
 
-        // 酷狗：优先 gcid，其次 specialid
+        // 酷狗：优先 gcid，其次 specialid / listid
         if lower.contains("kugou.com") {
             if let gcid = firstMatch(#"gcid_[0-9a-zA-Z]+"#, in: text) {
                 return (.kugou, gcid)
             }
-            if let id = firstMatch(#"(?:special/single/|specialid=|listid/)(\d+)"#, in: text, group: 1)
-                ?? firstMatch(#"specialid=(\d+)"#, in: text, group: 1) {
+            if let id = firstMatch(#"(?:special/single/|specialid=|listid=|listid/|plist/list/|/list/)(\d+)"#, in: text, group: 1) {
                 return (.kugou, id)
             }
         }
@@ -70,9 +69,11 @@ enum PlaylistImportService {
                 return (.qq, id)
             }
         }
-        // 波点 / 酷我
+        // 波点 / 酷我：分享页把歌单 id 放在 id= 参数里，优先取它，避免抓到别的数字
         if lower.contains("bodian") || lower.contains("kuwo.cn") {
-            if let id = firstMatch(#"(\d{3,})"#, in: text, group: 1) {
+            if let id = firstMatch(#"[?&]id=(\d+)"#, in: text, group: 1)
+                ?? firstMatch(#"/(\d{6,})(?:\.html|$)"#, in: text, group: 1)
+                ?? firstMatch(#"(\d{3,})"#, in: text, group: 1) {
                 return (.bodian, id)
             }
         }

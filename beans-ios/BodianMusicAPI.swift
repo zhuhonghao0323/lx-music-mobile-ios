@@ -261,8 +261,23 @@ final class BodianMusicAPI {
         }
         let nick = Self.string(user["nickname"] ?? user["name"] ?? data["nickname"])
         let avatar = Self.string(user["headImg"] ?? user["avatarUrl"] ?? data["headImg"])
-        BodianMusicAuth.shared.saveLogin(uid: uid, token: token, nickname: nick, avatar: avatar)
+        let vip = Self.vipLabel(from: user) ?? Self.vipLabel(from: data)
+        BeansLogger.shared.log(
+            "波点登录返回：userInfo keys=\(user.keys.sorted()) data keys=\(data.keys.sorted()) vip=\(vip ?? "无")",
+            level: .info
+        )
+        BodianMusicAuth.shared.saveLogin(uid: uid, token: token, nickname: nick, avatar: avatar, vip: vip)
         return true
+    }
+
+    /// 波点不同端返回的会员字段名不一致，按常见几种取一次；
+    /// 取不到就返回 nil（不展示角标），不要猜成会员。
+    private static func vipLabel(from info: [String: Any]) -> String? {
+        let typeRaw = string(info["vipType"] ?? info["vip_type"] ?? info["vipLevel"] ?? info["vip_level"])
+        let flagRaw = string(info["isVip"] ?? info["is_vip"] ?? info["vip"] ?? info["isVipUser"])
+        let type = Int(typeRaw) ?? Int(flagRaw) ?? 0
+        guard type > 0 else { return nil }
+        return type >= 2 ? "SVIP" : "VIP"
     }
 
     // MARK: - 底层请求

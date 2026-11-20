@@ -8,6 +8,8 @@ final class BodianMusicAuth: ObservableObject {
     @Published private(set) var uid = ""
     @Published private(set) var nickname = ""
     @Published private(set) var avatarURL: URL?
+    /// 波点会员角标：登录返回里带会员字段时展示（VIP / SVIP），没有就为 nil
+    @Published private(set) var vipBadge: String?
 
     private let defaults = UserDefaults.standard
     private let key = "beans.bodian.auth.v1"
@@ -23,9 +25,6 @@ final class BodianMusicAuth: ObservableObject {
     }
 
     var token: String { auth["token"] ?? "" }
-
-    /// 波点会员标识：扫码登录返回里没有稳定的会员字段，暂不展示角标
-    var vipBadge: String? { nil }
 
     /// 波点要求稳定的 32 位小写十六进制设备号，删掉就等于换了新设备。
     var deviceId: String {
@@ -43,12 +42,13 @@ final class BodianMusicAuth: ObservableObject {
         return value
     }
 
-    func saveLogin(uid: String, token: String, nickname: String, avatar: String) {
+    func saveLogin(uid: String, token: String, nickname: String, avatar: String, vip: String? = nil) {
         var next = auth
         next["uid"] = uid
         next["token"] = token
         next["nickname"] = nickname
         next["avatar"] = avatar
+        next["vip"] = vip ?? ""
         auth = next
         defaults.set(next, forKey: key)
         applyState()
@@ -68,9 +68,12 @@ final class BodianMusicAuth: ObservableObject {
         let nextNick = auth["nickname"] ?? ""
         let nextAvatar = URL(string: auth["avatar"] ?? "")
         let nextLoggedIn = !nextUID.isEmpty && !nextToken.isEmpty
+        let vipText = (auth["vip"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextVip: String? = vipText.isEmpty ? nil : vipText
         if uid != nextUID { uid = nextUID }
         if isLoggedIn != nextLoggedIn { isLoggedIn = nextLoggedIn }
         if nickname != nextNick { nickname = nextNick }
         if avatarURL != nextAvatar { avatarURL = nextAvatar }
+        if vipBadge != nextVip { vipBadge = nextVip }
     }
 }

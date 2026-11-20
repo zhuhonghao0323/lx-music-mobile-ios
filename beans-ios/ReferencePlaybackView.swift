@@ -579,7 +579,7 @@ struct ReferencePlaybackView: View {
             }
     }
 
-    /// 封面页手势：右滑看歌词、上划下一曲、下滑上一曲（左滑保持原样，不做处理）
+    /// 封面页手势：右滑看歌词、上划下一曲、下滑上一曲、左滑下一首（与经典封面一致）
     private var coverSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 26)
             .onEnded { value in
@@ -587,7 +587,11 @@ struct ReferencePlaybackView: View {
                 let dy = value.translation.height
                 guard max(abs(dx), abs(dy)) > 42 else { return }
                 if abs(dx) > abs(dy) {
-                    guard dx > 0 else { return }
+                    if dx < 0 {
+                        BeansHaptics.medium()
+                        player.next()
+                        return
+                    }
                     BeansHaptics.tap()
                     if lyrics.isEmpty {
                         ToastCenter.shared.show("暂无歌词")

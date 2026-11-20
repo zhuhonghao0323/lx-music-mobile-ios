@@ -13,6 +13,7 @@ struct PlaylistView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var theme: ThemeStore
     @ObservedObject private var favorites = FavoritesStore.shared
+    @ObservedObject private var importedStore = ImportedPlaylistStore.shared
 
     let playlist: Playlist
     @State private var tracks: [Song] = []
@@ -20,8 +21,14 @@ struct PlaylistView: View {
     @State private var errorMessage: String?
     @State private var searchText = ""
     @State private var sortMode: PlaylistSortMode = .original
+    @State private var updatingImported = false
     @AppStorage("beans.homeHeaderHideSort") private var hideSortButton = false
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
+
+    /// 导入歌单：歌曲存在本机，详情页直接用本地副本
+    private var importedEntry: ImportedPlaylist? {
+        importedStore.item(for: playlist)
+    }
 
     private var isNativeClean: Bool {
         BeansUIStyle(rawValue: uiStyleRaw) == .nativeClean
@@ -135,6 +142,29 @@ struct PlaylistView: View {
                 .padding(.vertical, 9)
                 .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)) }
 
+                if importedEntry != nil {
+                    Button {
+                        BeansHaptics.tap()
+                        guard let entry = importedEntry else { return }
+                        Task { await refreshImportedEntry(entry) }
+                    } label: {
+                        Group {
+                            if updatingImported {
+                                ProgressView().scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.beansAmber)
+                            }
+                        }
+                        .frame(width: 38, height: 38)
+                        .background { BeansSurface(shape: Circle()) }
+                    }
+                    .buttonStyle(GlassPressButtonStyle())
+                    .disabled(updatingImported)
+                    .accessibilityLabel("更新歌单")
+                }
+
                 if !hideSortButton {
                     Menu {
                         Picker("排序", selection: $sortMode) {
@@ -179,6 +209,15 @@ struct PlaylistView: View {
     }
 
     private func load(force: Bool = false) async {
+        // 导入歌单：歌曲已存在本机，直接读本地副本（秒开、离线可看），
+        // 需要拿平台最新内容时走「更新」，不在这里重复请求接口。
+        if let entry = importedEntry {
+            tracks = entry.songs
+            loading = false
+            errorMessage = nil
+            if force { await refreshImportedEntry(entry) }
+            return
+        }
         let cache = SyncedPlaylistCache.shared
         if let cached = cache.cachedSongs(playlist: playlist, accountID: cacheAccountID) {
             tracks = cached.songs
@@ -225,5 +264,23 @@ struct PlaylistView: View {
             BeansLogger.shared.log("歌单页面加载失败 source=\(playlist.source.rawValue) id=\(playlist.id) name=\(playlist.name) error=\(error.localizedDescription)", level: .error)
             loading = false
         }
+    }
+
+    /// 导入歌单「更新」：重新从平台抓全量歌曲，覆盖本地副本
+    private func refreshImportedEntry(_ entry: ImportedPlaylist) async {
+        guard !updatingImported else { return }
+        updatingImported = true
+        BeansLogger.shared.log("导入歌单详情更新：\(entry.source.rawValue) \(entry.sourceID) \(entry.name)", level: .info)
+        do {
+            let payload = try await PlaylistImportService.fetch(source: entry.source, sourceID: entry.sourceID)
+            importedStore.updateSongs(payload.songs, key: entry.key)
+            tracks = payload.songs
+            ToastCenter.shared.show("「\(entry.name)」已更新 \(payload.songs.count) 首")
+        } catch {
+            let text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            ToastCenter.shared.show("更新失败：\(text)")
+            BeansLogger.shared.log("导入歌单详情更新失败：\(entry.name) \(text)", level: .warn)
+        }
+        updatingImported = false
     }
 }

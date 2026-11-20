@@ -1019,28 +1019,39 @@ final class KugouMusicAPI {
 
     /// 按 specialid 取歌单歌曲：`mobiles.kugou.com/api/v5/special/song` 是移动端公开接口，
     /// 不需要登录，一次最多 1000 首，实测能拿到完整列表（含 hash / 320 / flac）。
+    ///
+    /// 注意：服务端会把过大的 pagesize 悄悄截断（实测常见 100 / 300）。
+    /// 若仍按请求的 pagesize 换算页码，第 2 页就会从 1000 开始翻，中间整段歌曲被跳过；
+    /// 所以第一页一旦发现被截断，就用真实返回条数作为后续页码的步长。
     private func specialSongs(specialID: Int, pageSize: Int = 1000) async throws -> [Song] {
         var songs: [Song] = []
         var seen = Set<String>()
         var page = 1
+        var step = max(1, pageSize)
         var total = 0
-        while page <= 20 {
-            let url = "https://mobiles.kugou.com/api/v5/special/song?specialid=\(specialID)&page=\(page)&pagesize=\(pageSize)&version=9108&plat=0"
+        var received = 0
+        while page <= 40 {
+            let url = "https://mobiles.kugou.com/api/v5/special/song?specialid=\(specialID)&page=\(page)&pagesize=\(step)&version=9108&plat=0"
             guard let requestURL = URL(string: url) else { break }
             let json = try await getJSON(requestURL, ua: Self.mobileUA)
             let payload = json["data"] as? [String: Any] ?? [:]
             total = Self.int(payload["total"])
             let rows = payload["info"] as? [[String: Any]] ?? []
+            if rows.isEmpty { break }
+            if page == 1, rows.count < step, total > rows.count {
+                step = rows.count
+            }
+            received += rows.count
             for row in rows {
                 guard let song = Self.mapTrack(row), seen.insert(song.identityKey).inserted else { continue }
                 songs.append(song)
             }
-            if rows.count < pageSize { break }
-            if total > 0 && songs.count >= total { break }
+            if total > 0 && received >= total { break }
+            if rows.count < step { break }
             page += 1
         }
         BeansLogger.shared.log(
-            "酷狗 specialid 歌单歌曲：specialid=\(specialID) 接口 total=\(total) 解析 \(songs.count) 首",
+            "酷狗 specialid 歌单歌曲：specialid=\(specialID) 接口 total=\(total) 收到 \(received) 条 解析 \(songs.count) 首",
             level: songs.isEmpty ? .warn : .debug
         )
         return songs

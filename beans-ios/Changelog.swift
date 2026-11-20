@@ -48,6 +48,20 @@ enum ChangelogStore {
 
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.11.1",
+            version: "1.11.1",
+            title: "歌单导入与手势打磨",
+            features: [
+                "导入歌单点进去直接读本机副本，离线也能看，右上角新增「更新」按钮随时拉最新",
+                "Apple Music 封面样式补充左滑下一首，三种封面风格手势一致",
+                "波点音乐登录后识别会员状态，我的页显示 VIP / SVIP 角标"
+            ],
+            fixes: [
+                "酷狗云歌单分页：接口偷偷截断单页条数时，后续页码会整段跳歌，现在按真实返回条数翻页",
+                "导入歌单链接识别补充酷狗 m 站 plist/list、波点分享页 id= 参数"
+            ]
+        ),
+        VersionLog(
             id: "1.11.0",
             version: "1.11.0",
             title: "导入歌单与播放手势",

@@ -29,28 +29,22 @@
 | 不能本地编译 | Linux 无 xcodebuild；编译错误靠 CI 的 `ci-failure.log`（失败时工作流会把 `grep "error:"` 提交回分支） |
 | 推送凭据 | 仓库是 public，clone 免认证，**push 需要 PAT**（fine-grained，仅该仓库 Contents: Read and write），用完在 GitHub 撤销 |
 | 不需要代理 | 云端直连 GitHub，不要再加 `http.proxy=127.0.0.1:7897`（那是本机 Windows 才需要的） |
+| 网络坑 | 云端到 GitHub 的大包传输很慢且会中途 `Connection reset`：`git clone` 建议 `-c http.version=HTTP/1.1`，`--depth 1`；若反复失败，直接下 `https://codeload.github.com/.../tar.gz/refs/heads/ios-adaptation`（不支持断点续传，必须一次下完，约 11MB），推送走 GitHub REST API（`/git/blobs` → `/git/trees` → `/git/commits` → `PATCH /git/refs/heads/ios-adaptation`） |
 | 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
 | 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
 
-### 0.3 当前状态（2026-11-20）
+### 0.3 当前状态（2026-11-20 22:00 更新，版本 **1.11.1 (81)**）
 
-已完成并 CI 通过（`1d45f268`，版本 **1.11.0 (80)**）：
+上一版 `1d45f268`（1.11.0 / 80）已 CI 通过；`1419b859` 只是文档提交。1.11.1 在 1.11.0 基础上做了下面四件事（对应上一轮的待验证项）：
 
-- 波点音乐接入（搜索 / 推荐歌单 / 扫码登录 / 播放 / 歌词 / 收藏）
-- 首页默认「全部」平台聚合歌单，左上角图标下拉切换
-- 歌单广场三列网格 + 推荐/最热/最新 + 分类筛选弹窗
-- **酷狗云歌单修复**：gcid → `t.kugou.com/v1/songlist/batch_decode` 反解 specialid → `mobiles.kugou.com/api/v5/special/song` 分页取全量（原来 1602 首点进去 0 首）
-- **歌单分两类**：账号同步歌单 + 导入歌单（`ImportedPlaylistStore` / `PlaylistImportService` / `ImportPlaylistSheet`，本地 JSON 落盘，可更新/重命名/删除；歌单广场长按可导入）
-- **播放手势**：封面右滑歌词、上划下一曲、下滑上一曲、左滑下一首；歌词页左滑返回；双击封面收藏；评论入口移到右上角菜单
+| 待验证项 | 本轮做的处理 | 仍需真机确认 |
+|---|---|---|
+| ① 1602 首酷狗云歌单能否列出 | `specialSongs` 分页重写：酷狗会把 `pagesize` 悄悄截断（100/300），旧逻辑按请求的 1000 算页码，第 2 页从 1000 起翻、整段跳歌。现在首页发现被截断就用真实条数当步长，且不再 `rows.count < pageSize` 就提前收尾 | 打开歌单看总数是否接近 1602 |
+| ② 三种封面风格手势 | Apple Music 风格补上「左滑下一首」（原来 `guard dx > 0` 直接 return，与经典/黑胶不一致）；经典、黑胶原本已有上/下/右滑，无需改 | 手感、是否与歌词滚动/点击冲突 |
+| ③ 导入歌单抓取与更新 | 详情页改为**本地优先**：`PlaylistView` 命中 `ImportedPlaylistStore` 就直接读本机歌曲（离线可用、秒开），右上角新增「更新」按钮（转圈 + Toast）；链接解析补齐酷狗 m 站 `plist/list`、`listid=`，波点分享页优先取 `id=` 参数 | 网易云 / QQ / 酷狗（gcid、specialid 两种链接）/ 波点各导一个试试 |
+| ④ 波点登录同步与 VIP | 登录返回里按 `vipType` / `vip_type` / `vipLevel` / `isVip` 等字段判定角标，持久化到 `BodianMusicAuth.vipBadge`，我的页直接显示；同时把 `userInfo` 的 key 列表打进日志，方便下一轮按真实字段名改 | 会员号登录后我的页是否出 VIP/SVIP 角标；不出就看日志 `波点登录返回：userInfo keys=...` |
 
-待真机验证：
-
-1. 之前那个 1602 首的酷狗歌单能否正常列出歌曲
-2. 三种封面风格（Apple Music / 经典 / 黑胶）的手势手感、是否与滚动/点击冲突
-3. 导入歌单：网易云、QQ、酷狗（gcid / specialid 两种链接）、波点的抓取与「更新」
-4. 波点扫码登录同步、VIP 状态识别
-
-关键文件索引：`beans-ios/KugouMusicAPI.swift`（歌单/播放）、`beans-ios/ImportedPlaylistStore.swift`、`beans-ios/PlaylistImportService.swift`、`beans-ios/LibraryView.swift`（两类歌单 UI）、`beans-ios/PlayerView.swift` + `ReferencePlaybackView.swift` + `VinylPlayerView.swift`（手势）。
+关键文件索引：`beans-ios/KugouMusicAPI.swift`（歌单/播放）、`beans-ios/PlaylistView.swift`（歌单详情：本地优先 + 更新）、`beans-ios/ImportedPlaylistStore.swift`、`beans-ios/PlaylistImportService.swift`（链接解析）、`beans-ios/LibraryView.swift`（两类歌单 UI）、`beans-ios/PlayerView.swift` + `ReferencePlaybackView.swift` + `VinylPlayerView.swift`（手势）、`beans-ios/BodianMusicAuth.swift` + `BodianMusicAPI.swift`（波点登录/VIP）。
 
 ---
 
