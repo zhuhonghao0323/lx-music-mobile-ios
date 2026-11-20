@@ -36,6 +36,9 @@ struct PlaylistView: View {
             return qqAuth.rawUin.isEmpty ? qqAuth.playlistUin : qqAuth.rawUin
         case .kugou:
             return KugouMusicAuth.shared.userId
+        case .migu:
+            // 咪咕无账号体系，歌单缓存不按账号区分
+            return "migu"
         }
     }
 

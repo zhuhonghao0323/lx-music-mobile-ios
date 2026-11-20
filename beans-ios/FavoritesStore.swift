@@ -11,16 +11,20 @@ final class FavoritesStore: ObservableObject {
     @Published private(set) var neteaseFavoriteSongs: [Song] = []
     /// 酷狗红心收藏（本地持久化，酷狗暂无稳定云端红心写入接口）
     @Published private(set) var kugouFavoriteSongs: [Song] = []
+    /// 咪咕红心收藏（咪咕无账号体系，仅本地持久化）
+    @Published private(set) var miguFavoriteSongs: [Song] = []
 
     private let defaults = UserDefaults.standard
     private let neteaseKey = "beans.fav.netease.v1"
     private let qqKey = "beans.fav.qq.v1"
     private let kugouKey = "beans.fav.kugou.v1"
+    private let miguKey = "beans.fav.migu.v1"
 
     private init() {
         qqFavoriteSongs = Self.loadSongs(qqKey)
         neteaseFavoriteSongs = Self.loadSongs(neteaseKey)
         kugouFavoriteSongs = Self.loadSongs(kugouKey)
+        miguFavoriteSongs = Self.loadSongs(miguKey)
     }
 
     /// 该歌曲是否已收藏
@@ -36,6 +40,8 @@ final class FavoritesStore: ObservableObject {
             return qqFavoriteSongs.contains { $0.identityKey == song.identityKey }
         case .kugou:
             return kugouFavoriteSongs.contains { $0.identityKey == song.identityKey }
+        case .migu:
+            return miguFavoriteSongs.contains { $0.identityKey == song.identityKey }
         }
     }
 
@@ -74,6 +80,10 @@ final class FavoritesStore: ObservableObject {
         case .kugou:
             let liked = !isLiked(song)
             updateKugou(song, liked: liked)
+            return true
+        case .migu:
+            let liked = !isLiked(song)
+            updateMigu(song, liked: liked)
             return true
         }
     }
@@ -127,6 +137,16 @@ final class FavoritesStore: ObservableObject {
             kugouFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
         }
         saveSongs(kugouFavoriteSongs, key: kugouKey)
+    }
+
+    private func updateMigu(_ song: Song, liked: Bool) {
+        if liked {
+            miguFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+            miguFavoriteSongs.insert(song, at: 0)
+        } else {
+            miguFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+        }
+        saveSongs(miguFavoriteSongs, key: miguKey)
     }
 
     private static func loadSongs(_ key: String) -> [Song] {

@@ -331,9 +331,10 @@ struct RootView: View {
 
     @ViewBuilder
     private var platformSelectionMenu: some View {
-        let current = SearchProvider(rawValue: homeSourceRaw) ?? platformPrefs.enabledSearchProviders.first ?? .netease
+        let homeOptions = platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+        let current = SearchProvider(rawValue: homeSourceRaw) ?? homeOptions.first ?? .netease
         Text("主页平台")
-        ForEach(platformPrefs.enabledSearchProviders) { provider in
+        ForEach(homeOptions) { provider in
             Button {
                 BeansHaptics.select()
                 homeSourceRaw = provider.rawValue

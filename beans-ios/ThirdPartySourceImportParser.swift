@@ -243,9 +243,31 @@ enum ThirdPartySourceImportParser {
             quality: quality,
             script: text,
             enabled: true,
-            version: extractScriptVersion(text)
+            version: extractScriptVersion(text),
+            updateURL: extractScriptUpdateURL(text)
         )
         return [source]
+    }
+
+    /// 从脚本头部注释里读取 `@updateUrl`（部分音源会标注脚本发布地址）。
+    static func extractScriptUpdateURL(_ text: String) -> String? {
+        guard let block = extractCommentBlock(text) else { return nil }
+        for line in block.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleaned = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "* "))
+            let lower = cleaned.lowercased()
+            let prefix: String
+            if lower.hasPrefix("@updateurl") {
+                prefix = "@updateurl"
+            } else if lower.hasPrefix("@update_url") {
+                prefix = "@update_url"
+            } else {
+                continue
+            }
+            let value = String(cleaned.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("http") { return value }
+        }
+        return nil
     }
 
     /// 从脚本头部注释里读取 `@version`，供自动更新比对。

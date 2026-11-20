@@ -112,6 +112,7 @@ enum ThirdPartyAudioQuality: String, CaseIterable, Identifiable, Sendable {
         case .netease: return supported(providerCode: "wy")
         case .qq: return supported(providerCode: "tx")
         case .kugou: return supported(providerCode: "kg")
+        case .migu: return supported(providerCode: "mg")
         }
     }
 
@@ -143,6 +144,7 @@ enum SongSource: String, Codable, Sendable {
     case netease
     case qq
     case kugou
+    case migu
 
     /// 兼容旧版本地收藏：未知或已下线来源统一回退为网易云
     init(from decoder: Decoder) throws {
@@ -169,6 +171,8 @@ struct Song: Identifiable, Hashable, Codable {
     let kugouAlbumAudioId: String?
     let kugouAlbumId: String?
     let kugouQualityHashes: [String: String]?
+    /// 咪咕音乐版权 id（source == .migu 时用于播放地址、歌词与音源脚本解析）
+    let miguCopyrightId: String?
     /// 付费/VIP 标记（网易云：0 免费、1 VIP、4 付费单曲；QQ：0 免费、非 0 付费）
     let fee: Int
 
@@ -183,6 +187,7 @@ struct Song: Identifiable, Hashable, Codable {
         case .qq: return "qq-\(id)"
         case .kugou: return "kugou-\(id)"
         case .netease: return "netease-\(id)"
+        case .migu: return "migu-\(id)"
         }
     }
 
@@ -197,10 +202,12 @@ struct Song: Identifiable, Hashable, Codable {
             return fee != 0
         case .kugou:
             return fee != 0
+        case .migu:
+            return fee != 0
         }
     }
 
-    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, qqMediaMid: String? = nil, kugouHash: String? = nil, kugouAlbumAudioId: String? = nil, kugouAlbumId: String? = nil, kugouQualityHashes: [String: String]? = nil, fee: Int = 0) {
+    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, qqMediaMid: String? = nil, kugouHash: String? = nil, kugouAlbumAudioId: String? = nil, kugouAlbumId: String? = nil, kugouQualityHashes: [String: String]? = nil, miguCopyrightId: String? = nil, fee: Int = 0) {
         self.id = id
         self.name = name
         self.artists = artists
@@ -214,6 +221,7 @@ struct Song: Identifiable, Hashable, Codable {
         self.kugouAlbumAudioId = kugouAlbumAudioId
         self.kugouAlbumId = kugouAlbumId
         self.kugouQualityHashes = kugouQualityHashes
+        self.miguCopyrightId = miguCopyrightId
         self.fee = fee
     }
 
@@ -244,10 +252,11 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumAudioId = nil
         kugouAlbumId = nil
         kugouQualityHashes = nil
+        miguCopyrightId = nil
         fee = json["fee"] as? Int ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, qqMediaMid, kugouHash, kugouAlbumAudioId, kugouAlbumId, kugouQualityHashes, fee }
+    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, qqMediaMid, kugouHash, kugouAlbumAudioId, kugouAlbumId, kugouQualityHashes, miguCopyrightId, fee }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -264,6 +273,7 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumAudioId = try c.decodeIfPresent(String.self, forKey: .kugouAlbumAudioId)
         kugouAlbumId = try c.decodeIfPresent(String.self, forKey: .kugouAlbumId)
         kugouQualityHashes = try c.decodeIfPresent([String: String].self, forKey: .kugouQualityHashes)
+        miguCopyrightId = try c.decodeIfPresent(String.self, forKey: .miguCopyrightId)
         fee = try c.decodeIfPresent(Int.self, forKey: .fee) ?? 0
     }
 
@@ -282,6 +292,7 @@ struct Song: Identifiable, Hashable, Codable {
         try c.encodeIfPresent(kugouAlbumAudioId, forKey: .kugouAlbumAudioId)
         try c.encodeIfPresent(kugouAlbumId, forKey: .kugouAlbumId)
         try c.encodeIfPresent(kugouQualityHashes, forKey: .kugouQualityHashes)
+        try c.encodeIfPresent(miguCopyrightId, forKey: .miguCopyrightId)
         try c.encode(fee, forKey: .fee)
     }
 }

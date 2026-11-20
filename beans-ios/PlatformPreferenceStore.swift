@@ -16,12 +16,20 @@ final class PlatformPreferenceStore: ObservableObject {
 
     var changes: AnyPublisher<Set<String>, Never> { $selectedRaw.eraseToAnyPublisher() }
 
+    /// 新增平台时给老用户自动补上，避免「升级后看不到新平台」。
+    private static let miguMigratedKey = "beans.platformMigration.migu.v1"
+
     private init() {
         let saved = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
         if saved.isEmpty {
             selectedRaw = Set(SearchProvider.allCases.map(\.rawValue))
         } else {
             selectedRaw = Set(saved.map(Self.migrateRawValue))
+            if !UserDefaults.standard.bool(forKey: Self.miguMigratedKey) {
+                selectedRaw.insert(SearchProvider.migu.rawValue)
+                UserDefaults.standard.set(Array(selectedRaw), forKey: Self.key)
+                UserDefaults.standard.set(true, forKey: Self.miguMigratedKey)
+            }
         }
         orderedRaw = UserDefaults.standard.stringArray(forKey: Self.orderKey)?
             .map(Self.migrateRawValue) ?? []
@@ -129,6 +137,7 @@ extension LibraryProvider {
         case .netease: return .netease
         case .qq: return .qq
         case .kugou: return .kugou
+        case .migu: return .migu
         }
     }
 }

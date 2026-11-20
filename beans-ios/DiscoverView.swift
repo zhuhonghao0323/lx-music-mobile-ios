@@ -78,7 +78,10 @@ struct DiscoverView: View {
     @AppStorage(PlatformPreferenceStore.hidePickerKey) private var hidePlatformPicker = false
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
     @AppStorage("beans.showSongVIPBadge") private var showSongVIPBadge = true
-    private var homeProviders: [SearchProvider] { platformPrefs.enabledSearchProviders }
+    /// 咪咕只提供搜索/播放/歌词，没有每日推荐、排行榜、歌单接口，不作首页数据源
+    private var homeProviders: [SearchProvider] {
+        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+    }
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     private var source: SearchProvider {
         guard let saved = SearchProvider(rawValue: homeSourceRaw), homeProviders.contains(saved) else {
@@ -296,6 +299,9 @@ struct DiscoverView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 6) {
                     VStack(alignment: .leading, spacing: 2) {
+                        if homeGreetingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            platformLogoMenu
+                        } else {
                         ForEach(Array(greetingLines.enumerated()), id: \.offset) { index, line in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Group {
@@ -347,6 +353,7 @@ struct DiscoverView: View {
                                     .accessibilityLabel("关闭平台切换提示")
                                 }
                             }
+                        }
                         }
                     }
                     .contentShape(Rectangle())
@@ -418,6 +425,33 @@ struct DiscoverView: View {
         }
         .padding(.top, isNativeClean ? 4 : 8)
         .frame(minHeight: homeGreetingHeight > 0 ? homeGreetingHeight : nil, alignment: .top)
+    }
+
+    /// 主页标题位置的平台图标：点击下拉切换平台（原版 App 的用法）
+    private var platformLogoMenu: some View {
+        Menu {
+            ForEach(homeProviders) { provider in
+                Button {
+                    BeansHaptics.select()
+                    homeSourceRaw = provider.rawValue
+                } label: {
+                    if provider == source {
+                        Label(LocalizedStringKey(provider.rawValue), systemImage: "checkmark")
+                    } else {
+                        Label(LocalizedStringKey(provider.rawValue), systemImage: provider.icon)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                PlatformBrandLogo(provider: source, size: isNativeClean ? 46 : 42)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.beansComment)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("切换音乐平台，当前 \(source.rawValue)")
     }
 
     /// 平台选择（网易云 / QQ音乐 / 酷狗音乐，样式与搜索页一致）
@@ -516,6 +550,7 @@ struct DiscoverView: View {
         case .netease: return neteaseTopLists.count
         case .qq: return qqTopLists.count
         case .kugou: return kugouTopLists.count
+        case .migu: return 0
         }
     }
 
@@ -529,6 +564,7 @@ struct DiscoverView: View {
         case .netease: return !topLists.isEmpty
         case .qq: return !qqTopLists.isEmpty
         case .kugou: return !kugouTopLists.isEmpty
+        case .migu: return false
         }
     }
 
@@ -1250,6 +1286,7 @@ struct DiscoverView: View {
         case .netease: return "推荐歌单"
         case .qq: return "QQ音乐热门歌单"
         case .kugou: return "歌单广场"
+        case .migu: return "咪咕歌单"
         }
     }
 
@@ -1258,6 +1295,7 @@ struct DiscoverView: View {
         case .netease: return "推荐歌单暂时没有内容"
         case .qq: return "QQ音乐热门歌单暂未加载成功\n下拉刷新可重新获取"
         case .kugou: return "歌单广场暂时没有内容"
+        case .migu: return "咪咕暂未开放歌单接口"
         }
     }
 
@@ -1455,6 +1493,9 @@ struct DiscoverView: View {
             snapshot.dailySongs = daily
             snapshot.kugouTopLists = top
             snapshot.personalized = pp
+        case .migu:
+            // 咪咕不提供首页内容快照
+            break
         }
         return snapshot
     }
@@ -2271,6 +2312,8 @@ private struct HomeUnifiedSearchSheet: View {
             return (try? await QQMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
         case .kugou:
             return (try? await KugouMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
+        case .migu:
+            return (try? await MiguMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
         }
     }
 

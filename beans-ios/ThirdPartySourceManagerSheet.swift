@@ -16,6 +16,7 @@ struct ThirdPartySourceManagerSheet: View {
     @State private var editingDraft: ThirdPartySourceDraft?
     @ObservedObject private var updater = ThirdPartySourceAutoUpdater.shared
     @AppStorage(ThirdPartySourceAutoUpdater.autoUpdateKey) private var autoUpdateSources = true
+    @State private var updatingSourceID: String?
 
     var body: some View {
         NavigationView {
@@ -332,6 +333,24 @@ struct ThirdPartySourceManagerSheet: View {
                             },
                             onToggle: { enabled in
                                 store.updateEnabled(id: source.id, enabled: enabled)
+                            },
+                            isUpdating: updatingSourceID == source.id,
+                            onUpdate: {
+                                guard updatingSourceID == nil else { return }
+                                if (source.updateURL ?? "").isEmpty {
+                                    editingDraft = ThirdPartySourceDraft(source: source)
+                                    importStatus = beansLocalized(
+                                        "「\(source.name)」没有更新地址：在编辑页填上脚本链接后即可自动更新",
+                                        "No update URL for \(source.name). Add the script link in Edit to enable updates."
+                                    )
+                                    return
+                                }
+                                updatingSourceID = source.id
+                                Task {
+                                    let outcome = await updater.updateOne(source, store: store)
+                                    importStatus = outcome.message(sourceName: source.name)
+                                    updatingSourceID = nil
+                                }
                             }
                         )
                     }
@@ -434,6 +453,8 @@ private struct SourceRow: View {
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
     let onToggle: (Bool) -> Void
+    var isUpdating: Bool = false
+    var onUpdate: (() -> Void)?
 
     private var subtitle: String {
         let platform = source.headers["source"].map { ThirdPartySourcePlatform(code: $0).title } ?? ""
@@ -441,11 +462,13 @@ private struct SourceRow: View {
             ? beansLocalized("脚本", "Script")
             : source.kind.uppercased()
         let path = source.script?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "" : source.urlPath
+        let version = (source.version ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = [
             kind,
             source.quality,
             platform,
-            path
+            path,
+            version.isEmpty ? "" : "版本 \(version)"
         ].filter { !$0.isEmpty }
         return parts.joined(separator: " · ")
     }
@@ -480,6 +503,24 @@ private struct SourceRow: View {
                         .foregroundStyle(Color.beansAmber)
                 }
                 .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+
+                if let onUpdate {
+                    Button {
+                        onUpdate()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isUpdating {
+                                ProgressView().scaleEffect(0.6)
+                            } else {
+                                Image(systemName: (source.updateURL ?? "").isEmpty ? "link.badge.plus" : "arrow.down.circle")
+                            }
+                            Text(beansLocalized("更新", "Update"))
+                        }
+                        .foregroundStyle((source.updateURL ?? "").isEmpty ? Color.beansComment : Color.beansAmber)
+                    }
+                    .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+                    .disabled(isUpdating)
+                }
 
                 Button {
                     onMoveUp()
@@ -528,6 +569,10 @@ private struct ThirdPartySourceDraft: Identifiable {
     var scriptText: String = ""
     var enabled: Bool = true
     var platform: ThirdPartySourcePlatform = .all
+    var updateURL: String = ""
+    var version: String?
+    var lastCheckedAt: Date?
+    var lastUpdatedAt: Date?
 
     init() {}
 
@@ -540,6 +585,10 @@ private struct ThirdPartySourceDraft: Identifiable {
         quality = source.quality.isEmpty ? "320k" : source.quality
         scriptText = source.script ?? ""
         enabled = source.enabled
+        updateURL = source.updateURL ?? ""
+        version = source.version
+        lastCheckedAt = source.lastCheckedAt
+        lastUpdatedAt = source.lastUpdatedAt
         if let code = source.headers["source"] {
             platform = ThirdPartySourcePlatform(code: code)
         }
@@ -565,7 +614,11 @@ private struct ThirdPartySourceDraft: Identifiable {
             headers: headers,
             quality: quality.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "320k" : quality,
             script: scriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : scriptText,
-            enabled: enabled
+            enabled: enabled,
+            version: ThirdPartySourceImportParser.extractScriptVersion(scriptText) ?? version,
+            updateURL: updateURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : updateURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            lastCheckedAt: lastCheckedAt,
+            lastUpdatedAt: lastUpdatedAt
         )
     }
 
@@ -595,15 +648,17 @@ private enum ThirdPartySourcePlatform: String, CaseIterable, Identifiable {
     case netease
     case qq
     case kugou
+    case migu
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .all: return beansLocalized("全部平台", "All Platforms")
-        case .netease: return beansLocalized("网易云音乐", "NetEase Cloud Music")
+        case .netease: return beansLocalized("网易云", "NetEase")
         case .qq: return beansLocalized("QQ音乐", "QQ Music")
-        case .kugou: return beansLocalized("酷狗音乐", "Kugou Music")
+        case .kugou: return beansLocalized("酷狗音乐", "Kugou")
+        case .migu: return beansLocalized("咪咕音乐", "Migu")
         }
     }
 
@@ -613,6 +668,7 @@ private enum ThirdPartySourcePlatform: String, CaseIterable, Identifiable {
         case .netease: return "wy"
         case .qq: return "tx"
         case .kugou: return "kg"
+        case .migu: return "mg"
         }
     }
 
@@ -624,6 +680,8 @@ private enum ThirdPartySourcePlatform: String, CaseIterable, Identifiable {
             self = .qq
         case "kg", "kugou":
             self = .kugou
+        case "mg", "migu":
+            self = .migu
         default:
             self = .all
         }
@@ -688,6 +746,33 @@ private struct SourceEditorSheet: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            VStack(alignment: .leading, spacing: 6) {
+                TextField(
+                    beansLocalized("更新地址（音源脚本链接，用于检查更新）", "Update URL (script link used for updates)"),
+                    text: $draft.updateURL
+                )
+                .font(BeansFont.appFont(14))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)) }
+
+                HStack(spacing: 6) {
+                    let version = ThirdPartySourceImportParser.extractScriptVersion(draft.scriptText) ?? draft.version
+                    Text(beansLocalized("当前版本：\(version ?? "未标注")", "Current version: \(version ?? "n/a")"))
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                    Spacer(minLength: 0)
+                    if draft.updateURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(beansLocalized("未填更新地址时不会自动更新", "No update URL means no auto-update"))
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansAmber)
+                    }
+                }
+            }
 
             Picker(beansLocalized("音质", "Quality"), selection: $draft.quality) {
                 Text("128k").tag("128k")

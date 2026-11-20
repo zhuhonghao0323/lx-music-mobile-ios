@@ -2253,7 +2253,7 @@ struct PlayerView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .modifier(Layoutable(part: .controls, enabled: layoutMode, data: $layoutData))
+                .modifier(Layoutable(part: .playPause, enabled: layoutMode, data: $layoutData))
 
                 Button {
                     BeansHaptics.tap()
@@ -2791,6 +2791,12 @@ struct PlayerView: View {
         case .kugou:
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=\(encoded)")
+        case .migu:
+            if song.id > 0 {
+                return URL(string: "https://music.migu.cn/v3/music/song/\(song.id)")
+            }
+            let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://music.migu.cn/v3/search?keyword=\(encoded)")
         }
     }
 

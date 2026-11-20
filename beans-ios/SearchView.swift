@@ -42,6 +42,16 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     case netease = "网易云音乐"
     case qq = "QQ音乐"
     case kugou = "酷狗音乐"
+    case migu = "咪咕音乐"
+
+    /// 平台是否提供首页内容（每日推荐 / 排行榜 / 歌单广场）。
+    /// 咪咕目前只做搜索、播放、歌词，不提供这些板块。
+    var supportsHomeFeed: Bool {
+        switch self {
+        case .netease, .qq, .kugou: return true
+        case .migu: return false
+        }
+    }
 
     var id: String { rawValue }
 
@@ -57,6 +67,9 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .kugou: return LinearGradient(
             colors: [Color(red: 0.12, green: 0.58, blue: 0.95), Color(red: 0.02, green: 0.32, blue: 0.72)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .migu: return LinearGradient(
+            colors: [Color(red: 0.98, green: 0.36, blue: 0.42), Color(red: 0.85, green: 0.16, blue: 0.36)],
+            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -65,6 +78,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .netease: return "cloud.fill"
         case .qq: return "play.rectangle.fill"
         case .kugou: return "music.note"
+        case .migu: return "dot.radiowaves.left.and.right"
         }
     }
 
@@ -73,6 +87,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .netease: return "BrandNetease"
         case .qq: return "BrandQQ"
         case .kugou: return "BrandKugou"
+        case .migu: return nil
         }
     }
 }
@@ -778,6 +793,8 @@ struct SearchView: View {
             }
         } else if provider == .kugou {
             hotWords = await KugouMusicAPI.shared.hotWords()
+        } else if provider == .migu {
+            hotWords = []
         } else if let words = try? await NetEaseAPI.shared.hotSearch() {
             hotWords = words
         }
@@ -845,6 +862,21 @@ struct SearchView: View {
                     await MainActor.run { artistResults = artists }
                 case (.kugou, .album):
                     let albums = try await KugouMusicAPI.shared.searchAlbums(keyword: trimmed)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { albumResults = albums }
+                case (.migu, .song):
+                    let songs = try await MiguMusicAPI.shared.searchSongs(keyword: trimmed, limit: 40)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        songResults = songs
+                        if !songs.isEmpty { BeansHaptics.success() }
+                    }
+                case (.migu, .artist):
+                    let artists = try await MiguMusicAPI.shared.searchArtists(keyword: trimmed)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { artistResults = artists }
+                case (.migu, .album):
+                    let albums = try await MiguMusicAPI.shared.searchAlbums(keyword: trimmed)
                     guard !Task.isCancelled else { return }
                     await MainActor.run { albumResults = albums }
                 }
@@ -980,6 +1012,12 @@ struct AlbumDetailView: View {
                         (try? await KugouMusicAPI.shared.searchSongs(keyword: query, limit: 100)) ?? []
                     }
                 )
+            case .migu:
+                result = (try? await MiguMusicAPI.shared.albumSongs(
+                    albumName: album.name,
+                    artistName: album.artistName,
+                    limit: 60
+                )) ?? []
             }
             if !result.isEmpty {
                 cache.save(result, for: cacheKey)

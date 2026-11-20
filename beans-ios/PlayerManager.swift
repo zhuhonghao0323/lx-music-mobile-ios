@@ -527,6 +527,13 @@ final class PlayerManager: NSObject, ObservableObject {
                         strict: strictUnlock
                     )
                 }
+            } else if song.source == .migu {
+                (urlString, resolvedThirdParty) = await miguResolve(
+                    song: song,
+                    quality: quality,
+                    thirdPartyQuality: thirdPartyQuality,
+                    enableUnblock: enableUnblock
+                )
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(
                     song: song,
@@ -578,6 +585,40 @@ final class PlayerManager: NSObject, ObservableObject {
                 )
             }
         }
+    }
+
+    /// 咪咕播放地址解析：先走官方 listen-url，取不到再交给自定义音源（source=mg）。
+    private func miguResolve(
+        song: Song,
+        quality: BeansAudioQuality,
+        thirdPartyQuality: ThirdPartyAudioQuality = .current,
+        enableUnblock: Bool
+    ) async -> (String?, UnblockService.Resolved?) {
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        if let copyrightId = song.miguCopyrightId, !copyrightId.isEmpty {
+            urlString = try? await MiguMusicAPI.shared.songURL(
+                copyrightId: copyrightId,
+                contentId: String(song.id),
+                quality: quality
+            )
+        }
+        BeansLogger.shared.log(
+            "咪咕解析：\(song.name) 音质=\(quality.level) 官方URL=\(urlString == nil ? "无" : "有")",
+            level: .debug
+        )
+        if urlString == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: 0,
+                songSource: .migu,
+                miguID: song.miguCopyrightId ?? String(song.id),
+                miguContentId: String(song.id),
+                quality: thirdPartyQuality
+            )
+        }
+        return (urlString, resolved)
     }
 
     /// 网易云播放地址解析：按设置音质取 URL，VIP/灰色歌曲交给第三方解锁。
@@ -1262,6 +1303,19 @@ final class PlayerManager: NSObject, ObservableObject {
                 quality: quality,
                 excludedHosts: excludedHosts
             )
+        case .migu:
+            let miguID = song.miguCopyrightId ?? String(song.id)
+            guard !miguID.isEmpty else { return nil }
+            return await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: 0,
+                songSource: .migu,
+                miguID: miguID,
+                miguContentId: String(song.id),
+                quality: quality,
+                excludedHosts: excludedHosts
+            )
         }
     }
 
@@ -1436,6 +1490,9 @@ final class PlayerManager: NSObject, ObservableObject {
                 return false
             }
             return user.vipBadge != nil
+        case .migu:
+            // 咪咕没有账号体系，会员歌曲统一交给自定义音源处理
+            return false
         }
     }
 

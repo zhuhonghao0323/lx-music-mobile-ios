@@ -8,6 +8,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
     case netease = "网易云音乐"
     case qq = "QQ音乐"
     case kugou = "酷狗音乐"
+    case migu = "咪咕音乐"
 
     var id: String { rawValue }
 
@@ -19,6 +20,8 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
             return LinearGradient(colors: [Color(red: 0.15, green: 0.78, blue: 0.55), Color(red: 0.05, green: 0.58, blue: 0.42)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .kugou:
             return LinearGradient(colors: [Color(red: 0.12, green: 0.58, blue: 0.95), Color(red: 0.02, green: 0.32, blue: 0.72)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .migu:
+            return LinearGradient(colors: [Color(red: 0.98, green: 0.36, blue: 0.42), Color(red: 0.85, green: 0.16, blue: 0.36)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -27,6 +30,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .netease: return "cloud.fill"
         case .qq: return "play.rectangle.fill"
         case .kugou: return "music.note"
+        case .migu: return "dot.radiowaves.left.and.right"
         }
     }
 
@@ -35,6 +39,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .netease: return "BrandNetease"
         case .qq: return "BrandQQ"
         case .kugou: return "BrandKugou"
+        case .migu: return nil
         }
     }
 }
@@ -45,6 +50,7 @@ private extension LibraryProvider {
         case .netease: return .netease
         case .qq: return .qq
         case .kugou: return .kugou
+        case .migu: return .migu
         }
     }
 }
@@ -109,6 +115,7 @@ struct LibraryView: View {
                 case .netease: return orderedNeteasePlaylists
                 case .qq: return orderedQQPlaylists
                 case .kugou: return orderedKugouPlaylists
+                case .migu: return []
                 }
             },
             set: { value in
@@ -116,6 +123,7 @@ struct LibraryView: View {
                 case .netease: auth.playlists = value
                 case .qq: qqPlaylists = value
                 case .kugou: kugouPlaylists = value
+                case .migu: break
                 }
                 SyncedPlaylistOrderStore.shared.save(value, source: source.songSource)
             }
@@ -166,6 +174,7 @@ struct LibraryView: View {
                             case .netease: playlistsSection
                             case .qq: qqSection
                             case .kugou: kugouSection
+                            case .migu: miguSection
                             }
                         case "最近播放":
                             historySection
@@ -334,6 +343,7 @@ struct LibraryView: View {
         case .netease: return beansLocalized("网易云音乐歌单", "NetEase Cloud Music Playlists")
         case .qq: return "QQ 音乐收藏与歌单"
         case .kugou: return "酷狗云端歌单"
+        case .migu: return "咪咕红心收藏"
         }
     }
 
@@ -553,6 +563,9 @@ struct LibraryView: View {
             await loadQQPlaylists(force: force)
         case .kugou:
             await loadKugouPlaylists(force: force)
+        case .migu:
+            // 咪咕没有云端歌单，收藏为本地数据，无需刷新
+            break
         }
     }
 
@@ -568,6 +581,38 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 24) {
             kugouPlaylistsSection
         }
+    }
+
+    /// 咪咕模式整体内容：咪咕无账号体系，只展示本地红心收藏
+    private var miguSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "咪咕红心收藏", trailing: favorites.miguFavoriteSongs.isEmpty ? nil : "\(favorites.miguFavoriteSongs.count) 首")
+            if favorites.miguFavoriteSongs.isEmpty {
+                EmptyStateView(icon: "heart", text: "还没有咪咕收藏\n在咪咕歌曲上点 ♡ 后会出现在这里")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(favorites.miguFavoriteSongs, id: \.identityKey) { song in
+                        SongCell(song: song, suppressNativeCleanRowGlass: isNativeClean) {
+                            playMiguFavorite(song)
+                        }
+                        Divider().overlay(Color.beansComment.opacity(0.15))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background {
+                    BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .beansCardShadow(radius: 8, y: 3)
+            }
+        }
+    }
+
+    private func playMiguFavorite(_ song: Song) {
+        let list = favorites.miguFavoriteSongs
+        guard let index = list.firstIndex(where: { $0.identityKey == song.identityKey }) else { return }
+        player.play(songs: list, startAt: index)
     }
 
     /// 我的 QQ 歌单（登录后从 QQ 音乐拉取）
@@ -806,6 +851,8 @@ struct LibraryView: View {
             }
         case .kugou:
             ToastCenter.shared.show("酷狗歌单暂不支持新建")
+        case .migu:
+            ToastCenter.shared.show("咪咕暂不支持新建歌单")
         }
     }
 
@@ -847,6 +894,8 @@ struct LibraryView: View {
             }
         case .kugou:
             ToastCenter.shared.show("酷狗歌单暂不支持删除")
+        case .migu:
+            ToastCenter.shared.show("咪咕暂不支持删除歌单")
         }
     }
 

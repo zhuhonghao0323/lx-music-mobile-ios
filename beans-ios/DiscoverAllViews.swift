@@ -1,5 +1,35 @@
 import SwiftUI
 
+// MARK: - 平台品牌图标
+
+/// 平台 logo：有官方图片资源时用图片，没有时用主题色圆角图标兜底。
+struct PlatformBrandLogo: View {
+    let provider: SearchProvider
+    var size: CGFloat = 42
+
+    var body: some View {
+        Group {
+            if let imageName = provider.brandImageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                        .fill(provider.tint)
+                    Image(systemName: provider.icon)
+                        .font(.system(size: size * 0.46, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
+        .accessibilityHidden(true)
+    }
+}
+
+
 // MARK: - 全部排行榜
 
 /// 排行榜「全部」页：把当前平台的所有榜单摊平展示，顶部可切换平台。
@@ -17,7 +47,10 @@ struct AllChartsView: View {
     @State private var errorText: String?
     @State private var loadedSources: Set<String> = []
 
-    private var providers: [SearchProvider] { platformPrefs.enabledSearchProviders }
+    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台
+    private var providers: [SearchProvider] {
+        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+    }
     private var source: SearchProvider {
         guard let saved = SearchProvider(rawValue: homeSourceRaw), providers.contains(saved) else {
             return providers.first ?? .netease
@@ -63,6 +96,7 @@ struct AllChartsView: View {
         case .netease: return neteaseCharts.count
         case .qq: return qqCharts.count
         case .kugou: return kugouCharts.count
+        case .migu: return 0
         }
     }
 
@@ -136,6 +170,8 @@ struct AllChartsView: View {
                         divider
                     }
                 }
+            case .migu:
+                EmptyView()
             }
         }
         .padding(.horizontal, 14)
@@ -215,6 +251,9 @@ struct AllChartsView: View {
                 if force || kugouCharts.isEmpty {
                     kugouCharts = try await KugouMusicAPI.shared.topLists(limit: 50)
                 }
+            case .migu:
+                // 咪咕暂未开放榜单接口
+                break
             }
             loadedSources.insert(target.rawValue)
         } catch {
@@ -256,7 +295,10 @@ struct PlaylistSquareView: View {
         }
     }
 
-    private var providers: [SearchProvider] { platformPrefs.enabledSearchProviders }
+    /// 咪咕无公开榜单/歌单接口，这里只列出能提供内容的平台
+    private var providers: [SearchProvider] {
+        platformPrefs.enabledSearchProviders.filter { $0.supportsHomeFeed }
+    }
     private var source: SearchProvider {
         guard let saved = SearchProvider(rawValue: homeSourceRaw), providers.contains(saved) else {
             return providers.first ?? .netease
@@ -525,6 +567,8 @@ struct PlaylistSquareView: View {
                 result = try await QQMusicAPI.shared.hotPlaylists(limit: limit)
             case .kugou:
                 result = try await KugouMusicAPI.shared.recommendPlaylists(limit: limit)
+            case .migu:
+                result = []
             }
             playlists = result
             errorText = nil
@@ -592,6 +636,7 @@ struct FavoritePlaylistsView: View {
         case .netease: return "网易云音乐"
         case .qq: return "QQ音乐"
         case .kugou: return "酷狗音乐"
+        case .migu: return "咪咕音乐"
         }
     }
 

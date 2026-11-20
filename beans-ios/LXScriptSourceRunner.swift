@@ -629,6 +629,8 @@ final class LXScriptSourceRunner {
         qqMid: String? = nil,
         qqMediaMid: String? = nil,
         kugouID: String? = nil,
+        miguID: String? = nil,
+        miguContentId: String? = nil,
         name: String,
         artists: String,
         quality: String,
@@ -644,6 +646,8 @@ final class LXScriptSourceRunner {
                     qqMid: qqMid,
                     qqMediaMid: qqMediaMid,
                     kugouID: kugouID,
+                    miguID: miguID,
+                    miguContentId: miguContentId,
                     name: name,
                     artists: artists,
                     quality: quality,
@@ -661,6 +665,8 @@ final class LXScriptSourceRunner {
         qqMid: String?,
         qqMediaMid: String?,
         kugouID: String?,
+        miguID: String?,
+        miguContentId: String?,
         name: String,
         artists: String,
         quality: String,
@@ -678,6 +684,8 @@ final class LXScriptSourceRunner {
                     qqMid: qqMid,
                     qqMediaMid: qqMediaMid,
                     kugouID: kugouID,
+                    miguID: miguID,
+                    miguContentId: miguContentId,
                     name: name,
                     artists: artists
                 )
@@ -710,6 +718,8 @@ final class LXScriptSourceRunner {
         qqMid: String?,
         qqMediaMid: String?,
         kugouID: String?,
+        miguID: String?,
+        miguContentId: String?,
         name: String,
         artists: String
     ) -> [String: Any] {
@@ -717,6 +727,8 @@ final class LXScriptSourceRunner {
         let qqSongMediaMid = qqMediaMid?.trimmingCharacters(in: .whitespacesAndNewlines)
         let primaryID = (songSource == .qq ? qqSongMid : nil) ?? songID
         let resolvedHash = (songSource == .kugou ? kugouID : nil) ?? songID
+        let miguCopyrightID = (songSource == .migu ? miguID : nil) ?? songID
+        let miguContentID = (songSource == .migu ? miguContentId : nil) ?? songID
         let artistList = artists
             .split(whereSeparator: { $0 == "/" || $0 == "&" || $0 == "," })
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -732,8 +744,8 @@ final class LXScriptSourceRunner {
             "media_mid": qqSongMediaMid ?? primaryID,
             "mediaMid": qqSongMediaMid ?? primaryID,
             "strMediaMid": qqSongMediaMid ?? primaryID,
-            "copyrightId": songID,
-            "contentId": songID,
+            "copyrightId": miguCopyrightID,
+            "contentId": miguContentID,
             "hash": resolvedHash,
             "rid": songID,
             "name": name,
@@ -758,6 +770,7 @@ final class LXScriptSourceRunner {
         case .netease: return "wy"
         case .qq: return "tx"
         case .kugou: return "kg"
+        case .migu: return "mg"
         }
     }
 
