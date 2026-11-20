@@ -35,11 +35,12 @@ class LXSwiftUIPageHostBase: UIView {
     host.view.insetsLayoutMarginsFromSafeArea = false
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)
+    let insets = LXWindowSafeInsets()
     NSLayoutConstraint.activate([
-      host.view.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
-      host.view.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
-      host.view.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
-      host.view.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+      host.view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+      host.view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
+      host.view.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+      host.view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
     ])
     _ = pid
   }
@@ -116,3 +117,4 @@ final class LXSwiftUIMylistHostView: LXSwiftUIPageHostBase {
   }
   required init?(coder: NSCoder) { super.init(coder: coder) }
 }
+

@@ -32,12 +32,28 @@ final class LXSwiftUIPlayerHostView: UIView {
     host.view.translatesAutoresizingMaskIntoConstraints = false
     addSubview(host.view)
     // 用 safeAreaLayoutGuide 约束，内容自动避开状态栏/Home 指示条
+    let insets = LXWindowSafeInsets()
     NSLayoutConstraint.activate([
-      host.view.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
-      host.view.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
-      host.view.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
-      host.view.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+      host.view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+      host.view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
+      host.view.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+      host.view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
     ])
     hostingController = host
   }
+}
+
+/// 从全局 keyWindow 读取安全区（window 早已布局完成，首帧即准确；
+/// 不像 safeAreaLayoutGuide 要等视图布局后才算出，会首帧重叠、切页才正常）。
+func LXWindowSafeInsets() -> UIEdgeInsets {
+  if #available(iOS 15.0, *) {
+    let scenes = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+    for scene in scenes {
+      for w in scene.windows where w.isKeyWindow {
+        return w.safeAreaInsets
+      }
+    }
+  }
+  return .zero
 }

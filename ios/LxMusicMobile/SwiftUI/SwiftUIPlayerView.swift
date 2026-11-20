@@ -104,40 +104,47 @@ struct SwiftUIPlayerView: View {
   // 结构：顶部固定 → 封面弹性 → 底部固定。
   // 封面用 aspectRatio 自适应，绝不用 layoutPriority 抢空间，
   // 否则底部控件会被挤出屏幕（上一版就是这个错误）。
+  /// 精确几何分配：先固定其它区域，剩余高度全部给封面，
+  /// 保证 sum 恰好 == 可用高度，底部控件绝不被挤出屏幕。
   private var contentLayer: some View {
-    VStack(spacing: 0) {
-      header
-        .padding(.horizontal, DS.Space.md)
-        .padding(.top, DS.Space.xs)
+    GeometryReader { geo in
+      let h = geo.size.height
+      let headerH: CGFloat = 44
+      let bottomH: CGFloat = 236
+      let infoH: CGFloat = 116
+      let coverH = max(150, h - headerH - bottomH - infoH)
 
-      // 封面：按屏幕高度的 34%，保证底部控件有余量
-      cover
-        .frame(height: UIScreen.main.bounds.height * 0.34)
-        .padding(.horizontal, DS.Space.md)
-        .padding(.top, DS.Space.sm)
+      VStack(spacing: 0) {
+        header
+          .frame(height: headerH)
+          .padding(.horizontal, DS.Space.md)
 
-      songInfo
-        .padding(.top, DS.Space.sm)
+        cover
+          .frame(height: coverH)
+          .padding(.horizontal, DS.Space.md)
 
-      lyrics
-        .padding(.top, DS.Space.xs)
+        VStack(spacing: 8) {
+          songInfo
+          lyrics
+        }
+        .frame(height: infoH)
 
-      Spacer(minLength: 0)
-
-      bottomControls
+        bottomControls
+          .frame(height: bottomH)
+      }
+      .frame(width: geo.size.width, height: h)
     }
   }
 
   /// 底部固定区：进度 / 播放控制 / 功能 / 导航
   private var bottomControls: some View {
-    VStack(spacing: DS.Space.sm) {
+    VStack(spacing: DS.Space.xs) {
       progress
       controls
       actions
       bottomNav
     }
     .padding(.horizontal, DS.Space.md)
-    .padding(.top, DS.Space.xs)
     .background(
       LinearGradient(colors: [.clear, Color.black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
     )
