@@ -13,6 +13,8 @@ final class SyncedPlaylistCache {
     struct SongEntry: Codable {
         let songs: [Song]
         let savedAt: Date
+        /// 手动云同步写入的条目：不参与 TTL 过期，只有下次手动同步才会覆盖
+        var pinned: Bool?
     }
 
     private let defaults = UserDefaults.standard
@@ -58,12 +60,13 @@ final class SyncedPlaylistCache {
         return songEntries[cacheKey(source: playlist.source, accountID: "\(accountID)|\(playlist.id)")]
     }
 
-    func saveSongs(_ songs: [Song], playlist: Playlist, accountID: String) {
+    func saveSongs(_ songs: [Song], playlist: Playlist, accountID: String, pinned: Bool = false) {
         guard !songs.isEmpty else { return }
         lock.lock()
         songEntries[cacheKey(source: playlist.source, accountID: "\(accountID)|\(playlist.id)")] = SongEntry(
             songs: songs,
-            savedAt: Date()
+            savedAt: Date(),
+            pinned: pinned
         )
         let snapshot = songEntries
         lock.unlock()
@@ -73,9 +76,24 @@ final class SyncedPlaylistCache {
     func isFresh(_ entry: PlaylistEntry, now: Date = Date()) -> Bool {
         now.timeIntervalSince(entry.savedAt) < playlistTTL
     }
-
     func isFresh(_ entry: SongEntry, now: Date = Date()) -> Bool {
-        now.timeIntervalSince(entry.savedAt) < songTTL
+        if entry.pinned == true { return true }
+        return now.timeIntervalSince(entry.savedAt) < songTTL
+    }
+
+    /// 所有已缓存歌单的歌曲（不分平台 / 账号），供音乐库「全部歌曲」汇总
+    func allCachedSongs() -> [Song] {
+        lock.lock()
+        let entries = songEntries.values.map(\.songs)
+        lock.unlock()
+        return entries.flatMap { $0 }
+    }
+
+    /// 已缓存歌单数量
+    var cachedSongEntryCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return songEntries.count
     }
 
     func clear(source: SongSource, accountID: String) {

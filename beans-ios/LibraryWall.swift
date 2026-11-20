@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 音乐库：歌单墙 + 全部歌曲汇总
 
@@ -60,16 +61,30 @@ struct PlaylistWallView: View {
     var body: some View {
         GeometryReader { proxy in
             let cellWidth = max(72, (proxy.size.width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+            // 行高按「封面 + 标题 + 副标题」实际高度算，避免文字被下一行盖住
+            let rowHeight = cellWidth + Self.captionHeight
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: Array(repeating: GridItem(.fixed(150), spacing: spacing), count: rows), spacing: spacing) {
+                LazyHGrid(rows: Array(repeating: GridItem(.fixed(rowHeight), spacing: spacing), count: rows), spacing: spacing) {
                     ForEach(items) { item in
                         card(item, width: cellWidth)
                     }
                 }
                 .padding(.vertical, 2)
             }
+            .frame(height: rowHeight * CGFloat(rows) + spacing * CGFloat(rows - 1) + 4)
         }
-        .frame(height: 150 * CGFloat(rows) + spacing * CGFloat(rows - 1) + 4)
+        .frame(height: wallHeight)
+    }
+
+    /// 标题 + 间距 + 副标题占用的固定高度
+    private static let captionHeight: CGFloat = 46
+
+    /// 外部布局用：按屏宽估算两行的高度（与 GeometryReader 内部算法一致）
+    private var wallHeight: CGFloat {
+        let screenWidth = min(UIScreen.main.bounds.width - 32, 860)
+        let cellWidth = max(72, (screenWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        let rowHeight = cellWidth + Self.captionHeight
+        return rowHeight * CGFloat(rows) + spacing * CGFloat(rows - 1) + 4
     }
 
     private func card(_ item: LibraryWallItem, width: CGFloat) -> some View {
@@ -137,6 +152,11 @@ struct LibraryAllPlaylistsSheet: View {
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
+    /// 三列网格的单格边长：按屏宽扣除内边距与列间距
+    private var gridCellWidth: CGFloat {
+        (min(UIScreen.main.bounds.width, 892) - 32 - 28) / 3
+    }
+
     var body: some View {
         BeansNavigationStack {
             ScrollView {
@@ -147,10 +167,7 @@ struct LibraryAllPlaylistsSheet: View {
                             item.onOpen()
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
-                                GeometryReader { proxy in
-                                    CoverImage(url: item.coverURL, size: proxy.size.width, cornerRadius: 14)
-                                }
-                                .aspectRatio(1, contentMode: .fit)
+                                CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
                                 Text(item.name)
                                     .font(BeansFont.appFont(12, .semibold))
                                     .foregroundStyle(Color.beansLabel)
@@ -278,7 +295,7 @@ struct LibraryAllSongsSection: View {
     }
 }
 
-/// 全部歌曲页：按歌手 / 语言 / 平台筛选。
+/// 全部歌曲页：分页加载 + 按歌手 / 语言筛选，几千首也不会一次渲染卡住。
 struct LibraryAllSongsSheet: View {
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.dismiss) private var dismiss
@@ -288,27 +305,34 @@ struct LibraryAllSongsSheet: View {
     @State private var artistFilter: String?
     @State private var languageFilter: String?
     @State private var searchText = ""
+    /// 分批渲染：首屏 60 首，滑到底自动加 60
+    @State private var visibleCount = 60
+    private let pageSize = 60
 
-    private var artists: [String] {
+    /// 歌手 / 语言标签只算一次，避免每次滚动都重新遍历上千首
+    private let artistsCache: [String]
+    private let languagesCache: [String]
+    private let languageMap: [String: String]
+
+    init(songs: [Song]) {
+        self.songs = songs
         var counter: [String: Int] = [:]
+        var languages = Set<String>()
+        var map: [String: String] = [:]
+        map.reserveCapacity(songs.count)
         for song in songs {
             for name in song.artists.components(separatedBy: " / ") {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty, trimmed != "未知歌手" else { continue }
                 counter[trimmed, default: 0] += 1
             }
-        }
-        return counter.sorted { $0.value > $1.value }.prefix(12).map(\.key)
-    }
-
-    private var languages: [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for song in songs {
             let tag = SongLanguageTag.tag(for: song)
-            if seen.insert(tag).inserted { result.append(tag) }
+            map[song.identityKey] = tag
+            languages.insert(tag)
         }
-        return result.sorted()
+        artistsCache = counter.sorted { $0.value > $1.value }.prefix(12).map(\.key)
+        languagesCache = languages.sorted()
+        languageMap = map
     }
 
     private var filtered: [Song] {
@@ -317,7 +341,7 @@ struct LibraryAllSongsSheet: View {
             list = list.filter { $0.artists.contains(artistFilter) }
         }
         if let languageFilter {
-            list = list.filter { SongLanguageTag.tag(for: $0) == languageFilter }
+            list = list.filter { languageMap[$0.identityKey] == languageFilter }
         }
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !keyword.isEmpty {
@@ -330,25 +354,46 @@ struct LibraryAllSongsSheet: View {
         return list
     }
 
+    private var shown: [Song] {
+        Array(filtered.prefix(visibleCount))
+    }
+
     var body: some View {
         BeansNavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     Text("共 \(filtered.count) 首" + (filtered.count == songs.count ? "" : "（全部 \(songs.count) 首）"))
                         .font(BeansFont.appFont(12, .medium))
                         .foregroundStyle(Color.beansComment)
                         .padding(.horizontal, 16)
 
-                    tagRow(title: "语言", values: languages, selection: $languageFilter)
-                    tagRow(title: "歌手", values: artists, selection: $artistFilter)
+                    if !languagesCache.isEmpty {
+                        tagRow(title: "语言", values: languagesCache, selection: $languageFilter)
+                    }
+                    if !artistsCache.isEmpty {
+                        tagRow(title: "歌手", values: artistsCache, selection: $artistFilter)
+                    }
 
-                    VStack(spacing: 0) {
-                        ForEach(Array(filtered.enumerated()), id: \.element.identityKey) { index, song in
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.element.identityKey) { index, song in
                             SongCell(song: song) {
                                 player.play(songs: filtered, startAt: index)
                             }
-                            if index < filtered.count - 1 {
+                            if index < shown.count - 1 {
                                 Divider().overlay(Color.beansComment.opacity(0.12))
+                            }
+                        }
+                        if visibleCount < filtered.count {
+                            HStack(spacing: 8) {
+                                ProgressView().scaleEffect(0.8)
+                                Text("已加载 \(min(visibleCount, filtered.count)) / \(filtered.count) 首")
+                                    .font(BeansFont.appFont(11))
+                                    .foregroundStyle(Color.beansComment)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .onAppear {
+                                visibleCount = min(filtered.count, visibleCount + pageSize)
                             }
                         }
                     }
@@ -369,7 +414,14 @@ struct LibraryAllSongsSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
+            .onChange(of: searchText) { _ in resetPaging() }
+            .onChange(of: artistFilter) { _ in resetPaging() }
+            .onChange(of: languageFilter) { _ in resetPaging() }
         }
+    }
+
+    private func resetPaging() {
+        visibleCount = pageSize
     }
 
     private func tagRow(title: String, values: [String], selection: Binding<String?>) -> some View {

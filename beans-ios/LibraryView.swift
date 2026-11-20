@@ -97,6 +97,8 @@ struct LibraryView: View {
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
     @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
     @ObservedObject private var localLibrary = LocalLibraryStore.shared
+    @ObservedObject private var cloudSync = LibraryCloudSyncStore.shared
+    @State private var showCloudSyncSheet = false
     @State private var showAllPlaylistsSheet = false
     @State private var showAllSongsSheet = false
     @State private var showImportSheet = false
@@ -237,6 +239,7 @@ struct LibraryView: View {
         }
         .task {
             source = platformPrefs.ensureVisible(source)
+            await cloudSync.rebuildFromCache()
         }
         .task(id: source) {
             await refreshCurrentSource(force: false)
@@ -302,6 +305,10 @@ struct LibraryView: View {
             LibraryAllPlaylistsSheet(items: wallItems)
                 .environmentObject(theme)
                 .environmentObject(player)
+        }
+        .sheet(isPresented: $showCloudSyncSheet) {
+            LibraryCloudSyncSheet(sources: syncSources)
+                .environmentObject(theme)
         }
         .sheet(isPresented: $showAllSongsSheet) {
             LibraryAllSongsSheet(songs: aggregatedSongs)
@@ -376,6 +383,10 @@ struct LibraryView: View {
                 }
                 Spacer()
                 HStack(spacing: 10) {
+                GlassIconButton(systemName: "icloud.and.arrow.down", forceLiquid: isNativeClean) {
+                    BeansHaptics.tap()
+                    showCloudSyncSheet = true
+                }
                 if !hideSortButton {
                     GlassIconButton(systemName: "arrow.up.arrow.down", forceLiquid: isNativeClean) {
                         BeansHaptics.tap()
@@ -397,6 +408,10 @@ struct LibraryView: View {
             HStack(alignment: .center) {
                 libraryTitleButton
                 Spacer(minLength: 12)
+                GlassIconButton(systemName: "icloud.and.arrow.down", forceLiquid: isNativeClean) {
+                    BeansHaptics.tap()
+                    showCloudSyncSheet = true
+                }
                 if !hideSortButton {
                     GlassIconButton(systemName: "arrow.up.arrow.down", forceLiquid: isNativeClean) {
                         BeansHaptics.tap()
@@ -526,9 +541,20 @@ struct LibraryView: View {
         return items
     }
 
+    /// 云同步覆盖范围：已登录平台的云端歌单
+    private var syncSources: [LibraryCloudSyncSource] {
+        [
+            LibraryCloudSyncSource(source: .netease, accountID: "\(auth.user?.uid ?? 0)", playlists: auth.isLoggedIn ? auth.playlists : []),
+            LibraryCloudSyncSource(source: .qq, accountID: qqCacheAccountID, playlists: qqAuth.isLoggedIn ? qqPlaylists : []),
+            LibraryCloudSyncSource(source: .kugou, accountID: kugouCacheAccountID, playlists: kugouAuth.isLoggedIn ? kugouPlaylists : []),
+            LibraryCloudSyncSource(source: .bodian, accountID: bodianCacheAccountID, playlists: bodianAuth.isLoggedIn ? bodianPlaylists : [])
+        ]
+    }
+
     /// 所有歌单里的歌曲汇总：歌手名 + 歌名相同只留一首
     private var aggregatedSongs: [Song] {
         var groups: [[Song]] = []
+        groups.append(cloudSync.cachedSongs)
         groups.append(importedStore.items.flatMap { $0.songs })
         groups.append(localLibrary.playlists.flatMap { $0.songs })
         return LibrarySongAggregator.merge(groups)

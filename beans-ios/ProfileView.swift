@@ -190,10 +190,7 @@ struct ProfileView: View {
                             EmptyView()
                         }
                     }
-                    // 更新入口固定放在“我的”页面最底部，避免被板块排序隐藏。
-                    updateLinkCard
-                    communityCard
-                    donationCard
+                    // 「更新地址 / 检查更新 / 交流群 / 赞助」已按需求移除，只保留版本信息
                     profileVersionFooter
                 }
                 .padding(.horizontal, isNativeClean ? 24 : 16)

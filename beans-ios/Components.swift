@@ -493,39 +493,57 @@ struct CoverImage: View {
     /// 封面未加载时的提示文字（播放器大封面用：等待开始播放）；nil 显示中性图标
     var emptyHint: String? = nil
 
-    // 布局尺寸完全由外层固定容器决定；AsyncImage 只放在 overlay 中渲染，
-    // 图片加载完成与否都不会改变任何布局尺寸（根治"封面加载后错乱"）。
+    @State private var loadedImage: UIImage?
+    @State private var loadedKey: String?
+    @State private var failed = false
+
+    /// 只认当前 URL 的加载结果，避免切歌瞬间显示上一首封面
+    private var displayImage: UIImage? {
+        if loadedKey == url?.absoluteString { return loadedImage }
+        return CoverThumbCache.shared.memoryImage(for: url, maxPixel: pixelBudget)
+    }
+
+    /// 需要缓存的分辨率：至少 2x，保证列表小图清晰又省内存
+    private var pixelBudget: CGFloat {
+        min(max(size, 72) * 2, 1200)
+    }
+
+    // 布局尺寸完全由外层固定容器决定；图片渲染放在 overlay 中，
+    // 加载完成与否都不会改变任何布局尺寸（根治"封面加载后错乱"）。
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(Color.beansGlassFill)
             .frame(width: size, height: size)
             .overlay {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                            .frame(width: size, height: size)
-                            .clipped()
-                    case .failure:
+                Group {
+                    if let image = displayImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else if failed || url == nil {
                         placeholderIcon
-                    case .empty:
-                        if url == nil {
-                            // 封面地址为空时：直接显示占位图标，避免一直转圈
+                    } else {
+                        ZStack {
                             placeholderIcon
-                        } else {
-                            ZStack {
-                                placeholderIcon
-                                ProgressView().tint(Color.beansAmber)
-                            }
+                            ProgressView().tint(Color.beansAmber)
                         }
-                    @unknown default:
-                        placeholderIcon
                     }
                 }
                 .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .clipped()
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .task(id: url?.absoluteString) {
+                // 内存命中时 body 里已经直接画出来了；这里只负责磁盘 / 网络（磁盘读取在后台队列）
+                let key = url?.absoluteString
+                if loadedKey == key, loadedImage != nil { return }
+                failed = false
+                let image = await CoverThumbCache.shared.image(for: url, maxPixel: pixelBudget)
+                guard !Task.isCancelled else { return }
+                loadedKey = key
+                loadedImage = image
+                failed = (image == nil && url != nil)
+            }
     }
 
     private var placeholderIcon: some View {

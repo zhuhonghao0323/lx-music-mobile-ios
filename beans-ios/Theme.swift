@@ -277,6 +277,7 @@ enum BeansCoverPlayerStyle: String, CaseIterable, Identifiable {
     case classic
     case appleMusic
     case vinyl
+    case immersive
 
     var id: String { rawValue }
 
@@ -285,6 +286,7 @@ enum BeansCoverPlayerStyle: String, CaseIterable, Identifiable {
         case .classic: return "经典封面"
         case .appleMusic: return "Apple Music"
         case .vinyl: return beansLocalized("黑胶唱盘", "Vinyl Turntable")
+        case .immersive: return "沉浸式"
         }
     }
 
@@ -293,6 +295,7 @@ enum BeansCoverPlayerStyle: String, CaseIterable, Identifiable {
         case .classic: return "封面、歌名和预览歌词分层显示"
         case .appleMusic: return "大封面、细进度条和简洁播放控制"
         case .vinyl: return beansLocalized("黑胶唱片、唱臂和旋转唱盘", "Vinyl record, tonearm, and spinning turntable")
+        case .immersive: return "封面溶于背景，整屏一体沉浸"
         }
     }
 
@@ -301,7 +304,26 @@ enum BeansCoverPlayerStyle: String, CaseIterable, Identifiable {
         case .classic: return "square.stack"
         case .appleMusic: return "music.note.list"
         case .vinyl: return "opticaldisc"
+        case .immersive: return "rectangle.inset.filled"
         }
+    }
+
+    /// 按钮外观由播放方案决定，不再单独维护一套「按钮样式」开关
+    var buttonStyle: BeansPlayerButtonStyle {
+        switch self {
+        case .appleMusic: return .appleMusic
+        case .classic, .vinyl, .immersive: return .glass
+        }
+    }
+
+    /// 该方案是否使用经典「封面 + 控件」结构（支持自定义布局 / 封面文字配色）
+    var supportsClassicLayout: Bool {
+        self == .classic
+    }
+
+    /// 该方案是否有封面页歌词预览 / 文字配色等封面相关设置
+    var supportsCoverText: Bool {
+        self == .classic
     }
 }
 

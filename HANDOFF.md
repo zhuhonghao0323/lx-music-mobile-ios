@@ -33,24 +33,29 @@
 | 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
 | 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
 
-### 0.3 当前状态（2026-11-20 23:5x，版本 **1.12.0 (82)**）
+### 0.3 当前状态（2026-11-21，版本 **1.13.0 (83)**）
 
-1.11.1 之后这一轮按用户 12 条反馈改：
+1.12.0 之后按用户新 9 条反馈继续改：
 
 | # | 反馈 | 处理 |
 |---|---|---|
-| 1 | 主页「全部」连点闪退 | `DiscoverView.openRoute` 加连点保护（同一路由 0.8s 内只入栈一次）+ 推迟到下一 runloop 入栈，避免视图更新中改导航栈 |
-| 2 | 主页波点无歌单 | 根因：推荐歌单接口是分组结构 `data.lists[].playLists[]`，旧解析把分组当歌单、全被丢弃。`BodianMusicAPI.playlists(from:)` 已加分组分支 |
-| 3 | 播放手势 | 统一为：封面左滑返回、右滑歌词、上滑下一曲、下滑上一曲；左/右滑切歌全部删除（经典 `handleSwipeEnd`、AM `coverSwipeGesture`、黑胶 `VinylTurntableView`） |
-| 4 | 切歌动画 | 新增 `switchSongAnimated`（PlayerView）+ `coverSwitchOffset`（AM）：内容先滑出、换歌后从另一侧滑回 |
-| 5 | 搜索默认全部 | `SearchProvider.all` 进入搜索页平台选择器，默认 `beans.search.provider = 全部平台`，`SearchAggregator.songs` 并行聚合 + 轮转交错 + 歌名/歌手去重 |
-| 6 | 音乐库到底部晃动 | 加 `beansScrollBounceBasedOnSize()`（iOS 16.4+ `scrollBounceBehavior(.basedOnSize)`）；仍未确认是否彻底 |
-| 7 | 音乐库歌单墙 | 新增 `LibraryWall.swift`：3 列 × 2 行横向歌单墙 + 「全部」3 列网格；长按可更新/重命名/隐藏/删除，隐藏记在 `HiddenPlaylistStore` |
-| 8 | 歌单歌曲汇总 | 同一文件：`LibraryAllSongsSection` + `LibraryAllSongsSheet`，按「歌名+歌手」去重，默认露 8 首，全部页可按语言（按字符脚本粗判）/歌手筛选 + 搜索 |
-| 9 | 波点热搜空白 | `BodianMusicAPI.hotWords()` 走酷我热词服务 `hotword.kuwo.cn/hotword.s`，失败回退内置词表 |
-| 10 | 主页删我的歌单 | `personalizedSection` 移除 `myPlaylistsSection` |
-| 11 | 图标/名称 | `CFBundleDisplayName` → `Z Music`；AppIcon 换成 LX Music 官方图标（仓库里没有「猫头」素材，待用户提供后替换） |
-| 12 | 品牌词 | 可见文案 `Beans Music` → `Z Music`，单独 `Beans` → `Zhu`；**目录名（BeansData/BeansLogs…）未动，避免丢数据** |
+| 1 | 图标羽化 | `Assets.xcassets/AppIcon.appiconset/AppIcon.png` 换成猫头照片（1024，无 alpha）：焦糖径向背景 + 圆角羽化蒙版 + 人像景深虚化 + 暗角；`OnboardingLogo` 同步换图 |
+| 2 | 手势冲突 | 删除「左右滑动切歌」开关（`beans.swipeSwitchSong`）及所有 guard、删掉死代码 `flySwipe`；手势固定为：上滑下一曲 / 下滑上一曲 / 封面左滑返回 / 右滑歌词 / 歌词页左滑返回 |
+| 3 | 三套方案设置混乱 | 只保留一个「播放方案」入口：经典 / Apple Music / 黑胶 / 沉浸。删除独立的「播放器按钮样式」开关，按钮外观由方案派生（`BeansCoverPlayerStyle.buttonStyle`）；删除重复的「Apple Music 样式」卡片，AM 专属项并入播放方案卡片。设置项按方案过滤：封面文字配色只对经典，布局对经典 + AM，AM 隐藏控件取色（避免和悬浮调试互相覆盖）。进度条样式/颜色现在对四种方案都生效（AM `ReferenceScrubber`、黑胶 `vinylKumoneProgress` 都改用 `SeekBar`）；光晕/浮尘/DJ 也接进 AM 背景 |
+| 4 | 沉浸式风格 | `BeansCoverPlayerStyle.immersive` + `PlayerView` 新分支：封面重度虚化铺满 + `immersiveCoverMask` 径向羽化溶进背景 + 极简底部控制（SeekBar + 三键）；沉浸式强制深色 palette，浅色模式文字也清晰 |
+| 5 | 曲库云同步 | 新增 `LibraryCloudSync.swift`：`LibraryCloudSyncStore` 逐个歌单拉歌曲 → `SyncedPlaylistCache`（`pinned: true`，不参与 TTL 过期）→ `CoverThumbCache` 预下载封面。同步面板显示进度、歌单/歌曲/封面数、用时、失败列表；音乐库头部新增云同步按钮 |
+| 6 | 全部歌曲卡顿 | `LibraryAllSongsSheet` 改 `LazyVStack` + 首屏 60 首、滑到底再加 60；歌手/语言标签提前算好，筛选变更重置分页 |
+| 7 | 迷你播放器进度 | `MiniPlayerView` 卡片背景内新增 `MiniPlayerProgressFill`：水位式填充 + 正弦波浪（`TimelineView` 仅在播放时驱动），四种 UI 风格 × 深浅色各一套低透明度配色 |
+| 8 | 音乐库文字遮挡 | `PlaylistWallView` 行高由固定 150 改为 `cellWidth + 46`（封面 + 标题 + 副标题实际高度），`LibraryAllPlaylistsSheet` 用计算好的格子边长替换 GeometryReader+aspectRatio |
+| 9 | 我的页面 | 移除更新地址 / 检查更新 / 交流群 / 赞助三张卡片，仅保留版本信息 |
+
+新增文件：`CoverThumbCache.swift`（封面缩略图磁盘缓存，`CoverImage` 全部改走它）、`LibraryCloudSync.swift`。
+
+需要真机重点验证：
+1. 沉浸式方案在 14 Pro Max 上的封面羽化观感、上/下滑切歌、左滑返回
+2. 云同步面板（多个平台账号同时登录）的耗时与失败项
+3. 四种方案的进度条样式是否都真的变化
+4. 迷你播放器波浪填充在四种 UI 风格下的观感（浅色 / 深色各看一次）
 
 注意：`LibraryView` 里旧的 `playlistsSection / qqSection / kugouSection / bodianSection` 已不再被渲染（保留代码，咪咕仍用 `miguSection`），后续可删。
 

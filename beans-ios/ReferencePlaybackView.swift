@@ -44,6 +44,18 @@ struct ReferencePlaybackView: View {
     @AppStorage("beans.appleMusic.wallpaperBlur") private var wallpaperBlur = 14.0
     @AppStorage("beans.showSongVIPBadge") private var showSongVIPBadge = true
     @AppStorage("beans.appleMusic.showLyricPreview") private var showLyricPreview = true
+    /// 与经典 / 黑胶共用：背景光晕、浮尘、DJ 脉冲、进度条样式
+    @AppStorage("beans.playerBreath") private var breath = 0.6
+    @AppStorage("beans.playerDustMode") private var dustModeRaw = BeansPlayerDustMode.off.rawValue
+    @AppStorage("beans.playerDustDensity") private var dustDensity = 1.0
+    @AppStorage("beans.playerDustSize") private var dustSize = 1.0
+    @AppStorage("beans.djVisual") private var djVisualEnabled = false
+    @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
+    /// 歌词设置：字号 / 行距 / 翻译 / 发光，与经典方案共用同一组开关
+    @AppStorage("beans.lyricFontSize") private var lyricFontSize = 17
+    @AppStorage("beans.lyricSpacing") private var lyricSpacing = 24
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
+    @AppStorage("beans.lyricGlow") private var lyricGlowLevel = 1
     private let downloadFeatureUnlocked = true
     @State private var lyricCenters: [UUID: CGFloat] = [:]
     @State private var focusedLyricID: UUID?
@@ -52,6 +64,11 @@ struct ReferencePlaybackView: View {
     @State private var resumeTask: Task<Void, Never>?
     /// 上/下滑切歌时封面整块的位移（滑出 → 换歌 → 滑入）
     @State private var coverSwitchOffset: CGFloat = 0
+
+    /// 字号以 17pt 为基准，按用户设置整体缩放
+    private var lyricScale: CGFloat {
+        CGFloat(min(max(lyricFontSize, 12), 28)) / 17.0
+    }
 
     private func layoutEntry(_ part: AppleMusicLayoutPart) -> PlayerLayoutEntry {
         appleLayout.entry(for: part)
@@ -124,6 +141,24 @@ struct ReferencePlaybackView: View {
                 CoverBlurBackground(url: song?.coverURL, scheme: colorScheme)
                     .overlay(Color.black.opacity(colorScheme == .dark ? 0.48 : 0.14))
                     .ignoresSafeArea()
+            }
+
+            AmbientGlowView(
+                accent: accentColor,
+                secondary: primaryColor.opacity(0.72),
+                isPlaying: player.isPlaying,
+                dustMode: BeansPlayerDustMode(rawValue: dustModeRaw) ?? .off,
+                dustDensity: dustDensity,
+                dustSize: dustSize,
+                breath: breath
+            )
+            if djVisualEnabled {
+                DJVisualView(
+                    accent: accentColor,
+                    secondary: primaryColor.opacity(0.7),
+                    isPlaying: player.isPlaying,
+                    intensity: djVisualIntensity
+                )
             }
         }
     }
@@ -244,7 +279,7 @@ struct ReferencePlaybackView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 26) {
+                        LazyVStack(alignment: .leading, spacing: max(10, CGFloat(lyricSpacing))) {
                             Color.clear.frame(height: max(88, lyricsViewportHeight * 0.30))
                             ForEach(lyrics) { line in
                                 lyricLine(line, isFocused: line.id == currentVisualLyricID)
@@ -520,8 +555,10 @@ struct ReferencePlaybackView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(line.text.isEmpty ? " " : line.text)
-                        .font(BeansFont.appFont(isFocused ? 27 : 23, isFocused ? .bold : .semibold))
+                        .font(BeansFont.appFont((isFocused ? 27 : 23) * lyricScale, isFocused ? .bold : .semibold))
                         .foregroundStyle(primaryColor.opacity(isFocused ? 1 : 0.36))
+                        .shadow(color: isFocused ? primaryColor.opacity(lyricGlowLevel > 0 ? 0.30 : 0) : .clear,
+                                radius: isFocused ? CGFloat(lyricGlowLevel) * 5 : 0)
                         .fixedSize(horizontal: false, vertical: true)
                     if isFocused && isDraggingLyrics {
                         Spacer(minLength: 8)
@@ -530,9 +567,9 @@ struct ReferencePlaybackView: View {
                             .foregroundStyle(secondaryColor.opacity(0.82))
                     }
                 }
-                if isFocused, let translation = line.translation, !translation.isEmpty {
+                if isFocused, lyricTranslation, let translation = line.translation, !translation.isEmpty {
                     Text(translation)
-                        .font(BeansFont.appFont(15, .medium))
+                        .font(BeansFont.appFont(15 * lyricScale, .medium))
                         .foregroundStyle(secondaryColor.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -661,64 +698,24 @@ struct ReferencePlaybackView: View {
 private struct ReferenceScrubber: View {
     @EnvironmentObject private var player: PlayerManager
     @EnvironmentObject private var clock: PlaybackClock
-    @State private var scrubbing = false
-    @State private var scrubValue: Double = 0
+    /// 与其它方案共用同一套进度条样式与颜色，避免「设置里改了没反应」
+    @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
+    @AppStorage("beans.progressAccentHex") private var progressAccentHex = ""
+    @AppStorage("beans.appleMusic.accentHex") private var appleAccentHex = ""
+
+    private var accent: Color {
+        if progressAccentHex.hasPrefix("#"), let color = Color(hex: progressAccentHex) { return color }
+        if appleAccentHex.hasPrefix("#"), let color = Color(hex: appleAccentHex) { return color }
+        return .white.opacity(0.92)
+    }
 
     var body: some View {
         VStack(spacing: 4) {
-            GeometryReader { geometry in
-                let total = max(max(clock.duration, player.currentSong?.duration ?? 0), 1)
-                let progress = min(max((scrubbing ? scrubValue : clock.progress) / total, 0), 1)
-                let width = geometry.size.width
-
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.18))
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(.white.opacity(0.88))
-                        .frame(width: width * progress, height: 4)
-                    Circle()
-                        .fill(.white)
-                        .frame(width: scrubbing ? 18 : 12, height: scrubbing ? 18 : 12)
-                        .shadow(color: .white.opacity(scrubbing ? 0.55 : 0.28), radius: scrubbing ? 10 : 3)
-                        .offset(x: max(0, min(width - (scrubbing ? 18 : 12), width * progress - (scrubbing ? 9 : 6))))
-                }
+            SeekBar(accent: accent, track: .white.opacity(0.18), style: progressBarStyle)
                 .frame(height: 30)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            if !scrubbing {
-                                scrubValue = clock.progress
-                                BeansHaptics.medium()
-                            }
-                            scrubbing = true
-                            scrubValue = min(max(value.location.x / max(width, 1), 0), 1) * total
-                        }
-                        .onEnded { _ in
-                            player.seek(to: scrubValue)
-                            scrubbing = false
-                            BeansHaptics.tap()
-                        }
-                )
-                .overlay(alignment: .topLeading) {
-                    if scrubbing {
-                        Text(beansTimeString(scrubValue))
-                            .font(BeansFont.appFont(11, .semibold, .monospaced))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(.black.opacity(0.44), in: Capsule())
-                            .offset(x: max(0, min(width - 62, width * progress - 31)), y: -28)
-                            .transition(.scale(scale: 0.92).combined(with: .opacity))
-                    }
-                }
-            }
-            .frame(height: 30)
 
             HStack {
-                Text(beansTimeString(scrubbing ? scrubValue : clock.progress))
+                Text(beansTimeString(clock.progress))
                 Spacer()
                 Text(beansTimeString(max(clock.duration, player.currentSong?.duration ?? 0)))
             }
@@ -726,7 +723,6 @@ private struct ReferenceScrubber: View {
             .foregroundStyle(.white.opacity(0.52))
         }
         .frame(maxWidth: 420)
-        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: scrubbing)
     }
 }
 

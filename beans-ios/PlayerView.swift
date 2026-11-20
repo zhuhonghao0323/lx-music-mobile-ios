@@ -61,8 +61,6 @@ struct PlayerView: View {
     @AppStorage("beans.playerMainIconColorHex") private var playerMainIconColorHex = ""
     @AppStorage("beans.playerSecondaryIconColorHex") private var playerSecondaryIconColorHex = ""
     @AppStorage("beans.playerPrimaryButtonColorHex") private var playerPrimaryButtonColorHex = ""
-    /// 播放器顶部与底部控制按钮的统一样式
-    @AppStorage("beans.playerButtonStyle") private var playerButtonStyleRaw = BeansPlayerButtonStyle.glass.rawValue
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
@@ -89,8 +87,6 @@ struct PlayerView: View {
     @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
-    /// 侧边滑动切歌（抖音式刷视频交互，默认开启）
-    @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
     /// 歌词模糊控制：起始距离（距当前行几行开始模糊）+ 模糊强度（0 = 关闭）
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
@@ -158,10 +154,12 @@ struct PlayerView: View {
     }
 
     private var palette: CoverPalette {
+        // 沉浸式的背景始终压暗，取色也按深色算，避免浅色模式下文字发灰看不见
+        let scheme: ColorScheme = coverPlayerStyle == .immersive ? .dark : colorScheme
         if let dominantColor {
-            return CoverPalette.make(dominant: dominantColor, colorScheme: colorScheme)
+            return CoverPalette.make(dominant: dominantColor, colorScheme: scheme)
         }
-        return CoverPalette.fallback(colorScheme: colorScheme)
+        return CoverPalette.fallback(colorScheme: scheme)
     }
 
     private var controlAccent: Color {
@@ -175,8 +173,10 @@ struct PlayerView: View {
         return controlsUseCoverColor ? palette.accentSoft : Color.beansAmber.opacity(0.28)
     }
 
+    /// 按钮外观跟随播放方案：Apple Music 方案用深色底座，其余方案用经典圆形玻璃。
+    /// 不再提供独立开关，避免与「播放方案」互相覆盖。
     private var playerButtonStyle: BeansPlayerButtonStyle {
-        BeansPlayerButtonStyle(rawValue: playerButtonStyleRaw) ?? .glass
+        coverPlayerStyle.buttonStyle
     }
 
     private var coverPlayerStyle: BeansCoverPlayerStyle {
@@ -434,6 +434,39 @@ struct PlayerView: View {
                             .padding(.top, 76)
                             .zIndex(80)
                             .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
+                    }
+                }
+            } else if coverPlayerStyle == .immersive {
+                GeometryReader { geo in
+                    ZStack {
+                        immersiveBackground
+
+                        VStack(spacing: 0) {
+                            headerBar
+                            content(geo: geo)
+                                .offset(y: verticalSwitchOffset)
+                        }
+                        .foregroundStyle(.white)
+
+                        immersiveControlBar(bottomInset: geo.safeAreaInsets.bottom)
+
+                        if showMoreActions {
+                            Color.black.opacity(0.001)
+                                .ignoresSafeArea()
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                        showMoreActions = false
+                                    }
+                                }
+                                .zIndex(70)
+
+                            playerMoreActionsPanel
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                                .padding(.top, 76)
+                                .zIndex(80)
+                                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
+                        }
                     }
                 }
             } else if coverPlayerStyle == .vinyl {
@@ -961,6 +994,8 @@ struct PlayerView: View {
             classicAlbumPanel(geo: geo)
         case .vinyl:
             vinylAlbumPanel(geo: geo)
+        case .immersive:
+            immersiveAlbumPanel(geo: geo)
         }
     }
 
@@ -1499,7 +1534,6 @@ struct PlayerView: View {
                 .gesture(
                     DragGesture(minimumDistance: 15)
                         .onChanged { value in
-                            guard swipeSwitchSong else { return }
                             coverDrag = value.translation
                             let x = value.translation.width
                             if abs(x) > abs(value.translation.height) {
@@ -1568,7 +1602,6 @@ struct PlayerView: View {
         .gesture(
             DragGesture(minimumDistance: 15)
                 .onChanged { value in
-                    guard swipeSwitchSong else { return }
                     coverDrag = value.translation
                     let x = value.translation.width
                     if abs(x) > abs(value.translation.height) {
@@ -1643,7 +1676,6 @@ struct PlayerView: View {
                 .gesture(
                     DragGesture(minimumDistance: 15)
                         .onChanged { value in
-                            guard swipeSwitchSong else { return }
                             coverDrag = value.translation
                             let x = value.translation.width
                             if abs(x) > abs(value.translation.height) {
@@ -1718,7 +1750,6 @@ struct PlayerView: View {
         .gesture(
             DragGesture(minimumDistance: 15)
                 .onChanged { value in
-                    guard swipeSwitchSong else { return }
                     coverDrag = value.translation
                     let x = value.translation.width
                     if abs(x) > abs(value.translation.height) {
@@ -2029,6 +2060,238 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - 沉浸式播放（封面溶于背景）
+
+    /// 沉浸背景：封面重度虚化铺满整屏 + 呼吸光晕，封面本体再用羽化蒙版溶进去
+    private var immersiveBackground: some View {
+        ZStack {
+            Color.black
+            CoverBlurBackground(url: song?.coverURL, scheme: .dark)
+                .scaleEffect(1.18)
+                .blur(radius: 24)
+                .opacity(0.94)
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.30), location: 0.0),
+                    .init(color: .black.opacity(0.06), location: 0.34),
+                    .init(color: .black.opacity(0.42), location: 0.72),
+                    .init(color: .black.opacity(0.86), location: 1.0)
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+            AmbientGlowView(
+                accent: palette.accent,
+                secondary: palette.secondary,
+                isPlaying: playerVisualsActive,
+                dustMode: playerDustMode,
+                dustDensity: playerDustDensity,
+                dustSize: playerDustSize,
+                breath: playerBreath
+            )
+            if djVisualEnabled {
+                DJVisualView(
+                    accent: palette.accent,
+                    secondary: palette.secondary,
+                    isPlaying: playerVisualsActive,
+                    intensity: djVisualIntensity
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    /// 羽化蒙版：中间实、四周渐隐，让封面没有硬边界，直接融进背景
+    private func immersiveCoverMask(side: CGFloat) -> some View {
+        Rectangle()
+            .fill(
+                RadialGradient(
+                    stops: [
+                        .init(color: .black, location: 0.0),
+                        .init(color: .black, location: 0.62),
+                        .init(color: .black.opacity(0.72), location: 0.80),
+                        .init(color: .black.opacity(0.22), location: 0.93),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: side * 0.60
+                )
+            )
+            .frame(width: side, height: side)
+    }
+
+    private func immersiveAlbumPanel(geo: GeometryProxy) -> some View {
+        let coverSide = min(geo.size.width * 0.86, geo.size.height * 0.46)
+        return VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(song?.name ?? "未在播放")
+                        .font(BeansFont.appFont(24, .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.62)
+                        .multilineTextAlignment(.leading)
+                    if showSongVIPBadge, song?.isVIP == true {
+                        Text("VIP")
+                            .font(BeansFont.appFont(9, .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                    }
+                }
+                Text(song?.artists ?? "")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 26)
+            .padding(.top, 6)
+
+            Spacer(minLength: 8)
+
+            ZStack {
+                Circle()
+                    .fill(palette.accent.opacity(0.22))
+                    .frame(width: coverSide * 1.02, height: coverSide * 1.02)
+                    .blur(radius: 40)
+
+                CoverImage(
+                    url: song?.coverURL,
+                    size: coverSide,
+                    cornerRadius: 22,
+                    emptyHint: player.isBuffering ? "等待开始播放…" : nil
+                )
+                .frame(width: coverSide, height: coverSide)
+                .mask(immersiveCoverMask(side: coverSide))
+                .scaleEffect(coverSwitchPulse ? 0.96 : 1)
+                .rotation3DEffect(.degrees(Double(coverDrag.height / -30)), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
+                .rotation3DEffect(.degrees(Double(coverDrag.width / 30)), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
+                .offset(x: coverDrag.width * 0.05, y: coverDrag.height * 0.05)
+                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: coverDrag)
+                .animation(.easeOut(duration: 0.26), value: coverSwitchPulse)
+            }
+            .frame(width: coverSide * 1.06, height: coverSide * 1.02)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 15)
+                    .onChanged { value in
+                        coverDrag = value.translation
+                        let x = value.translation.width
+                        if abs(x) > abs(value.translation.height) {
+                            swipeOffset = x
+                        }
+                    }
+                    .onEnded { value in
+                        handleSwipeEnd(value)
+                    }
+            )
+            .onTapGesture(count: 2) {
+                guard let song else { return }
+                BeansHaptics.success()
+                toggleLocalFavorite(song)
+            }
+            .onTapGesture { toggleLyrics() }
+
+            Spacer(minLength: 6)
+
+            lyricPreviewBox
+                .opacity(0.92)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.bottom, 150 + geo.safeAreaInsets.bottom)
+    }
+
+    /// 沉浸式底部控制：极简的三键 + 细进度条，浮在背景上不加厚卡片
+    private func immersiveControlBar(bottomInset: CGFloat) -> some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 2) {
+                SeekBar(accent: progressAccent, track: .white.opacity(0.20), style: progressBarStyle)
+                HStack {
+                    Text(beansTimeString(clock.progress))
+                    Spacer()
+                    Text(beansTimeString(max(clock.duration, song?.duration ?? 0)))
+                }
+                .font(BeansFont.appFont(10, .regular, .monospaced))
+                .foregroundStyle(.white.opacity(0.55))
+            }
+
+            HStack(spacing: 10) {
+                immersiveSideButton(icon: player.playMode.icon) {
+                    player.togglePlayMode()
+                }
+
+                Spacer(minLength: 4)
+
+                Button {
+                    BeansHaptics.tap()
+                    switchSongAnimated(up: false)
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(GlassPressButtonStyle())
+
+                Button {
+                    BeansHaptics.tap()
+                    player.togglePlayPause()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.16))
+                            .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.8))
+                            .frame(width: 66, height: 66)
+                        PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 26)
+                            .foregroundStyle(.white)
+                    }
+                }
+                .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+
+                Button {
+                    BeansHaptics.tap()
+                    switchSongAnimated(up: true)
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(GlassPressButtonStyle())
+
+                Spacer(minLength: 4)
+
+                immersiveSideButton(icon: "list.bullet") {
+                    showQueue = true
+                }
+            }
+        }
+        .padding(.horizontal, 26)
+        .padding(.bottom, max(14, bottomInset + 4))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+
+    private func immersiveSideButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            BeansHaptics.tap()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.86))
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(.white.opacity(0.10)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(GlassPressButtonStyle())
+    }
+
     // MARK: - 底部控制栏（旧式悬浮布局：进度 / 主控制）
 
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
@@ -2046,11 +2309,8 @@ struct PlayerView: View {
                     .scaleEffect(VinylLayoutDefaults.controlsScale)
                     .offset(y: VinylLayoutDefaults.controlsY)
             } else {
-                progressBlock(
-                    styleOverride: playerButtonStyle == .appleMusic ? 0 : nil,
-                    accentOverride: playerButtonStyle == .appleMusic ? .white.opacity(0.92) : nil
-                )
-                .modifier(Layoutable(part: .progress, enabled: layoutMode, data: $layoutData))
+                progressBlock()
+                    .modifier(Layoutable(part: .progress, enabled: layoutMode, data: $layoutData))
 
                 deckRow
                     .modifier(Layoutable(part: .controls, enabled: layoutMode, data: $layoutData))
@@ -2131,8 +2391,9 @@ struct PlayerView: View {
         .buttonStyle(.plain)
     }
 
+    /// 黑胶也走统一进度条组件，样式 / 颜色与其它方案一致
     private var vinylKumoneProgress: some View {
-        VinylKumoneScrubber()
+        SeekBar(accent: progressAccent, track: .white.opacity(0.22), style: progressBarStyle)
     }
 
     /// 底部指示线：只有在指示线附近上滑才呼出评论区（避免误触控制按钮）
@@ -2923,13 +3184,6 @@ struct PlayerView: View {
 
     /// 封面手势：左滑下一首（保持原行为）、右滑看歌词、上划下一曲、下滑上一曲。
     private func handleSwipeEnd(_ value: DragGesture.Value) {
-        guard swipeSwitchSong else {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                swipeOffset = 0
-                coverDrag = .zero
-            }
-            return
-        }
         let dx = value.translation.width
         let dy = value.translation.height
         if abs(dx) >= abs(dy) {
@@ -2990,30 +3244,6 @@ struct PlayerView: View {
         }
     }
 
-    private func flySwipe(direction: CGFloat) {
-        let flyOut: CGFloat = direction * 560
-        let flyIn: CGFloat = -direction * 560
-        // 1) 当前封面继续向滑动方向飞出
-        withAnimation(.easeIn(duration: 0.17)) { swipeOffset = flyOut }
-        // 2) 飞出后立即切歌，并把新封面放到对侧屏幕外，再滑回中央
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.17) {
-            // 动画期间开关被关闭：面板直接复位，避免卡在屏幕外
-            guard swipeSwitchSong else {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    swipeOffset = 0
-                    coverDrag = .zero
-                }
-                return
-            }
-            if direction < 0 { player.next() } else { player.previous() }
-            swipeOffset = flyIn
-            // 等下一帧先渲染出新封面在屏幕外的位置，再动画滑回中央（否则动画会从旧位置开始，方向不对）
-            DispatchQueue.main.async {
-                withAnimation(.easeOut(duration: 0.26)) { swipeOffset = 0 }
-            }
-        }
-    }
-
     private func loadLyrics() async {
         lyrics = []
         guard let song else { return }
@@ -3062,68 +3292,6 @@ struct PlayerView: View {
 }
 
 /// 黑胶页专用的白色极简进度条：非拖动时隐藏滑块，拖动时才显示。
-private struct VinylKumoneScrubber: View {
-    @EnvironmentObject private var player: PlayerManager
-    @EnvironmentObject private var clock: PlaybackClock
-    @State private var isDragging = false
-    @State private var dragProgress = 0.0
-
-    private var currentProgress: Double {
-        isDragging ? dragProgress : clock.progress
-    }
-
-    private var fraction: Double {
-        guard clock.duration > 0 else { return 0 }
-        return min(max(currentProgress / clock.duration, 0), 1)
-    }
-
-    var body: some View {
-        VStack(spacing: 5) {
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.25))
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(.white)
-                        .frame(width: max(4, width * fraction), height: 4)
-                    Circle()
-                        .fill(.white)
-                        .frame(width: isDragging ? 13 : 9, height: isDragging ? 13 : 9)
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                        .offset(x: width * fraction - (isDragging ? 6.5 : 4.5))
-                        .opacity(isDragging ? 1 : 0)
-                }
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            guard clock.duration > 0 else { return }
-                            isDragging = true
-                            dragProgress = min(max(value.location.x / width, 0), 1) * clock.duration
-                        }
-                        .onEnded { _ in
-                            player.seek(to: dragProgress)
-                            isDragging = false
-                        }
-                )
-            }
-            .frame(height: 14)
-
-            HStack {
-                Text(beansTimeString(currentProgress))
-                Spacer(minLength: 0)
-                Text(beansTimeString(clock.duration))
-            }
-            .font(BeansFont.appFont(10, .regular, .monospaced))
-            .foregroundStyle(.white.opacity(0.55))
-            .monospacedDigit()
-        }
-    }
-}
-
 // MARK: - 自定义进度条（点击 / 拖动均可跳转，配色跟随封面主色）
 
 struct SeekBar: View {
@@ -3793,7 +3961,6 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
-    @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
     @AppStorage("beans.lyricTilt") private var lyricTilt = 0
@@ -3803,7 +3970,6 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricBackground.blur") private var lyricBackgroundBlur = 12.0
     @AppStorage("beans.lyricBackground.syncCover") private var lyricBackgroundSyncCover = false
     @AppStorage("beans.audio.mixothers.v1") private var mixesWithOthers = false
-    @AppStorage("beans.playerButtonStyle") private var playerButtonStyleRaw = BeansPlayerButtonStyle.glass.rawValue
     @AppStorage("beans.albumTitleColorHex") private var albumTitleColorHex = ""
     @AppStorage("beans.albumArtistColorHex") private var albumArtistColorHex = ""
     @AppStorage("beans.albumPreviewLyricColorHex") private var albumPreviewLyricColorHex = ""
@@ -3824,6 +3990,10 @@ struct PlayerSettingsSheet: View {
 
     init(onDismiss: (() -> Void)? = nil) {
         self.onDismiss = onDismiss
+    }
+
+    private var coverPlayerStyle: BeansCoverPlayerStyle {
+        BeansCoverPlayerStyle(rawValue: coverPlayerStyleRaw) ?? .appleMusic
     }
 
     private var tiltYText: String {
@@ -3987,13 +4157,12 @@ struct PlayerSettingsSheet: View {
 
     private var coverPlayerStyleSelector: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("播放器风格")
-                .font(BeansFont.appFont(13, .semibold))
-                .foregroundStyle(Color.beansLabel)
             ForEach(BeansCoverPlayerStyle.allCases) { style in
                 let selected = coverPlayerStyleRaw == style.rawValue
                 Button {
                     coverPlayerStyleRaw = style.rawValue
+                    // 从 Apple Music 切到别的方案时，顺手关掉悬浮调试，避免残留工具栏
+                    if style != .appleMusic { layoutMode = false }
                     BeansHaptics.select()
                 } label: {
                     HStack(spacing: 10) {
@@ -4068,12 +4237,16 @@ struct PlayerSettingsSheet: View {
         BeansNavigationStack {
             ScrollView {
                 LazyVStack(spacing: 12) {
+                    styleCard
                     playingCard
-                    appleMusicCard
                     lyricDisplayCard
                     lyricEffectCard
-                    layoutCard
-                    coverCard
+                    if coverPlayerStyle.supportsClassicLayout || coverPlayerStyle == .appleMusic {
+                        layoutCard
+                    }
+                    if coverPlayerStyle.supportsCoverText {
+                        coverCard
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 16)
@@ -4196,36 +4369,39 @@ struct PlayerSettingsSheet: View {
     /// 播放卡片：切歌 / 进度条样式 / 背景光晕 / DJ 视觉
     private var playingCard: some View {
         settingCard("播放", isExpanded: $playbackExpanded) {
-            playerButtonStyleSelector
-            Divider().opacity(0.5)
             CompactSettingGroup {
-                settingToggle("控件跟随封面取色", isOn: $controlsUseCoverColor,
-                              caption: "关闭后使用全局主题色")
-                Divider().opacity(0.35)
-                ColorPicker("顶部/底部主图标颜色", selection: playerMainIconColor, supportsOpacity: false)
-                    .font(BeansFont.appFont(13))
-                ColorPicker("顶部/底部次级图标颜色", selection: playerSecondaryIconColor, supportsOpacity: false)
-                    .font(BeansFont.appFont(13))
-                ColorPicker("播放按钮强调色", selection: playerPrimaryButtonColor, supportsOpacity: false)
-                    .font(BeansFont.appFont(13))
-                Button {
-                    playerMainIconColorHex = ""
-                    playerSecondaryIconColorHex = ""
-                    playerPrimaryButtonColorHex = ""
-                    BeansHaptics.select()
-                } label: {
-                    Text("恢复播放页控件颜色默认")
-                        .font(BeansFont.appFont(12, .semibold))
-                        .foregroundStyle(Color.beansAmber)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.beansAmber.opacity(0.12), in: Capsule())
+                if coverPlayerStyle != .appleMusic {
+                    settingToggle("控件跟随封面取色", isOn: $controlsUseCoverColor,
+                                  caption: "关闭后使用全局主题色")
+                    Divider().opacity(0.35)
+                    ColorPicker("顶部/底部主图标颜色", selection: playerMainIconColor, supportsOpacity: false)
+                        .font(BeansFont.appFont(13))
+                    ColorPicker("顶部/底部次级图标颜色", selection: playerSecondaryIconColor, supportsOpacity: false)
+                        .font(BeansFont.appFont(13))
+                    ColorPicker("播放按钮强调色", selection: playerPrimaryButtonColor, supportsOpacity: false)
+                        .font(BeansFont.appFont(13))
+                    Button {
+                        playerMainIconColorHex = ""
+                        playerSecondaryIconColorHex = ""
+                        playerPrimaryButtonColorHex = ""
+                        BeansHaptics.select()
+                    } label: {
+                        Text("恢复播放页控件颜色默认")
+                            .font(BeansFont.appFont(12, .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.beansAmber.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Divider().opacity(0.35)
+                } else {
+                    Text("Apple Music 方案的图标颜色请在上方「播放方案 → 悬浮调试」里调整，这里不再重复一套，避免互相覆盖。")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Divider().opacity(0.35)
                 }
-                .buttonStyle(.plain)
-                Divider().opacity(0.35)
-                settingToggle("左右滑动切歌", isOn: $swipeSwitchSong,
-                              caption: "左滑下一首，右滑上一首")
-                Divider().opacity(0.35)
                 settingToggle("播放失败自动下一首", isOn: $autoSkipOnFailure,
                               caption: "当前歌曲解析失败或播放地址失效时，自动跳到下一首")
                 Divider().opacity(0.35)
@@ -4298,104 +4474,58 @@ struct PlayerSettingsSheet: View {
         }
     }
 
-    /// 播放器按钮样式选择
-    private var playerButtonStyleSelector: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("播放器按钮样式")
-                        .font(BeansFont.appFont(13, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                    Text("只换按钮外观，不改变播放逻辑")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansComment)
-                }
-                Spacer()
-                Image(systemName: "circle.grid.2x2")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.beansAmber)
-                    .frame(width: 30, height: 30)
-                    .background(Color.beansAmber.opacity(0.12), in: Circle())
-            }
-            ForEach(BeansPlayerButtonStyle.allCases) { style in
-                let selected = playerButtonStyleRaw == style.rawValue
+    /// 播放方案：全 App 唯一入口。方案决定按钮外观、可用设置项，不再有第二套「按钮样式」互相覆盖。
+    private var styleCard: some View {
+        settingCard("播放方案") {
+            coverPlayerStyleSelector
+            Divider().opacity(0.5)
+            Text(styleSummary)
+                .font(BeansFont.appFont(12))
+                .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
+            if coverPlayerStyle == .appleMusic {
+                Divider().opacity(0.5)
+                Toggle("显示封面页歌词预览", isOn: $appleShowLyricPreview)
+                    .font(BeansFont.appFont(13, .medium))
+                    .tint(Color.beansAmber)
                 Button {
-                    playerButtonStyleRaw = style.rawValue
+                    layoutMode = true
                     BeansHaptics.select()
+                    if let onDismiss {
+                        onDismiss()
+                    } else {
+                        dismiss()
+                    }
                 } label: {
-                    HStack(spacing: 10) {
-                        ZStack {
-                            Circle()
-                                .fill(selected ? Color.beansAmber : Color.primary.opacity(0.06))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: style.previewIcon)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(selected ? Color.white : Color.beansLabel)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(LocalizedStringKey(style.title))
-                                .font(BeansFont.appFont(13, .semibold))
-                                .foregroundStyle(Color.beansLabel)
-                            Text(LocalizedStringKey(style.subtitle))
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if selected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.beansAmber)
-                        }
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.rectangle.on.rectangle")
+                        Text("进入 Apple Music 悬浮调试")
                     }
+                    .font(BeansFont.appFont(13, .semibold))
+                    .foregroundStyle(Color.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 9)
-                    .background(
-                        selected ? Color.beansAmber.opacity(0.12) : Color.primary.opacity(0.035),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(selected ? Color.beansAmber.opacity(0.42) : Color.beansComment.opacity(0.10), lineWidth: 0.8)
-                    }
+                    .padding(.vertical, 10)
+                    .background(Color.black, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+                Text("显示、颜色、背景和每个组件的 X / Y / 大小，请在播放页顶部的悬浮调试中调整。")
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansComment)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var appleMusicCard: some View {
-        settingCard("Apple Music 样式", isExpanded: $appleMusicExpanded) {
-            Toggle("显示封面页歌词预览", isOn: $appleShowLyricPreview)
-                .font(BeansFont.appFont(13, .medium))
-                .tint(Color.beansAmber)
-            Button {
-                coverPlayerStyleRaw = BeansCoverPlayerStyle.appleMusic.rawValue
-                playerButtonStyleRaw = BeansPlayerButtonStyle.appleMusic.rawValue
-                layoutMode = true
-                BeansHaptics.select()
-                if let onDismiss {
-                    onDismiss()
-                } else {
-                    dismiss()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.rectangle.on.rectangle")
-                    Text("进入 Apple Music 悬浮调试")
-                }
-                .font(BeansFont.appFont(13, .semibold))
-                .foregroundStyle(Color.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.black, in: Capsule())
-            }
-            .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-            Text("Apple Music 的显示、颜色、背景和每个组件的 X / Y / 大小，请在播放页顶部的悬浮调试中调整。")
-                .font(BeansFont.appFont(12))
-                .foregroundStyle(Color.beansComment)
-                .fixedSize(horizontal: false, vertical: true)
+    private var styleSummary: String {
+        switch coverPlayerStyle {
+        case .classic:
+            return "封面、歌名与预览歌词分层显示；「布局」「封面」两组设置只对当前方案生效。"
+        case .appleMusic:
+            return "大封面 + 细进度条；进度条样式、颜色、背景光晕会同步应用到 Apple Music 方案。"
+        case .vinyl:
+            return "黑胶唱盘方案：进度条与按钮使用同一套配色，封面文字配色对黑胶不生效，已隐藏。"
+        case .immersive:
+            return "沉浸式：封面以羽化边缘溶入整屏背景，仅保留最必要的控制层。"
         }
     }
 
@@ -4487,6 +4617,7 @@ struct PlayerSettingsSheet: View {
     /// 歌词效果卡片：模糊 / 发光 / 渐变预设 / 配色
     private var lyricEffectCard: some View {
         settingCard("歌词效果", isExpanded: $lyricEffectExpanded) {
+            if coverPlayerStyle != .appleMusic {
             settingSlider("模糊起始距离", valueText: "\(lyricBlurStart) 行") {
                 Slider(value: Binding(get: { Double(lyricBlurStart) }, set: { lyricBlurStart = Int($0) }), in: 0...4, step: 1)
                     .tint(Color.beansAmber)
@@ -4506,6 +4637,7 @@ struct PlayerSettingsSheet: View {
                     .tint(Color.beansAmber)
             }
             Divider().opacity(0.5)
+            }
             settingSlider("歌词发光", valueText: glowName(glowLevel)) {
                 Slider(
                     value: Binding(get: { Double(glowLevel) }, set: { glowLevel = Int($0) }),
@@ -4515,6 +4647,12 @@ struct PlayerSettingsSheet: View {
                 .tint(Color.beansAmber)
             }
             Divider().opacity(0.5)
+            if coverPlayerStyle == .appleMusic {
+                Text("Apple Music 方案的歌词颜色、发光颜色在「播放方案 → 悬浮调试」里调整，这里不再重复一套，避免互相覆盖。字号、行距、翻译与发光强度在上方即可调整。")
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansComment)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
             settingToggle("保持自定义配色", isOn: Binding(get: { gradMode == 1 }, set: { gradMode = $0 ? 1 : 0 }),
                           caption: "关闭时自动跟随歌曲封面取色调整")
             ColorPicker("当前行颜色", selection: currentColor, supportsOpacity: false)
@@ -4595,6 +4733,7 @@ struct PlayerSettingsSheet: View {
                 .font(BeansFont.appFont(13))
                 .foregroundStyle(Color.beansAmber)
             }
+            }
         }
     }
 
@@ -4646,8 +4785,6 @@ struct PlayerSettingsSheet: View {
     /// 封面卡片：圆形封面 / 旋转
     private var coverCard: some View {
         settingCard("封面", isExpanded: $coverExpanded) {
-            coverPlayerStyleSelector
-            Divider().opacity(0.5)
             settingToggle("圆形封面模式", isOn: $circularCover,
                           caption: "播放器封面与歌词页左上角封面显示为圆形")
             Divider().opacity(0.5)

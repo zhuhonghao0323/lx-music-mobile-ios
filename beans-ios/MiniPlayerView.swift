@@ -11,6 +11,7 @@ struct MiniPlayerView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var player: PlayerManager
     @EnvironmentObject private var clock: PlaybackClock
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var showPlayer: Bool
     var presentation: Presentation = .dock
     var transitionNamespace: Namespace.ID?
@@ -117,32 +118,44 @@ struct MiniPlayerView: View {
             .padding(.trailing, 6)
             .padding(.vertical, verticalPadding)
             .background {
-                if presentation.showsCardSurface {
-                    // 普通底部浮层：保留卡片质感与阴影。
-                    BeansGlass(
-                        shape: RoundedRectangle(cornerRadius: containerRadius, style: .continuous),
-                        forceLiquid: false
-                    )
-                    .overlay {
-                        LinearGradient(
-                            colors: [.white.opacity(0.25), .clear, .white.opacity(0.05)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
+                ZStack {
+                    if presentation.showsCardSurface {
+                        // 普通底部浮层：保留卡片质感与阴影。
+                        BeansGlass(
+                            shape: RoundedRectangle(cornerRadius: containerRadius, style: .continuous),
+                            forceLiquid: false
                         )
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.45), .white.opacity(0.08)],
-                                    startPoint: .top, endPoint: .bottom
-                                ),
-                                lineWidth: 0.8
+                        .overlay {
+                            LinearGradient(
+                                colors: [.white.opacity(0.25), .clear, .white.opacity(0.05)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
                             )
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.45), .white.opacity(0.08)],
+                                        startPoint: .top, endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.8
+                                )
+                        }
+                    } else {
+                        // 进入底栏 accessory 时不再叠一层卡片，交给系统/底栏容器去承载。
+                        RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
+                            .fill(.clear)
                     }
-                } else {
-                    // 进入底栏 accessory 时不再叠一层卡片，交给系统/底栏容器去承载。
-                    RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
-                        .fill(.clear)
+
+                    // 播放进度：卡片内自下而上的水位填充 + 波浪水面
+                    MiniPlayerProgressFill(
+                        progress: clock.duration > 0 ? clock.progress / clock.duration : 0,
+                        isPlaying: player.isPlaying,
+                        style: BeansUIStyle(rawValue: uiStyleRaw) ?? .liquid,
+                        colorScheme: colorScheme
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
+                    .allowsHitTesting(false)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
@@ -204,5 +217,100 @@ private extension View {
     @ViewBuilder
     func transitionSource(in namespace: Namespace.ID?) -> some View {
         modifier(BeansTransitionSourceModifier(namespace: namespace))
+    }
+}
+
+
+// MARK: - 迷你播放器进度填充
+
+/// 卡片内部的水位式进度：高度跟随播放进度，水面用正弦波缓慢流动。
+/// 配色按四种 UI 风格 + 深浅色分别调过，都是低透明度，避免抢内容。
+private struct MiniPlayerProgressFill: View {
+    let progress: Double
+    let isPlaying: Bool
+    let style: BeansUIStyle
+    let colorScheme: ColorScheme
+
+    private var clamped: CGFloat { CGFloat(min(max(progress, 0), 1)) }
+
+    private var fillTint: Color {
+        let accent = Color.beansAmber
+        switch style {
+        case .liquid:
+            return accent.opacity(colorScheme == .dark ? 0.26 : 0.16)
+        case .clear:
+            return accent.opacity(colorScheme == .dark ? 0.22 : 0.14)
+        case .compact:
+            return accent.opacity(colorScheme == .dark ? 0.18 : 0.11)
+        case .nativeClean:
+            return accent.opacity(colorScheme == .dark ? 0.24 : 0.13)
+        }
+    }
+
+    private var crestColor: Color {
+        switch style {
+        case .liquid, .clear:
+            return .white.opacity(colorScheme == .dark ? 0.16 : 0.30)
+        case .compact:
+            return .white.opacity(colorScheme == .dark ? 0.10 : 0.22)
+        case .nativeClean:
+            return Color.beansAmber.opacity(colorScheme == .dark ? 0.22 : 0.16)
+        }
+    }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isPlaying)) { timeline in
+            let phase = CGFloat(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 120))
+            GeometryReader { geo in
+                let height = geo.size.height
+                let level = height * clamped
+                ZStack(alignment: .bottom) {
+                    if clamped > 0.001 {
+                        WaveFillShape(level: level, phase: phase, amplitude: isPlaying ? 2.4 : 1.0)
+                            .fill(
+                                LinearGradient(
+                                    colors: [fillTint.opacity(0.55), fillTint],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                        WaveFillShape(level: level, phase: phase + 1.7, amplitude: isPlaying ? 2.4 : 1.0)
+                            .stroke(crestColor, lineWidth: 0.9)
+                            .blendMode(.plusLighter)
+                            .opacity(0.6)
+                    }
+                }
+                .frame(width: geo.size.width, height: height, alignment: .bottom)
+            }
+        }
+        .animation(.easeInOut(duration: 0.28), value: clamped)
+    }
+}
+
+private struct WaveFillShape: Shape {
+    var level: CGFloat
+    var phase: CGFloat
+    var amplitude: CGFloat
+    /// 波长占宽度的比例
+    var wavelengthRatio: CGFloat = 1.15
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.width
+        let height = rect.height
+        let surfaceY = height - level
+        let amplitude = min(amplitude, max(0.6, level * 0.5))
+        let wavelength = max(width * wavelengthRatio, 40)
+
+        path.move(to: CGPoint(x: 0, y: height))
+        path.addLine(to: CGPoint(x: 0, y: surfaceY))
+        var x: CGFloat = 0
+        while x <= width {
+            let y = surfaceY + sin((x / wavelength) * .pi * 2 + phase) * amplitude
+            path.addLine(to: CGPoint(x: x, y: y))
+            x += 2
+        }
+        path.addLine(to: CGPoint(x: width, y: height))
+        path.closeSubpath()
+        return path
     }
 }
