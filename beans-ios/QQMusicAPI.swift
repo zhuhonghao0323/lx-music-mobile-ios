@@ -1579,6 +1579,37 @@ final class QQMusicAPI {
         try await playlistSongsUnlimited(listID: listID)
     }
 
+    /// 只取歌单元信息（导入歌单时用）
+    func playlistDetail(listID: Int) async throws -> Playlist? {
+        let qqAuth = QQMusicAuth.shared
+        let cookie = qqAuth.isLoggedIn ? qqAuth.playlistCookieHeader : ""
+        let loginUin = qqAuth.playlistIdentityCandidates.first ?? "0"
+        let url = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=1&new_format=1&disstid=\(listID)&loginUin=\(loginUin)&hostUin=0&song_begin=0&song_num=1&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        if let json = try? await get(url, referer: "https://y.qq.com/n/yqq/playlist", cookie: cookie),
+           let cd = (json["cdlist"] as? [[String: Any]])?.first {
+            let name = (cd["dissname"] as? String) ?? (cd["title"] as? String) ?? "QQ音乐歌单"
+            let logo = Self.normalizedQQImageURL(cd["logo"] as? String)
+            let count = cd["songnum"] as? Int ?? cd["total_song_num"] as? Int ?? 0
+            return Playlist(id: listID, name: name, coverURL: logo, trackCount: count, source: .qq)
+        }
+        // 兜底 musicu
+        let payload: [String: Any] = [
+            "comm": ["ct": 24, "cv": 0, "uin": Int(loginUin) ?? 0, "g_tk": qqAuth.gtk, "platform": "yqq"],
+            "req_1": [
+                "module": "music.playlist.PlayListDataServer",
+                "method": "GetPlaylistDetail",
+                "param": ["id": listID, "uin": Int(loginUin) ?? 0, "song_begin": 0, "song_num": 1]
+            ]
+        ]
+        guard let json = try? await musicu(payload, cookie: cookie) else { return nil }
+        let dirinfo = (json["req_1"] as? [String: Any])?["data"] as? [String: Any]
+        guard let info = dirinfo else { return nil }
+        let name = info["dissname"] as? String ?? "QQ音乐歌单"
+        let logo = Self.normalizedQQImageURL(info["logo"] as? String)
+        let count = info["total_song_num"] as? Int ?? info["songnum"] as? Int ?? 0
+        return Playlist(id: listID, name: name, coverURL: logo, trackCount: count, source: .qq)
+    }
+
     private func playlistSongs(listID: Int, preferredCookie: String?, limit: Int) async throws -> [Song] {
         let pageSize = 300
         let targetLimit = limit > 0 ? limit : Int.max

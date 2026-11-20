@@ -146,7 +146,7 @@ final class BodianMusicAPI {
             signed: true
         )
         let payload = right["data"] as? [String: Any] ?? [:]
-        let status = Int(Self.string(payload["status"]) ?? "") ?? 0
+        let status = Int(Self.string(payload["status"])) ?? 0
         if status == 3 {
             let audition = payload["audition"] as? [String: Any] ?? [:]
             let url = Self.string(audition["https"] ?? audition["url"])
@@ -186,8 +186,9 @@ final class BodianMusicAPI {
             params: ["f": "bodian", "q": encoded],
             lyricHost: true
         ) else { return nil }
-        guard let data = json["data"] as? [String: Any],
-              let content = Self.string(data["content"]),
+        guard let data = json["data"] as? [String: Any] else { return nil }
+        let content = Self.string(data["content"])
+        guard !content.isEmpty,
               let raw = Data(base64Encoded: content),
               let text = String(data: raw, encoding: .utf8) else { return nil }
         // 去掉逐字时间标签后仍是标准 LRC
@@ -201,7 +202,8 @@ final class BodianMusicAPI {
     func qrLogin() async throws -> QRLogin {
         let json = try await call("/api/ucenter/login/qrCode", params: [:], signed: true, anonymous: true)
         let data = json["data"] as? [String: Any] ?? [:]
-        guard let key = Self.string(data["qrCode"]), !key.isEmpty else {
+        let key = Self.string(data["qrCode"])
+        guard !key.isEmpty else {
             throw BodianError.invalid("波点没有返回二维码标识")
         }
         var comps = URLComponents(string: "https://bodian-oia.kuwo.cn/bodian/download.html")
@@ -221,7 +223,7 @@ final class BodianMusicAPI {
             anonymous: true
         )
         let data = json["data"] as? [String: Any] ?? [:]
-        let status = Int(Self.string(data["status"]) ?? "") ?? 0
+        let status = Int(Self.string(data["status"])) ?? 0
         switch status {
         case 1: return .waiting
         case 2: return .expired
@@ -320,7 +322,7 @@ final class BodianMusicAPI {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw BodianError.network
         }
-        let code = Int(Self.string(json["code"]) ?? "") ?? -1
+        let code = Int(Self.string(json["code"])) ?? -1
         if code != 200 {
             let message = Self.string(json["msg"] ?? json["message"])
             if code == 407 { throw BodianError.regionRestricted }
@@ -445,7 +447,7 @@ final class BodianMusicAPI {
     }
 
     private static func song(from raw: [String: Any]) -> Song? {
-        guard let numericID = Int(string(raw["id"] ?? raw["musicId"] ?? raw["rid"]) ?? ""), numericID > 0 else {
+        guard let numericID = Int(string(raw["id"] ?? raw["musicId"] ?? raw["rid"])), numericID > 0 else {
             return nil
         }
         let name = string(raw["name"] ?? raw["songName"] ?? raw["songname"])
@@ -456,7 +458,7 @@ final class BodianMusicAPI {
             : artistList.compactMap { string($0["name"]) }.joined(separator: " / ")
         let album = string(raw["album"] ?? raw["albumName"])
         let cover = string(raw["albumPic"] ?? raw["cover"] ?? raw["pic"])
-        let duration = Double(Int(string(raw["duration"]) ?? "") ?? 0)
+        let duration = Double(Int(string(raw["duration"])) ?? 0)
         return Song(
             id: numericID,
             name: name,
@@ -474,7 +476,7 @@ final class BodianMusicAPI {
         let name = string(raw["name"] ?? raw["title"] ?? raw["listName"])
         guard !name.isEmpty else { return nil }
         let cover = string(raw["pic"] ?? raw["cover"] ?? raw["imgUrl"] ?? raw["coverUrl"])
-        let count = Int(string(raw["count"] ?? raw["songCount"] ?? raw["musicCount"] ?? raw["total"]) ?? "") ?? 0
+        let count = Int(string(raw["count"] ?? raw["songCount"] ?? raw["musicCount"] ?? raw["total"])) ?? 0
         let numeric = Int(rawID) ?? abs(rawID.hashValue % 900_000) + 100_000
         return Playlist(
             id: numeric,

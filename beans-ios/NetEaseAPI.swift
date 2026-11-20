@@ -263,6 +263,21 @@ final class NetEaseAPI {
         return tracks.compactMap(Song.init(json:))
     }
 
+    /// 只取歌单元信息（导入歌单时用来生成标题 / 封面 / 曲目数）
+    func playlistDetail(id: Int) async throws -> Playlist? {
+        let json = try await request("/api/v6/playlist/detail", payload: ["id": id, "n": 0, "s": 0], crypto: "eapi")
+        guard let playlist = json["playlist"] as? [String: Any] else { return nil }
+        let name = playlist["name"] as? String ?? "网易云歌单"
+        let cover = playlist["coverImgUrl"] as? String ?? playlist["picUrl"] as? String ?? ""
+        let count = playlist["trackCount"] as? Int ?? (playlist["tracks"] as? [[String: Any]])?.count ?? 0
+        return Playlist(
+            id: id,
+            name: name,
+            coverURL: cover.isEmpty ? nil : URL(string: cover),
+            trackCount: count
+        )
+    }
+
     func songURLs(ids: [Int], level: String = "standard") async throws -> [Int: String] {
         let idsString = "[" + ids.map(String.init).joined(separator: ",") + "]"
         let json = try await request("/api/song/enhance/player/url/v1", payload: ["ids": idsString, "level": level, "encodeType": "flac"], crypto: "eapi")

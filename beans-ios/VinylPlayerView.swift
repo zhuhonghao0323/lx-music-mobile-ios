@@ -45,6 +45,7 @@ struct VinylTurntableView: View {
     let trackId: Int?
     let size: CGFloat
     var onTap: (() -> Void)? = nil
+    var onDoubleTap: (() -> Void)? = nil
     var onNextTrack: (() -> Void)? = nil
     var onPreviousTrack: (() -> Void)? = nil
 
@@ -69,6 +70,7 @@ struct VinylTurntableView: View {
             .padding(.top, armHeight * 0.36)
             .contentShape(Circle())
             .gesture(dragAndSwipeGesture(discSize: discSize))
+            .onTapGesture(count: 2) { onDoubleTap?() }
             .onTapGesture { onTap?() }
             .zIndex(1)
 
@@ -113,6 +115,20 @@ struct VinylTurntableView: View {
                 let velocity = value.predictedEndTranslation.width
                 let swipeThreshold: CGFloat = 45
 
+                // 竖向：上划下一曲、下滑上一曲
+                if abs(value.translation.height) > abs(value.translation.width) {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
+                        dragOffset = 0
+                        isDragging = false
+                    }
+                    if value.translation.height < -60 {
+                        onNextTrack?()
+                    } else if value.translation.height > 60 {
+                        onPreviousTrack?()
+                    }
+                    return
+                }
+
                 if translation < -swipeThreshold || velocity < -100 {
                     withAnimation(.easeOut(duration: 0.20)) {
                         dragOffset = -discSize * 1.25
@@ -126,17 +142,12 @@ struct VinylTurntableView: View {
                         }
                     }
                 } else if translation > swipeThreshold || velocity > 100 {
-                    withAnimation(.easeOut(duration: 0.20)) {
-                        dragOffset = discSize * 1.25
+                    // 右滑不再切上一首，改成打开歌词页
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
+                        dragOffset = 0
+                        isDragging = false
                     }
-                    onPreviousTrack?()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                        dragOffset = -discSize * 1.25
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.80)) {
-                            dragOffset = 0
-                            isDragging = false
-                        }
-                    }
+                    onTap?()
                 } else {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
                         dragOffset = 0

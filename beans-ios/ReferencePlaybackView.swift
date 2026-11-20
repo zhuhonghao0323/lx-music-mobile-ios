@@ -64,12 +64,14 @@ struct ReferencePlaybackView: View {
                     ZStack {
                         if showLyrics {
                             lyricsPage
+                                .simultaneousGesture(lyricsSwipeBackGesture)
                                 .transition(.asymmetric(
                                     insertion: .move(edge: .bottom).combined(with: .opacity),
                                     removal: .move(edge: .top).combined(with: .opacity)
                                 ))
                         } else {
                             coverPage(size: geometry.size)
+                                .simultaneousGesture(coverSwipeGesture)
                                 .transition(.asymmetric(
                                     insertion: .move(edge: .top).combined(with: .opacity),
                                     removal: .move(edge: .top).combined(with: .opacity)
@@ -137,6 +139,12 @@ struct ReferencePlaybackView: View {
             )
             .frame(width: artworkSize, height: artworkSize)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .onTapGesture(count: 2) {
+                guard song != nil else { return }
+                BeansHaptics.success()
+                onFavorite()
+            }
             .shadow(color: .black.opacity(0.46), radius: 36, y: 18)
             .scaleEffect(player.isPlaying ? 1 : 0.965)
             .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.cover)))
@@ -322,6 +330,8 @@ struct ReferencePlaybackView: View {
                     onFavorite()
                 }
                 Menu {
+                    // 上划手势改成切歌后，评论入口收到菜单里
+                    Button("查看评论", action: onComments)
                     Button("定时关闭", action: onSleepTimer)
                     Button("添加到本地歌单", action: onAddToLocalPlaylist)
                     if downloadFeatureUnlocked {
@@ -403,7 +413,6 @@ struct ReferencePlaybackView: View {
         .padding(.horizontal, 24)
         .padding(.top, 10)
         .padding(.bottom, max(14, bottomInset + 4))
-        .gesture(commentsGesture)
     }
 
     private func referenceActionButton(icon: String, active: Bool = false, tint: Color = .white, action: @escaping () -> Void) -> some View {
@@ -570,12 +579,39 @@ struct ReferencePlaybackView: View {
             }
     }
 
-    private var commentsGesture: some Gesture {
-        DragGesture(minimumDistance: 25)
+    /// 封面页手势：右滑看歌词、上划下一曲、下滑上一曲（左滑保持原样，不做处理）
+    private var coverSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 26)
             .onEnded { value in
-                guard value.translation.height < -54, abs(value.translation.height) > abs(value.translation.width) else { return }
-                BeansHaptics.medium()
-                onComments()
+                let dx = value.translation.width
+                let dy = value.translation.height
+                guard max(abs(dx), abs(dy)) > 42 else { return }
+                if abs(dx) > abs(dy) {
+                    guard dx > 0 else { return }
+                    BeansHaptics.tap()
+                    if lyrics.isEmpty {
+                        ToastCenter.shared.show("暂无歌词")
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.22)) { showLyrics = true }
+                    }
+                } else if dy < 0 {
+                    BeansHaptics.medium()
+                    player.next()
+                } else {
+                    BeansHaptics.medium()
+                    player.previous()
+                }
+            }
+    }
+
+    /// 歌词页手势：左滑回到专辑封面
+    private var lyricsSwipeBackGesture: some Gesture {
+        DragGesture(minimumDistance: 26)
+            .onEnded { value in
+                let dx = value.translation.width
+                guard dx < -60, abs(dx) > abs(value.translation.height) else { return }
+                BeansHaptics.tap()
+                withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
             }
     }
 

@@ -94,6 +94,15 @@ struct LibraryView: View {
     @State private var bodianLoading = false
     @State private var bodianSavedAt = Date.distantPast
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
+    @ObservedObject private var importedStore = ImportedPlaylistStore.shared
+    @State private var showImportSheet = false
+    @State private var importPreset: Playlist?
+    @State private var refreshingImportKeys: Set<String> = []
+    @State private var renameTarget: ImportedPlaylist?
+    @State private var renameText = ""
+    @State private var showRenameAlert = false
+    @State private var pendingDeleteImport: ImportedPlaylist?
+    @State private var showDeleteImportConfirm = false
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
     private var libraryProviders: [LibraryProvider] { platformPrefs.enabledLibraryProviders }
 
@@ -190,12 +199,18 @@ struct LibraryView: View {
                         case "本地音乐库":
                             LocalMusicSection()
                         case "我的歌单":
-                            switch source {
-                            case .netease: playlistsSection
-                            case .qq: qqSection
-                            case .kugou: kugouSection
-                            case .migu: miguSection
-                            case .bodian: bodianSection
+                            VStack(alignment: .leading, spacing: 26) {
+                                switch source {
+                                case .netease: playlistsSection
+                                case .qq: qqSection
+                                case .kugou: kugouSection
+                                case .migu: miguSection
+                                case .bodian: bodianSection
+                                }
+                                // 咪咕没有公开歌单接口，不显示导入分组
+                                if source != .migu {
+                                    importedSection
+                                }
                             }
                         case "最近播放":
                             historySection
@@ -273,6 +288,31 @@ struct LibraryView: View {
                 playlists: syncedPlaylistBinding
             )
             .environmentObject(theme)
+        }
+        .sheet(isPresented: $showImportSheet) {
+            ImportPlaylistSheet(defaultSource: source.songSource, presetPlaylist: importPreset)
+                .environmentObject(theme)
+        }
+        .alert("重命名歌单", isPresented: $showRenameAlert) {
+            TextField("歌单名称", text: $renameText)
+            Button("保存") {
+                if let target = renameTarget {
+                    importedStore.rename(key: target.key, to: renameText)
+                }
+                renameTarget = nil
+            }
+            Button("取消", role: .cancel) { renameTarget = nil }
+        } message: {
+            Text("只修改本机的歌单名称，不会影响平台上的原名")
+        }
+        .confirmationDialog("确定删除导入的歌单「\(pendingDeleteImport?.name ?? "")」吗？", isPresented: $showDeleteImportConfirm, titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let target = pendingDeleteImport {
+                    importedStore.remove(key: target.key)
+                }
+                pendingDeleteImport = nil
+            }
+            Button("取消", role: .cancel) { pendingDeleteImport = nil }
         }
         .alert("新建歌单", isPresented: $showCreatePlaylist) {
             TextField("歌单名称", text: $newPlaylistName)
@@ -513,6 +553,191 @@ struct LibraryView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - 导入歌单（LX 式「打开歌单 / 收藏」：本地保存，可更新）
+
+    private var importedItems: [ImportedPlaylist] {
+        importedStore.playlists(for: source.songSource)
+    }
+
+    private var importedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("导入歌单")
+                        .font(BeansFont.appFont(isNativeClean ? 20 : 18, .bold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(importedItems.isEmpty ? "用链接导入平台歌单，歌曲存在本机" : "本地保存 \(importedItems.count) 个 · 可随时更新")
+                        .font(BeansFont.appFont(11.5))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Spacer(minLength: 8)
+                Menu {
+                    Button {
+                        BeansHaptics.tap()
+                        presentImport()
+                    } label: {
+                        Label("导入歌单…", systemImage: "square.and.arrow.down")
+                    }
+                    if !importedItems.isEmpty {
+                        Button {
+                            Task { await refreshAllImported() }
+                        } label: {
+                            Label("全部更新", systemImage: "arrow.clockwise")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 34, height: 34)
+                        .background { BeansSurface(shape: Circle()) }
+                }
+                .buttonStyle(.plain)
+            }
+
+            if importedItems.isEmpty {
+                Button {
+                    BeansHaptics.tap()
+                    presentImport()
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [5, 3]))
+                                .foregroundStyle(Color.beansComment.opacity(0.45))
+                                .frame(width: 56, height: 56)
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("导入歌单")
+                                .font(BeansFont.appFont(15, .medium))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("粘贴歌单链接或 id，导入后可更新")
+                                .font(BeansFont.appFont(11.5))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.beansComment.opacity(0.6))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)) }
+                .beansCardShadow(radius: 8, y: 3)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(importedItems) { item in
+                        importedRow(item)
+                        if item.key != importedItems.last?.key {
+                            Divider().overlay(Color.beansComment.opacity(0.12))
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+                .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous)) }
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .beansCardShadow(radius: 9, y: 3)
+            }
+        }
+    }
+
+    private func importedRow(_ item: ImportedPlaylist) -> some View {
+        Button {
+            openRoute(LibraryRoute.playlist(item.playlist))
+        } label: {
+            HStack(spacing: 12) {
+                ZStack(alignment: .bottomTrailing) {
+                    CoverImage(url: item.coverURL, size: 56, cornerRadius: 12)
+                    if refreshingImportKeys.contains(item.key) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .padding(3)
+                            .background(.thinMaterial, in: Circle())
+                            .offset(x: 4, y: 4)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name)
+                        .font(BeansFont.appFont(15, .medium))
+                        .foregroundStyle(Color.beansLabel)
+                        .lineLimit(1)
+                    Text("\(beansSongCountText(item.songs.isEmpty ? item.trackCount : item.songs.count)) · 更新于 \(item.updatedAtText)")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.beansComment.opacity(0.6))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                BeansHaptics.tap()
+                Task { await refreshImported(item) }
+            } label: {
+                Label("更新歌单", systemImage: "arrow.clockwise")
+            }
+            Button {
+                BeansHaptics.tap()
+                renameTarget = item
+                renameText = item.name
+                showRenameAlert = true
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                BeansHaptics.tap()
+                pendingDeleteImport = item
+                showDeleteImportConfirm = true
+            } label: {
+                Label("删除歌单", systemImage: "trash")
+            }
+        }
+    }
+
+    private func presentImport(preset: Playlist? = nil) {
+        guard source.songSource != .migu else {
+            ToastCenter.shared.show("咪咕暂不支持导入歌单")
+            return
+        }
+        importPreset = preset
+        showImportSheet = true
+    }
+
+    private func refreshImported(_ item: ImportedPlaylist) async {
+        guard !refreshingImportKeys.contains(item.key) else { return }
+        refreshingImportKeys.insert(item.key)
+        BeansLogger.shared.log("导入歌单更新：\(item.source.rawValue) \(item.sourceID) \(item.name)", level: .info)
+        do {
+            let payload = try await PlaylistImportService.fetch(source: item.source, sourceID: item.sourceID)
+            importedStore.updateSongs(payload.songs, key: item.key)
+            ToastCenter.shared.show("「\(item.name)」已更新 \(payload.songs.count) 首")
+        } catch {
+            let text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            ToastCenter.shared.show("更新失败：\(text)")
+            BeansLogger.shared.log("导入歌单更新失败：\(item.name) \(text)", level: .warn)
+        }
+        refreshingImportKeys.remove(item.key)
+    }
+
+    private func refreshAllImported() async {
+        for item in importedItems {
+            await refreshImported(item)
+        }
     }
 
     private var historySection: some View {

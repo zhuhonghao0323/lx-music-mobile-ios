@@ -709,6 +709,41 @@ struct PlaylistSquareView: View {
             .buttonStyle(.plain)
         }
         .frame(width: side, alignment: .leading)
+        .contextMenu {
+            Button {
+                BeansHaptics.select()
+                Task { await importPlaylist(playlist) }
+            } label: {
+                Label("导入到我的歌单", systemImage: "square.and.arrow.down")
+            }
+            Button {
+                BeansHaptics.select()
+                let liked = favorites.toggle(playlist)
+                ToastCenter.shared.show(liked ? "已收藏歌单" : "已取消收藏")
+            } label: {
+                Label(favorites.contains(playlist) ? "取消收藏" : "收藏歌单",
+                      systemImage: favorites.contains(playlist) ? "heart.slash" : "heart")
+            }
+        }
+    }
+
+    /// 导入到「我的歌单 · 导入歌单」，歌曲存本地，之后可在音乐库更新
+    private func importPlaylist(_ playlist: Playlist) async {
+        do {
+            let payload = try await PlaylistImportService.fetch(playlist: playlist)
+            ImportedPlaylistStore.shared.upsert(
+                name: payload.playlist.name,
+                source: payload.playlist.source,
+                sourceID: payload.sourceID,
+                coverURL: payload.playlist.coverURL,
+                trackCount: payload.songs.count,
+                songs: payload.songs
+            )
+            ToastCenter.shared.show("已导入「\(payload.playlist.name)」\(payload.songs.count) 首")
+        } catch {
+            let text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            ToastCenter.shared.show("导入失败：\(text)")
+        }
     }
 
     @ViewBuilder

@@ -969,6 +969,109 @@ final class KugouMusicAPI {
         ]
     }
 
+    /// gcid（global_collection_id）反解成 specialid。
+    /// 账号同步回来的云歌单只有 gcid，而酷狗所有「按歌单取歌曲」的公开接口都只认 specialid，
+    /// 所以先走 `t.kugou.com/v1/songlist/batch_decode` 换一次（与 LX Music 的 decodeGcid 同一路径）。
+    private func decodeCollection(gcid: String) async throws -> (specialID: Int, listID: Int)? {
+        let body: [String: Any] = ["ret_info": 1, "data": [["id": gcid, "id_type": 2]]]
+        guard let data = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        var params = [
+            "dfid": "-",
+            "appid": "1005",
+            "mid": "0",
+            "clientver": "20109",
+            "clienttime": "\(Int(Date().timeIntervalSince1970))",
+            "uuid": "-",
+        ]
+        params["signature"] = upstreamAndroidSignature(
+            params: params,
+            data: String(data: data, encoding: .utf8) ?? ""
+        )
+        let response = try await request(
+            "/v1/songlist/batch_decode",
+            baseURL: "https://t.kugou.com",
+            method: "POST",
+            params: params,
+            body: data,
+            headers: [
+                "User-Agent": androidUA,
+                "Referer": "https://m.kugou.com/",
+                "Content-Type": "application/json",
+            ]
+        )
+        let payload = response.json["data"] as? [String: Any] ?? [:]
+        guard let item = (payload["list"] as? [[String: Any]])?.first,
+              let info = item["info"] as? [String: Any] else {
+            BeansLogger.shared.log("酷狗 gcid 反解失败：\(gcid)", level: .warn)
+            return nil
+        }
+        let specialID = Self.int(info["specialid"] ?? info["special_id"])
+        guard specialID > 0 else {
+            BeansLogger.shared.log("酷狗 gcid 反解没有 specialid：\(gcid)", level: .warn)
+            return nil
+        }
+        BeansLogger.shared.log(
+            "酷狗 gcid 反解：\(gcid) → specialid=\(specialID) listid=\(Self.int(info["listid"]))",
+            level: .debug
+        )
+        return (specialID, Self.int(info["listid"]))
+    }
+
+    /// 按 specialid 取歌单歌曲：`mobiles.kugou.com/api/v5/special/song` 是移动端公开接口，
+    /// 不需要登录，一次最多 1000 首，实测能拿到完整列表（含 hash / 320 / flac）。
+    private func specialSongs(specialID: Int, pageSize: Int = 1000) async throws -> [Song] {
+        var songs: [Song] = []
+        var seen = Set<String>()
+        var page = 1
+        var total = 0
+        while page <= 20 {
+            let url = "https://mobiles.kugou.com/api/v5/special/song?specialid=\(specialID)&page=\(page)&pagesize=\(pageSize)&version=9108&plat=0"
+            guard let requestURL = URL(string: url) else { break }
+            let json = try await getJSON(requestURL, ua: Self.mobileUA)
+            let payload = json["data"] as? [String: Any] ?? [:]
+            total = Self.int(payload["total"])
+            let rows = payload["info"] as? [[String: Any]] ?? []
+            for row in rows {
+                guard let song = Self.mapTrack(row), seen.insert(song.identityKey).inserted else { continue }
+                songs.append(song)
+            }
+            if rows.count < pageSize { break }
+            if total > 0 && songs.count >= total { break }
+            page += 1
+        }
+        BeansLogger.shared.log(
+            "酷狗 specialid 歌单歌曲：specialid=\(specialID) 接口 total=\(total) 解析 \(songs.count) 首",
+            level: songs.isEmpty ? .warn : .debug
+        )
+        return songs
+    }
+
+    /// 取酷狗歌单元信息。`sourceID` 可以是 gcid、specialid 或歌单分享链接里的数字 id。
+    func playlistDetail(sourceID: String) async throws -> Playlist? {
+        var specialID = Int(sourceID) ?? 0
+        var gcid: String?
+        if sourceID.hasPrefix("gcid_") || sourceID.contains("collection_") {
+            gcid = sourceID
+            specialID = (try? await decodeCollection(gcid: sourceID))?.specialID ?? 0
+        }
+        guard specialID > 0 else { return nil }
+        let url = "https://mobiles.kugou.com/api/v5/special/info?specialid=\(specialID)&version=9108&plat=0"
+        guard let requestURL = URL(string: url),
+              let json = try? await getJSON(requestURL, ua: Self.mobileUA) else { return nil }
+        let info = json["data"] as? [String: Any] ?? [:]
+        let name = Self.string(info["specialname"] ?? info["name"]).isEmpty ? "酷狗歌单" : Self.string(info["specialname"] ?? info["name"])
+        let pic = Self.normalizeURL(Self.string(info["imgurl"] ?? info["pic"]).replacingOccurrences(of: "{size}", with: "300"))
+        let count = Self.int(info["songcount"] ?? info["count"])
+        return Playlist(
+            id: specialID,
+            name: name,
+            coverURL: URL(string: pic),
+            trackCount: count,
+            source: .kugou,
+            externalID: gcid ?? String(specialID)
+        )
+    }
+
     /// 云歌单歌曲：`get_other_list_file_nofilt` 只认 global_collection_id，公开接口不用登录，
     /// 是 KuGouMusicApi / LIZI 里实测可用的那条路径（v4 get_list_all_file 常返回空）。
     private func collectionSongs(
@@ -1011,8 +1114,18 @@ final class KugouMusicAPI {
     }
 
     func playlistSongs(listID: Int, externalID: String? = nil) async throws -> [Song] {
+        let gcid = (externalID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        // 0) 云歌单：先用 gcid 反解 specialid，再走移动端公开接口拿全量歌曲。
+        //    这是「外面显示 1602 首、里面空空如也」的根因修复点。
+        if gcid.hasPrefix("gcid_") || gcid.contains("collection_") {
+            if let ref = try? await decodeCollection(gcid: gcid), ref.specialID > 0 {
+                if let songs = try? await specialSongs(specialID: ref.specialID), !songs.isEmpty {
+                    return songs
+                }
+            }
+        }
         // 1) 自己的云歌单：优先公开的 gcid 接口
-        if let gcid = externalID?.trimmingCharacters(in: .whitespacesAndNewlines), !gcid.isEmpty {
+        if !gcid.isEmpty {
             var collected: [[String: Any]] = []
             var page = 1
             let pageSize = 200
@@ -1034,6 +1147,10 @@ final class KugouMusicAPI {
         if listID >= 1000,
            let songs = try? await officialWebPlaylistSongs(listID: listID),
            !songs.isEmpty {
+            return songs
+        }
+        // 3) 数字 id 本身就是 specialid 的情况（广场歌单、分享链接里的 id）
+        if listID > 0, let songs = try? await specialSongs(specialID: listID), !songs.isEmpty {
             return songs
         }
         let auth = KugouMusicAuth.shared
@@ -2231,6 +2348,11 @@ final class KugouMusicAPI {
 
     private static var browserUA: String {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+    }
+
+    /// 移动端网页（m.kugou.com / mobiles.kugou.com）接口使用的 UA，与 PC 版抓取分开
+    private static var mobileUA: String {
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1"
     }
 
     private static func randomLower(_ length: Int) -> String? {

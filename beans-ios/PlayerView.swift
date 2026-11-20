@@ -926,6 +926,19 @@ struct PlayerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.22), value: showLyrics)
+        .simultaneousGesture(lyricsSwipeBackGesture)
+    }
+
+    /// 歌词页左滑返回专辑封面（三种封面风格共用）
+    private var lyricsSwipeBackGesture: some Gesture {
+        DragGesture(minimumDistance: 26)
+            .onEnded { value in
+                guard showLyrics,
+                      value.translation.width < -60,
+                      abs(value.translation.width) > abs(value.translation.height) else { return }
+                BeansHaptics.tap()
+                withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
+            }
     }
 
     /// 封面尺寸：固定算法，与布局时序无关
@@ -960,6 +973,11 @@ struct PlayerView: View {
                 trackId: song?.id,
                 size: size,
                 onTap: { toggleLyrics() },
+                onDoubleTap: {
+                    guard let song else { return }
+                    BeansHaptics.success()
+                    toggleLocalFavorite(song)
+                },
                 onNextTrack: { player.next() },
                 onPreviousTrack: { player.previous() }
             )
@@ -1403,11 +1421,8 @@ struct PlayerView: View {
         return VStack(spacing: 12) {
             Spacer(minLength: 0)
 
-            Button {
-                toggleLyrics()
-            } label: {
-                ZStack {
-                    // 静态装饰层（光晕 + 托盘）：不再呼吸/浮动（用户要求飘动效果暂停），封面本体静止
+            ZStack {
+                // 静态装饰层（光晕 + 托盘）：不再呼吸/浮动（用户要求飘动效果暂停），封面本体静止
                     ZStack {
                             // 主色光晕（呼吸）
                             Circle()
@@ -1477,11 +1492,17 @@ struct PlayerView: View {
                             }
                         }
                         .onEnded { value in
-                            handleSwipeEnd(horizontal: value.translation.width)
+                            handleSwipeEnd(value)
                         }
                 )
-            }
-            .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+                .contentShape(Rectangle())
+                // 单击切换歌词、双击收藏/取消收藏
+                .onTapGesture(count: 2) {
+                    guard let song else { return }
+                    BeansHaptics.success()
+                    toggleLocalFavorite(song)
+                }
+                .onTapGesture { toggleLyrics() }
             .modifier(Layoutable(part: .cover, enabled: layoutMode, data: $layoutData))
 
             VStack(spacing: 6) {
@@ -1540,7 +1561,7 @@ struct PlayerView: View {
                     }
                 }
                 .onEnded { value in
-                    handleSwipeEnd(horizontal: value.translation.width)
+                    handleSwipeEnd(value)
                 }
         )
     }
@@ -1615,7 +1636,7 @@ struct PlayerView: View {
                             }
                         }
                         .onEnded { value in
-                            handleSwipeEnd(horizontal: value.translation.width)
+                            handleSwipeEnd(value)
                         }
                 )
                 .modifier(Layoutable(part: .controlCenterCover, enabled: layoutMode, data: $layoutData))
@@ -1690,7 +1711,7 @@ struct PlayerView: View {
                     }
                 }
                 .onEnded { value in
-                    handleSwipeEnd(horizontal: value.translation.width)
+                    handleSwipeEnd(value)
                 }
         )
     }
@@ -2128,9 +2149,13 @@ struct PlayerView: View {
                         })
                     : AnyGesture(DragGesture(minimumDistance: 25)
                         .onEnded { value in
+                            // 上划下一曲、下滑上一曲（原来这里是上划打开评论，会和封面手势冲突）
                             if value.translation.height < -50, song != nil {
                                 BeansHaptics.medium()
-                                showComments = true
+                                player.next()
+                            } else if value.translation.height > 50, song != nil {
+                                BeansHaptics.medium()
+                                player.previous()
                             }
                         })
             )
@@ -2881,18 +2906,47 @@ struct PlayerView: View {
         isPresented = false
     }
 
-    /// 左右切歌：松手后旧封面沿手势方向飞出，新封面从对侧滑入（左滑下一首，右滑上一首）。
-    private func handleSwipeEnd(horizontal: CGFloat) {
-        guard swipeSwitchSong else { return }
-        let x = horizontal
-        if x < -70 {
-            BeansHaptics.tap()
-            coverDrag = .zero
-            flySwipe(direction: -1)
-        } else if x > 70 {
-            BeansHaptics.tap()
-            coverDrag = .zero
-            flySwipe(direction: 1)
+    /// 封面手势：左滑下一首（保持原行为）、右滑看歌词、上划下一曲、下滑上一曲。
+    private func handleSwipeEnd(_ value: DragGesture.Value) {
+        guard swipeSwitchSong else {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                swipeOffset = 0
+                coverDrag = .zero
+            }
+            return
+        }
+        let dx = value.translation.width
+        let dy = value.translation.height
+        if abs(dx) >= abs(dy) {
+            if dx < -70 {
+                BeansHaptics.tap()
+                coverDrag = .zero
+                flySwipe(direction: -1)
+            } else if dx > 70 {
+                // 右滑不再切上一首，改成打开歌词页
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    swipeOffset = 0
+                    coverDrag = .zero
+                }
+                BeansHaptics.tap()
+                if lyrics.isEmpty {
+                    ToastCenter.shared.show("暂无歌词")
+                } else if !showLyrics {
+                    toggleLyrics()
+                }
+            } else {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    swipeOffset = 0
+                    coverDrag = .zero
+                }
+            }
+        } else if abs(dy) > 70 {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                swipeOffset = 0
+                coverDrag = .zero
+            }
+            BeansHaptics.medium()
+            if dy < 0 { player.next() } else { player.previous() }
         } else {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 swipeOffset = 0
