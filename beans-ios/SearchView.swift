@@ -349,6 +349,12 @@ struct SearchView: View {
             Task { await startSearch(trimmed) }
         }
         .onAppear {
+            // 老版本默认停在网易云，这里迁移一次：升级后默认落到「全部平台」
+            let migrateKey = "beans.search.defaultAllMigrated"
+            if !UserDefaults.standard.bool(forKey: migrateKey) {
+                UserDefaults.standard.set(true, forKey: migrateKey)
+                providerRaw = SearchProvider.all.rawValue
+            }
             let saved = SearchProvider(rawValue: providerRaw) ?? .all
             // 「全部平台」不是真实平台，不参与启用校验
             provider = saved == .all ? .all : platformPrefs.ensureVisible(saved)
