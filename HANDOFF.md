@@ -59,6 +59,28 @@
 
 注意：`LibraryView` 里旧的 `playlistsSection / qqSection / kugouSection / bodianSection` 已不再被渲染（保留代码，咪咕仍用 `miguSection`），后续可删。
 
+### 0.4 本轮改动（2026-11-21，版本 **1.14.0 (84)**）
+
+按用户 6 条反馈继续改：
+
+| # | 反馈 | 处理 |
+|---|---|---|
+| 1 | 云同步特别慢，只要歌曲信息和缩略图 | 根因：`SyncedPlaylistCache` 原先把全部歌单塞进一个 UserDefaults key，每同步一个歌单都要全量解码+全量编码重写，O(n²)。改为**按歌单分文件落盘**（`songDirectory/<key>.json`）+ 内存 LRU，单歌单只写自己那一个文件；歌单拉取改 3 路并发（`withTaskGroup`）；封面缩略图改为**可选**（同步面板开关）且完全不阻塞歌曲信息，攒够 120 条才丢到 `.utility` 后台任务里预热 |
+| 2 | 手势说反了 | 统一为：**播放页左滑返回、右滑进歌词；歌词页左滑回播放页**；上滑下一曲 / 下滑上一曲不变。`PlayerView.handleSwipeEnd` 与 `ReferencePlaybackView.coverSwipeGesture` 都已对齐，参考播放页新增 `onClose` 闭包由 `PlayerView` 传入 `isPresented = false` |
+| 3 | 音乐库歌单默认要全部平台 | 新增 `allCloudPlaylists`（汇总网易/QQ/酷狗/波点各账号歌单）+ 本机导入歌单，卡片带**来源平台角标**（`LibraryWallBadge`）与**歌曲数量**，并支持按平台筛选；`LibraryWallItem` 增 `badge / platformKey` 字段（带默认值，兼容旧构造） |
+| 4 | 沉浸式很丑，封面要放大到全屏宽、周边渐变模糊遮罩溶于背景 | 新增 `ImmersiveCoverArt`（全宽长方形封面，走 `CoverThumbCache` 按需裁剪）；`immersiveBackground(geo:)` 用 1.34 倍宽 + 56pt 模糊的封面做过渡带；主封面全屏宽 + 上下/左右双重羽化蒙版（`immersiveVerticalMask` / `immersiveHorizontalMask`）+ 底部渐变压暗；`immersiveCoverHeight` 按屏高自适应 |
+| 5 | mini 进度条再做一套横向的，设置里加开关和切换方式 | `MiniPlayerProgressStyle` 枚举：`off / vertical / fill / bar`，存 `beans.miniProgressStyle`；`.fill` 是横向水位（`WaveEdgeShape` 右侧流动波纹），`.bar` 是底部细线；播放设置新增「迷你栏进度」卡片（四宫格切换 + 说明文案） |
+| 6 | 集成 liziair 歌词舞台，可配置 | 打包 30 个 `public/stages/*.html` 到 `beans-ios/LyricStages/`（folder reference 资源，离线运行，共约 2.5MB）；新增 `LyricStage.swift`：`LyricStageWebView`（WKWebView + `postMessage` 桥接 `{__c100:1,type:'init'|'tick'}`）、`LyricStagePickerSheet`（按「经典/图形/影像」分组、开关、30 种可切换）。原生侧把 `LyricLine` 转成带 `t/time/text/s/txt/dur` 别名的行以兼容各舞台字段差异；歌词页右上角「舞台」按钮直达选择器；`ReferencePlaybackView` 歌词页同步接入。设置默认**关闭**，避免吃性能 |
+
+新增文件：`LyricStage.swift`、`LyricStages/*.html`（30 个）、`LyricStages/assets/353-grain.png`。工程配置 `beans-project.yml`：`sources` 排除 `LyricStages/**`，`resources` 以 `type: folder` 打包该目录。
+
+需要真机重点验证：
+1. 云同步耗时（多平台账号同时登录）是否明显下降，封面开关关闭时是否更快
+2. 三种封面方案 + 沉浸式的左滑/右滑/歌词页左滑手势
+3. 沉浸式封面全屏宽 + 羽化遮罩的观感
+4. 迷你栏 `.fill` / `.bar` 两种横向进度在四种 UI 风格 × 深浅色下的观感
+5. 30 个歌词舞台是否都能正常出词（个别舞台字段差异已用别名兼容），WKWebView 内存与发热
+
 ---
 
 ## 一、仓库与基础信息

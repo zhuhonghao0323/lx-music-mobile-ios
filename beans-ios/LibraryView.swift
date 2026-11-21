@@ -47,6 +47,32 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .bodian: return "BrandBodian"
         }
     }
+
+    /// 歌单卡片角标上的平台简称
+    var shortName: String {
+        switch self {
+        case .netease: return "网易云"
+        case .qq: return "QQ"
+        case .kugou: return "酷狗"
+        case .migu: return "咪咕"
+        case .bodian: return "波点"
+        }
+    }
+
+    /// 角标底色（取品牌主色）
+    var solidTint: Color {
+        switch self {
+        case .netease: return Color(red: 0.86, green: 0.19, blue: 0.14)
+        case .qq: return Color(red: 0.07, green: 0.62, blue: 0.44)
+        case .kugou: return Color(red: 0.06, green: 0.40, blue: 0.78)
+        case .migu: return Color(red: 0.90, green: 0.20, blue: 0.36)
+        case .bodian: return Color(red: 0.05, green: 0.60, blue: 0.52)
+        }
+    }
+
+    var badge: LibraryWallBadge {
+        LibraryWallBadge(title: shortName, symbol: icon, brandImage: brandImageName, tint: solidTint)
+    }
 }
 
 private extension LibraryProvider {
@@ -435,13 +461,9 @@ struct LibraryView: View {
     }
 
     private var librarySubtitle: String {
-        switch source {
-        case .netease: return beansLocalized("网易云音乐歌单", "NetEase Cloud Music Playlists")
-        case .qq: return "QQ 音乐收藏与歌单"
-        case .kugou: return "酷狗云端歌单"
-        case .migu: return "咪咕红心收藏"
-        case .bodian: return bodianAuth.isLoggedIn ? "波点云端歌单与收藏" : "波点红心收藏（未登录）"
-        }
+        let count = allCloudPlaylists.count + importedStore.items.count
+        if count == 0 { return "全部平台的歌单与收藏会汇总在这里" }
+        return "全部平台 · \(count) 个歌单"
     }
 
     private var libraryTitleButton: some View {
@@ -473,12 +495,12 @@ struct LibraryView: View {
 
     private var playlistsWallSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "歌单", trailing: wallItems.isEmpty ? nil : "全部") {
+            SectionHeader(title: "全部歌单", trailing: wallItems.isEmpty ? nil : "查看全部") {
                 BeansHaptics.tap()
                 showAllPlaylistsSheet = true
             }
             if wallItems.isEmpty {
-                EmptyStateView(icon: "music.note.list", text: "还没有歌单\n同步账号歌单或导入歌单后会显示在这里")
+                EmptyStateView(icon: "music.note.list", text: "还没有歌单\n登录任一平台或导入歌单后会显示在这里")
             } else {
                 PlaylistWallView(items: wallItems)
             }
@@ -495,26 +517,55 @@ struct LibraryView: View {
         case .migu: return []
         }
     }
+    // 音乐库歌单区现在展示全部平台（见 allCloudPlaylists），这个属性保留给其它板块使用。
 
-    /// 音乐库要展示的全部歌单：账号同步 + 本机导入，隐藏的不再出现
+    /// 所有已登录平台的云端歌单（不再只看当前选中平台）
+    private var allCloudPlaylists: [(playlist: Playlist, provider: LibraryProvider)] {
+        var result: [(Playlist, LibraryProvider)] = []
+        for provider in libraryProviders {
+            switch provider {
+            case .netease:
+                guard auth.isLoggedIn else { continue }
+                result += orderedNeteasePlaylists.map { ($0, .netease) }
+            case .qq:
+                guard qqAuth.isLoggedIn else { continue }
+                result += orderedQQPlaylists.map { ($0, .qq) }
+            case .kugou:
+                guard kugouAuth.isLoggedIn else { continue }
+                result += orderedKugouPlaylists.map { ($0, .kugou) }
+            case .bodian:
+                guard bodianAuth.isLoggedIn else { continue }
+                result += orderedBodianPlaylists.map { ($0, .bodian) }
+            case .migu:
+                continue
+            }
+        }
+        return result
+    }
+
+    private func cacheAccountID(for provider: LibraryProvider) -> String {
+        switch provider {
+        case .netease: return "\(auth.user?.uid ?? 0)"
+        case .qq: return qqCacheAccountID
+        case .kugou: return kugouCacheAccountID
+        case .bodian: return bodianCacheAccountID
+        case .migu: return ""
+        }
+    }
+
+    /// 歌单歌曲数：优先用已同步到本机的实际条数，其次用平台返回的 trackCount
+    private func wallSongCount(for playlist: Playlist, provider: LibraryProvider) -> Int {
+        let cached = SyncedPlaylistCache.shared.meta(for: playlist, accountID: cacheAccountID(for: provider))?.count ?? 0
+        return max(playlist.trackCount, cached)
+    }
+
+    /// 音乐库要展示的全部歌单：本机导入 + 所有平台账号歌单，隐藏的不再出现
     private var wallItems: [LibraryWallItem] {
         var items: [LibraryWallItem] = []
-        for playlist in syncedWallPlaylists {
-            let id = "synced-\(playlist.source.rawValue)-\(playlist.id)"
-            guard !hiddenPlaylists.isHidden(id) else { continue }
-            items.append(
-                LibraryWallItem(
-                    id: id,
-                    name: playlist.name,
-                    coverURL: playlist.coverURL,
-                    count: playlist.trackCount,
-                    subtitle: playlist.trackCount > 0 ? beansSongCountText(playlist.trackCount) : "歌单",
-                    onOpen: { openRoute(LibraryRoute.playlist(playlist)) },
-                    onDelete: { requestDelete(playlist) }
-                )
-            )
-        }
-        for entry in importedStore.playlists(for: source.songSource) {
+
+        // 本机导入的歌单排在最前，这是用户自己「收藏」下来的
+        let localBadge = LibraryWallBadge(title: "本机", symbol: "iphone", brandImage: nil, tint: Color(white: 0.42))
+        for entry in importedStore.items {
             let id = "imported-\(entry.key)"
             guard !hiddenPlaylists.isHidden(id) else { continue }
             items.append(
@@ -523,7 +574,9 @@ struct LibraryView: View {
                     name: entry.name,
                     coverURL: entry.coverURL,
                     count: entry.songs.count,
-                    subtitle: "本机 \(entry.songs.count) 首",
+                    subtitle: beansSongCountText(entry.songs.count),
+                    badge: localBadge,
+                    platformKey: "local",
                     onOpen: { openRoute(LibraryRoute.playlist(entry.playlist)) },
                     onUpdate: { Task { await refreshImported(entry) } },
                     onRename: {
@@ -535,6 +588,26 @@ struct LibraryView: View {
                         pendingDeleteImport = entry
                         showDeleteImportConfirm = true
                     }
+                )
+            )
+        }
+
+        for entry in allCloudPlaylists {
+            let playlist = entry.playlist
+            let id = "synced-\(playlist.source.rawValue)-\(playlist.id)"
+            guard !hiddenPlaylists.isHidden(id) else { continue }
+            let count = wallSongCount(for: playlist, provider: entry.provider)
+            items.append(
+                LibraryWallItem(
+                    id: id,
+                    name: playlist.name,
+                    coverURL: playlist.coverURL,
+                    count: count,
+                    subtitle: count > 0 ? beansSongCountText(count) : "歌单",
+                    badge: entry.provider.badge,
+                    platformKey: entry.provider.rawValue,
+                    onOpen: { openRoute(LibraryRoute.playlist(playlist)) },
+                    onDelete: { requestDelete(playlist) }
                 )
             )
         }
@@ -1346,7 +1419,8 @@ struct LibraryView: View {
 
     private func confirmDeletePlaylist() {
         guard let playlist = pendingDelete else { return }
-        switch source {
+        // 歌单区现在混排所有平台，按歌单自身来源走对应接口，不能用当前选中的平台
+        switch playlist.source {
         case .netease:
             Task {
                 do {

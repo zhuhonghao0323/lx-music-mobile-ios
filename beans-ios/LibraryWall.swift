@@ -3,6 +3,14 @@ import UIKit
 
 // MARK: - 音乐库：歌单墙 + 全部歌曲汇总
 
+/// 歌单封面上的来源平台徽章
+struct LibraryWallBadge {
+    let title: String
+    let symbol: String?
+    let brandImage: String?
+    let tint: Color
+}
+
 /// 音乐库歌单墙上的一格。数据来源可能是账号同步歌单，也可能是本机导入歌单。
 struct LibraryWallItem: Identifiable {
     let id: String
@@ -10,6 +18,8 @@ struct LibraryWallItem: Identifiable {
     let coverURL: URL?
     let count: Int
     let subtitle: String
+    var badge: LibraryWallBadge? = nil
+    var platformKey: String = ""
     let onOpen: () -> Void
     var onUpdate: (() -> Void)? = nil
     var onRename: (() -> Void)? = nil
@@ -79,6 +89,10 @@ struct PlaylistWallView: View {
     /// 标题 + 间距 + 副标题占用的固定高度
     private static let captionHeight: CGFloat = 46
 
+    private func badgeView(_ badge: LibraryWallBadge) -> some View {
+        LibraryPlatformBadgeView(badge: badge, compact: true)
+    }
+
     /// 外部布局用：按屏宽估算两行的高度（与 GeometryReader 内部算法一致）
     private var wallHeight: CGFloat {
         let screenWidth = min(UIScreen.main.bounds.width - 32, 860)
@@ -93,7 +107,13 @@ struct PlaylistWallView: View {
             item.onOpen()
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                CoverImage(url: item.coverURL, size: width, cornerRadius: 14)
+                ZStack(alignment: .bottomTrailing) {
+                    CoverImage(url: item.coverURL, size: width, cornerRadius: 14)
+                    if let badge = item.badge {
+                        badgeView(badge)
+                            .padding(5)
+                    }
+                }
                 Text(item.name)
                     .font(BeansFont.appFont(13, .semibold))
                     .foregroundStyle(Color.beansLabel)
@@ -150,6 +170,9 @@ struct LibraryAllPlaylistsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var hidden = HiddenPlaylistStore.shared
 
+    /// nil = 全部平台
+    @State private var platformFilter: String? = nil
+
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
     /// 三列网格的单格边长：按屏宽扣除内边距与列间距
@@ -157,63 +180,105 @@ struct LibraryAllPlaylistsSheet: View {
         (min(UIScreen.main.bounds.width, 892) - 32 - 28) / 3
     }
 
+    /// 平台筛选：按出现顺序去重
+    private var platforms: [(key: String, badge: LibraryWallBadge)] {
+        var seen = Set<String>()
+        var result: [(String, LibraryWallBadge)] = []
+        for item in items {
+            guard let badge = item.badge, !item.platformKey.isEmpty else { continue }
+            guard seen.insert(item.platformKey).inserted else { continue }
+            result.append((item.platformKey, badge))
+        }
+        return result
+    }
+
+    private var filteredItems: [LibraryWallItem] {
+        guard let platformFilter else { return items }
+        return items.filter { $0.platformKey == platformFilter }
+    }
+
     var body: some View {
         BeansNavigationStack {
             ScrollView {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
-                    ForEach(items) { item in
-                        Button {
-                            dismiss()
-                            item.onOpen()
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
-                                Text(item.name)
-                                    .font(BeansFont.appFont(12, .semibold))
-                                    .foregroundStyle(Color.beansLabel)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                Text(item.subtitle)
-                                    .font(BeansFont.appFont(10))
-                                    .foregroundStyle(Color.beansComment)
-                                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 14) {
+                    if platforms.count > 1 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                filterChip(title: "全部", tint: Color.beansAmber, active: platformFilter == nil) {
+                                    platformFilter = nil
+                                }
+                                ForEach(Array(platforms.enumerated()), id: \.offset) { _, entry in
+                                    filterChip(title: entry.badge.title, tint: entry.badge.tint, active: platformFilter == entry.key) {
+                                        platformFilter = (platformFilter == entry.key) ? nil : entry.key
+                                    }
+                                }
                             }
+                            .padding(.horizontal, 16)
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            if let onUpdate = item.onUpdate {
-                                Button {
-                                    dismiss()
-                                    onUpdate()
-                                } label: {
-                                    Label("更新歌单", systemImage: "arrow.clockwise")
-                                }
-                            }
-                            if let onRename = item.onRename {
-                                Button {
-                                    dismiss()
-                                    onRename()
-                                } label: {
-                                    Label("重命名", systemImage: "pencil")
-                                }
-                            }
+                    }
+
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                        ForEach(filteredItems) { item in
                             Button {
-                                hidden.hide(item.id)
+                                dismiss()
+                                item.onOpen()
                             } label: {
-                                Label("隐藏", systemImage: "eye.slash")
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ZStack(alignment: .bottomTrailing) {
+                                        CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
+                                        if let badge = item.badge {
+                                            LibraryPlatformBadgeView(badge: badge, compact: true)
+                                                .padding(5)
+                                        }
+                                    }
+                                    Text(item.name)
+                                        .font(BeansFont.appFont(12, .semibold))
+                                        .foregroundStyle(Color.beansLabel)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                    Text(item.subtitle)
+                                        .font(BeansFont.appFont(10))
+                                        .foregroundStyle(Color.beansComment)
+                                        .lineLimit(1)
+                                }
                             }
-                            if let onDelete = item.onDelete {
-                                Button(role: .destructive) {
-                                    dismiss()
-                                    onDelete()
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                if let onUpdate = item.onUpdate {
+                                    Button {
+                                        dismiss()
+                                        onUpdate()
+                                    } label: {
+                                        Label("更新歌单", systemImage: "arrow.clockwise")
+                                    }
+                                }
+                                if let onRename = item.onRename {
+                                    Button {
+                                        dismiss()
+                                        onRename()
+                                    } label: {
+                                        Label("重命名", systemImage: "pencil")
+                                    }
+                                }
+                                Button {
+                                    hidden.hide(item.id)
                                 } label: {
-                                    Label("删除", systemImage: "trash")
+                                    Label("隐藏", systemImage: "eye.slash")
+                                }
+                                if let onDelete = item.onDelete {
+                                    Button(role: .destructive) {
+                                        dismiss()
+                                        onDelete()
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(.horizontal, 16)
                 }
-                .padding(16)
+                .padding(.top, 10)
                 .padding(.bottom, 40)
             }
             .navigationTitle("全部歌单")
@@ -223,6 +288,51 @@ struct LibraryAllPlaylistsSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func filterChip(title: String, tint: Color, active: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            BeansHaptics.tap()
+            action()
+        } label: {
+            Text(title)
+                .font(BeansFont.appFont(12, .semibold))
+                .foregroundStyle(active ? .white : Color.beansLabel)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(active ? tint : Color.beansComment.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 平台来源徽章：品牌图片优先，其次 SF Symbol
+struct LibraryPlatformBadgeView: View {
+    let badge: LibraryWallBadge
+    var compact: Bool = false
+
+    var body: some View {
+        HStack(spacing: compact ? 3 : 4) {
+            if let brand = badge.brandImage {
+                Image(brand)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: compact ? 9 : 11, height: compact ? 9 : 11)
+            } else if let symbol = badge.symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: compact ? 7 : 9, weight: .bold))
+            }
+            Text(badge.title)
+                .font(BeansFont.appFont(compact ? 8 : 9, .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, compact ? 5 : 6)
+        .padding(.vertical, compact ? 2.5 : 3)
+        .background(Capsule().fill(badge.tint.opacity(0.94)))
+        .overlay {
+            Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
         }
     }
 }

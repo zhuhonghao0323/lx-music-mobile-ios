@@ -62,6 +62,10 @@ struct PlayerView: View {
     @AppStorage("beans.playerSecondaryIconColorHex") private var playerSecondaryIconColorHex = ""
     @AppStorage("beans.playerPrimaryButtonColorHex") private var playerPrimaryButtonColorHex = ""
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
+    /// 歌词舞台：把 liziair 的动态演出作为歌词页背景
+    @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
+    @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
+    @State private var showLyricStagePicker = false
     /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
     /// 进度条单独强调色；空值时跟随播放控件颜色
@@ -439,7 +443,7 @@ struct PlayerView: View {
             } else if coverPlayerStyle == .immersive {
                 GeometryReader { geo in
                     ZStack {
-                        immersiveBackground
+                        immersiveBackground(geo: geo)
 
                         VStack(spacing: 0) {
                             headerBar
@@ -971,11 +975,13 @@ struct PlayerView: View {
 
     /// 歌词页左滑返回专辑封面（三种封面风格共用）
     private var lyricsSwipeBackGesture: some Gesture {
-        DragGesture(minimumDistance: 26)
+        DragGesture(minimumDistance: 18)
             .onEnded { value in
+                let dx = value.translation.width
+                let vx = value.predictedEndTranslation.width
                 guard showLyrics,
-                      value.translation.width < -60,
-                      abs(value.translation.width) > abs(value.translation.height) else { return }
+                      abs(dx) >= abs(value.translation.height),
+                      dx < -52 || vx < -110 else { return }
                 BeansHaptics.tap()
                 withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
             }
@@ -1916,96 +1922,158 @@ struct PlayerView: View {
 
 
     /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
-    @ViewBuilder
     private func lyricsPanel(geo: GeometryProxy) -> some View {
-        ZStack {
+        let stageOn = lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty
+        return ZStack {
+            if stageOn, let stage = lyricStage {
+                ZStack {
+                    Color.black
+                    LyricStageWebView(
+                        stage: stage,
+                        lines: lyrics,
+                        progress: clock.progress,
+                        isPlaying: player.isPlaying,
+                        accentHex: lyricStageAccentHex
+                    )
+                    VStack {
+                        LinearGradient(
+                            colors: [.black.opacity(0.62), .clear],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                        .frame(height: 170)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
+                .ignoresSafeArea()
+                .transition(.opacity)
+            }
+
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                Button {
-                    toggleLyrics()
-                } label: {
-                    CoverImage(url: song?.coverURL, size: 48, cornerRadius: circularCover ? 24 : 12)
-                        .matchedGeometryEffect(id: "playerCover", in: coverNS)
-                        .modifier(CoverSpin(enabled: circularCover && circularCoverSpin, isPlaying: playerVisualsActive))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: circularCover ? 24 : 12, style: .continuous)
-                                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(GlassPressButtonStyle(scale: 0.9))
+                    Button {
+                        toggleLyrics()
+                    } label: {
+                        CoverImage(url: song?.coverURL, size: 48, cornerRadius: circularCover ? 24 : 12)
+                            .matchedGeometryEffect(id: "playerCover", in: coverNS)
+                            .modifier(CoverSpin(enabled: circularCover && circularCoverSpin, isPlaying: playerVisualsActive))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: circularCover ? 24 : 12, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(GlassPressButtonStyle(scale: 0.9))
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text(song?.name ?? "")
-                            .font(BeansFont.appFont(14, .semibold))
-                            .foregroundStyle(palette.text)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        if showSongVIPBadge, song?.isVIP == true {
-                            Text("VIP")
-                                .font(BeansFont.appFont(8, .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(song?.name ?? "")
+                                .font(BeansFont.appFont(14, .semibold))
+                                .foregroundStyle(stageOn ? .white : palette.text)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            if showSongVIPBadge, song?.isVIP == true {
+                                Text("VIP")
+                                    .font(BeansFont.appFont(8, .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                            }
+                        }
+                        HStack(spacing: 8) {
+                            Text(song?.artists ?? "")
+                                .font(BeansFont.appFont(12))
+                                .foregroundStyle(stageOn ? .white.opacity(0.62) : palette.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .contentShape(Rectangle())
+                                .onTapGesture { openArtistHome() }
+                            Text(beansTimeString(clock.progress))
+                                .font(BeansFont.appFont(11, .medium))
+                                .foregroundStyle(stageOn ? .white.opacity(0.48) : palette.secondary.opacity(0.78))
+                                .monospacedDigit()
                         }
                     }
-                    HStack(spacing: 8) {
-                        Text(song?.artists ?? "")
-                            .font(BeansFont.appFont(12))
-                            .foregroundStyle(palette.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .contentShape(Rectangle())
-                            .onTapGesture { openArtistHome() }
-                        Text(beansTimeString(clock.progress))
-                            .font(BeansFont.appFont(11, .medium))
-                            .foregroundStyle(palette.secondary.opacity(0.78))
-                            .monospacedDigit()
-                    }
-                }
 
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 0)
-            .padding(.bottom, 0)
+                    Spacer(minLength: 0)
 
-            // 歌词视口截止到底栏上方：当前行在可见区居中（26 版风格，无渐隐遮挡）
-            Group {
-                if lyrics.isEmpty {
-                    emptyLyricsView
-                } else {
-                    LyricsSection(
-                        lyrics: lyrics,
-                        accent: lyricCurrentColor,
-                        secondary: lyricDimColor,
-                        gradientStart: lyricGradStart,
-                        gradientEnd: lyricGradEnd,
-                        baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale),
-                        lineSpacing: CGFloat(lyricLineSpacing),
-                        glowRadius: lyricGlowRadius,
-                        showTranslation: lyricTranslation,
-                        alignment: lyricAlign,
-                        offsetX: CGFloat(lyricOffsetX),
-                        anchor: lyricAnchor,
-                        glowColorOverride: lyricGlowColor,
-                        blurStart: CGFloat(lyricBlurStart),
-                        blurAmount: CGFloat(lyricBlurAmount),
-                        tilt: CGFloat(lyricTilt),
-                        tiltY: CGFloat(lyricTiltY),
-                        lyricOffset: CGFloat(lyricOffset)
-                    ) { line in
+                    Button {
                         BeansHaptics.tap()
-                        player.seek(to: LyricTiming.seekTime(for: line, userOffset: lyricOffset))
+                        showLyricStagePicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(stageOn ? (lyricStage?.name ?? "舞台") : "舞台")
+                                .font(BeansFont.appFont(10, .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .foregroundStyle(stageOn ? .white : palette.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(.white.opacity(stageOn ? 0.16 : 0.06)))
+                        .contentShape(Capsule())
                     }
+                    .buttonStyle(GlassPressButtonStyle(scale: 0.94))
                 }
-            }
-            .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
+                .padding(.horizontal, 18)
+
+                if stageOn {
+                    Spacer(minLength: 0)
+                } else {
+                    Group {
+                        if lyrics.isEmpty {
+                            emptyLyricsView
+                        } else {
+                            LyricsSection(
+                                lyrics: lyrics,
+                                accent: lyricCurrentColor,
+                                secondary: lyricDimColor,
+                                gradientStart: lyricGradStart,
+                                gradientEnd: lyricGradEnd,
+                                baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale),
+                                lineSpacing: CGFloat(lyricLineSpacing),
+                                glowRadius: lyricGlowRadius,
+                                showTranslation: lyricTranslation,
+                                alignment: lyricAlign,
+                                offsetX: CGFloat(lyricOffsetX),
+                                anchor: lyricAnchor,
+                                glowColorOverride: lyricGlowColor,
+                                blurStart: CGFloat(lyricBlurStart),
+                                blurAmount: CGFloat(lyricBlurAmount),
+                                tilt: CGFloat(lyricTilt),
+                                tiltY: CGFloat(lyricTiltY),
+                                lyricOffset: CGFloat(lyricOffset)
+                            ) { line in
+                                BeansHaptics.tap()
+                                player.seek(to: LyricTiming.seekTime(for: line, userOffset: lyricOffset))
+                            }
+                        }
+                    }
+                    .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .id("lyricsPanel-\(song?.identityKey ?? "none")")
+        .id("lyricsPanel-" + (stageOn ? "stage" : (song?.identityKey ?? "none")))
+        .sheet(isPresented: $showLyricStagePicker) {
+            LyricStagePickerSheet()
+        }
+    }
+
+    private var lyricStage: LyricStage? {
+        LyricStage.stage(id: lyricStageID)
+    }
+
+    private var lyricStageAccentHex: String? {
+        let ui = UIColor(palette.accent)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 
     // MARK: - 空态兜底（歌曲数据为空时不出现空白页）
@@ -2062,20 +2130,38 @@ struct PlayerView: View {
 
     // MARK: - 沉浸式播放（封面溶于背景）
 
-    /// 沉浸背景：封面重度虚化铺满整屏 + 呼吸光晕，封面本体再用羽化蒙版溶进去
-    private var immersiveBackground: some View {
-        ZStack {
+    /// 沉浸式封面高度：全屏宽，高度略作长方形，底部留给标题与歌词
+    private func immersiveCoverHeight(geo: GeometryProxy) -> CGFloat {
+        let raw = geo.size.height * 0.54
+        return min(max(raw, 300), geo.size.width * 1.30)
+    }
+
+    /// 沉浸背景：整屏模糊封面打底 + 封面本体边缘虚化外溢 + 呼吸光晕
+    private func immersiveBackground(geo: GeometryProxy) -> some View {
+        let width = geo.size.width
+        let height = geo.size.height
+        let coverH = immersiveCoverHeight(geo: geo)
+
+        return ZStack {
             Color.black
             CoverBlurBackground(url: song?.coverURL, scheme: .dark)
-                .scaleEffect(1.18)
-                .blur(radius: 24)
-                .opacity(0.94)
+                .scaleEffect(1.22)
+                .opacity(0.62)
+
+            // 封面放大 + 重度模糊，作为「溶进背景」的过渡带
+            ImmersiveCoverArt(url: song?.coverURL, width: width * 1.34, height: coverH * 1.30, blur: 56)
+                .opacity(0.66)
+                .offset(y: -height * 0.045)
+                .mask(immersiveVerticalMask(width: width * 1.34, height: coverH * 1.30, feather: 0.30))
+                .mask(immersiveHorizontalMask(width: width * 1.34, height: coverH * 1.30))
+
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.30), location: 0.0),
-                    .init(color: .black.opacity(0.06), location: 0.34),
-                    .init(color: .black.opacity(0.42), location: 0.72),
-                    .init(color: .black.opacity(0.86), location: 1.0)
+                    .init(color: .black.opacity(0.46), location: 0.0),
+                    .init(color: .black.opacity(0.10), location: 0.20),
+                    .init(color: .clear, location: 0.44),
+                    .init(color: .black.opacity(0.34), location: 0.74),
+                    .init(color: .black.opacity(0.90), location: 1.0)
                 ],
                 startPoint: .top, endPoint: .bottom
             )
@@ -2101,108 +2187,140 @@ struct PlayerView: View {
         .allowsHitTesting(false)
     }
 
-    /// 羽化蒙版：中间实、四周渐隐，让封面没有硬边界，直接融进背景
-    private func immersiveCoverMask(side: CGFloat) -> some View {
+    /// 上下羽化：顶部溶进状态栏，底部溶进标题与背景
+    private func immersiveVerticalMask(width: CGFloat, height: CGFloat, feather: CGFloat) -> some View {
         Rectangle()
             .fill(
-                RadialGradient(
+                LinearGradient(
                     stops: [
-                        .init(color: .black, location: 0.0),
-                        .init(color: .black, location: 0.62),
-                        .init(color: .black.opacity(0.72), location: 0.80),
-                        .init(color: .black.opacity(0.22), location: 0.93),
-                        .init(color: .clear, location: 1.0)
+                        .init(color: .black.opacity(0.0), location: 0.0),
+                        .init(color: .black.opacity(0.62), location: feather * 0.55),
+                        .init(color: .black, location: min(0.99, feather + 0.10)),
+                        .init(color: .black, location: 0.60),
+                        .init(color: .black.opacity(0.80), location: 0.80),
+                        .init(color: .black.opacity(0.0), location: 1.0)
                     ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: side * 0.60
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
             )
-            .frame(width: side, height: side)
+            .frame(width: width, height: height)
     }
 
+    /// 左右羽化：全屏宽但两侧不出现硬边
+    private func immersiveHorizontalMask(width: CGFloat, height: CGFloat) -> some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.0), location: 0.0),
+                        .init(color: .black.opacity(0.88), location: 0.035),
+                        .init(color: .black, location: 0.085),
+                        .init(color: .black, location: 0.915),
+                        .init(color: .black.opacity(0.88), location: 0.965),
+                        .init(color: .black.opacity(0.0), location: 1.0)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(width: width, height: height)
+    }
+
+    /// 沉浸式：封面全屏宽、上下溢出并羽化，标题压在封面下缘的渐隐区里
     private func immersiveAlbumPanel(geo: GeometryProxy) -> some View {
-        let coverSide = min(geo.size.width * 0.86, geo.size.height * 0.46)
+        let width = geo.size.width
+        let height = immersiveCoverHeight(geo: geo)
+        let bleed: CGFloat = 36
+
         return VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(song?.name ?? "未在播放")
-                        .font(BeansFont.appFont(24, .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.62)
-                        .multilineTextAlignment(.leading)
-                    if showSongVIPBadge, song?.isVIP == true {
-                        Text("VIP")
-                            .font(BeansFont.appFont(9, .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+            ZStack(alignment: .bottomLeading) {
+                ImmersiveCoverArt(url: song?.coverURL, width: width, height: height + bleed)
+                    .offset(y: -bleed)
+                    .mask(immersiveVerticalMask(width: width, height: height + bleed, feather: 0.16))
+                    .mask(immersiveHorizontalMask(width: width, height: height + bleed))
+                    .overlay(alignment: .bottom) {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: .black.opacity(0.10), location: 0.32),
+                                .init(color: .black.opacity(0.44), location: 0.66),
+                                .init(color: .black.opacity(0.80), location: 1.0)
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                        .frame(height: height * 0.42)
+                        .allowsHitTesting(false)
                     }
-                }
-                Text(song?.artists ?? "")
-                    .font(BeansFont.appFont(13, .medium))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 15)
+                            .onChanged { value in
+                                coverDrag = value.translation
+                                let x = value.translation.width
+                                if abs(x) > abs(value.translation.height) {
+                                    swipeOffset = x
+                                }
+                            }
+                            .onEnded { value in
+                                handleSwipeEnd(value)
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        guard let song else { return }
+                        BeansHaptics.success()
+                        toggleLocalFavorite(song)
+                    }
+                    .onTapGesture { toggleLyrics() }
+                    .scaleEffect(coverSwitchPulse ? 0.975 : 1)
+                    .animation(.easeOut(duration: 0.26), value: coverSwitchPulse)
+
+                immersiveTitleBlock
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 18)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 26)
-            .padding(.top, 6)
+            .frame(width: width, height: height)
+            .clipped()
 
             Spacer(minLength: 8)
 
-            ZStack {
-                Circle()
-                    .fill(palette.accent.opacity(0.22))
-                    .frame(width: coverSide * 1.02, height: coverSide * 1.02)
-                    .blur(radius: 40)
-
-                CoverImage(
-                    url: song?.coverURL,
-                    size: coverSide,
-                    cornerRadius: 22,
-                    emptyHint: player.isBuffering ? "等待开始播放…" : nil
-                )
-                .frame(width: coverSide, height: coverSide)
-                .mask(immersiveCoverMask(side: coverSide))
-                .scaleEffect(coverSwitchPulse ? 0.96 : 1)
-                .rotation3DEffect(.degrees(Double(coverDrag.height / -30)), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
-                .rotation3DEffect(.degrees(Double(coverDrag.width / 30)), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
-                .offset(x: coverDrag.width * 0.05, y: coverDrag.height * 0.05)
-                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: coverDrag)
-                .animation(.easeOut(duration: 0.26), value: coverSwitchPulse)
-            }
-            .frame(width: coverSide * 1.06, height: coverSide * 1.02)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 15)
-                    .onChanged { value in
-                        coverDrag = value.translation
-                        let x = value.translation.width
-                        if abs(x) > abs(value.translation.height) {
-                            swipeOffset = x
-                        }
-                    }
-                    .onEnded { value in
-                        handleSwipeEnd(value)
-                    }
-            )
-            .onTapGesture(count: 2) {
-                guard let song else { return }
-                BeansHaptics.success()
-                toggleLocalFavorite(song)
-            }
-            .onTapGesture { toggleLyrics() }
-
-            Spacer(minLength: 6)
-
             lyricPreviewBox
-                .opacity(0.92)
+                .padding(.horizontal, 16)
+                .opacity(0.94)
 
             Spacer(minLength: 0)
         }
-        .padding(.bottom, 150 + geo.safeAreaInsets.bottom)
+        .padding(.bottom, 148 + geo.safeAreaInsets.bottom)
+    }
+
+    private var immersiveTitleBlock: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Text(song?.name ?? "未在播放")
+                    .font(BeansFont.appFont(25, .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(.leading)
+                    .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
+                if showSongVIPBadge, song?.isVIP == true {
+                    Text("VIP")
+                        .font(BeansFont.appFont(9, .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                }
+            }
+            Text(song?.artists ?? "")
+                .font(BeansFont.appFont(13, .medium))
+                .foregroundStyle(.white.opacity(0.68))
+                .lineLimit(1)
+                .contentShape(Rectangle())
+                .onTapGesture { openArtistHome() }
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 沉浸式底部控制：极简的三键 + 细进度条，浮在背景上不加厚卡片
@@ -3182,18 +3300,20 @@ struct PlayerView: View {
         isPresented = false
     }
 
-    /// 封面手势：左滑下一首（保持原行为）、右滑看歌词、上划下一曲、下滑上一曲。
+    /// 封面手势：左滑返回、右滑看歌词、上滑下一曲、下滑上一曲。
     private func handleSwipeEnd(_ value: DragGesture.Value) {
         let dx = value.translation.width
         let dy = value.translation.height
+        let vx = value.predictedEndTranslation.width
+        let vy = value.predictedEndTranslation.height
         if abs(dx) >= abs(dy) {
-            if dx < -70 {
-                // 左滑：返回（关闭播放页），不再切歌
+            if dx < -62 || vx < -130 {
+                // 左滑：返回（关闭播放页）
                 BeansHaptics.tap()
                 coverDrag = .zero
                 swipeOffset = 0
                 isPresented = false
-            } else if dx > 70 {
+            } else if dx > 62 || vx > 130 {
                 // 右滑：打开歌词页
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     swipeOffset = 0
@@ -3211,7 +3331,7 @@ struct PlayerView: View {
                     coverDrag = .zero
                 }
             }
-        } else if abs(dy) > 70 {
+        } else if abs(dy) > 62 || abs(vy) > 130 {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 swipeOffset = 0
                 coverDrag = .zero
@@ -3940,6 +4060,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.playerPrimaryButtonColorHex") private var playerPrimaryButtonColorHex = ""
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
     @AppStorage("beans.progressAccentHex") private var progressAccentHex = ""
+    @AppStorage("beans.miniProgressStyle") private var miniProgressStyleRaw = MiniPlayerProgressStyle.vertical.rawValue
     @AppStorage("beans.playback.autoSkipOnFailure") private var autoSkipOnFailure = true
     @AppStorage("beans.lyricFontSize") private var fontSize = 17
     @AppStorage("beans.lyricSpacing") private var lineSpacing = 24
@@ -3983,6 +4104,10 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.playerSettings.playbackExpanded") private var playbackExpanded = false
     @AppStorage("beans.playerSettings.lyricDisplayExpanded") private var lyricDisplayExpanded = false
     @AppStorage("beans.playerSettings.lyricEffectExpanded") private var lyricEffectExpanded = false
+    @AppStorage("beans.playerSettings.lyricStageExpanded") private var lyricStageExpanded = false
+    @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
+    @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
+    @State private var showLyricStagePicker = false
     @AppStorage("beans.playerSettings.layoutExpanded") private var layoutExpanded = false
     @AppStorage("beans.playerSettings.coverExpanded") private var coverExpanded = false
     @AppStorage("beans.playerSettings.appleMusicExpanded") private var appleMusicExpanded = false
@@ -4240,6 +4365,7 @@ struct PlayerSettingsSheet: View {
                     styleCard
                     playingCard
                     lyricDisplayCard
+                    lyricStageCard
                     lyricEffectCard
                     if coverPlayerStyle.supportsClassicLayout || coverPlayerStyle == .appleMusic {
                         layoutCard
@@ -4281,6 +4407,9 @@ struct PlayerSettingsSheet: View {
                 }
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showLyricStagePicker) {
+            LyricStagePickerSheet()
         }
         .onAppear {
             if let path = LyricBackgroundStore.restoreFromBackup(), lyricBackgroundImagePath != path {
@@ -4437,6 +4566,15 @@ struct PlayerSettingsSheet: View {
                 .foregroundStyle(Color.beansLabel)
             progressStyleGrid
             Divider().opacity(0.5)
+            Text("迷你播放栏进度")
+                .font(BeansFont.appFont(13, .semibold))
+                .foregroundStyle(Color.beansLabel)
+            miniProgressStyleGrid
+            Text(miniProgressStyle.caption)
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider().opacity(0.5)
             settingSlider("背景光晕强度", valueText: "\(Int((breath * 100).rounded()))%") {
                 Slider(value: $breath, in: 0...1, step: 0.05)
                     .tint(Color.beansAmber)
@@ -4566,6 +4704,44 @@ struct PlayerSettingsSheet: View {
         }
     }
 
+    /// 迷你播放栏进度样式四宫格
+    private var miniProgressStyle: MiniPlayerProgressStyle {
+        MiniPlayerProgressStyle(rawValue: miniProgressStyleRaw) ?? .vertical
+    }
+
+    private var miniProgressStyleGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+            ForEach(MiniPlayerProgressStyle.allCases) { style in
+                let active = miniProgressStyle == style
+                Button {
+                    miniProgressStyleRaw = style.rawValue
+                    BeansHaptics.select()
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: style.icon)
+                            .font(.system(size: 15, weight: .medium))
+                        Text(style.title)
+                            .font(BeansFont.appFont(10, .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .foregroundStyle(active ? Color.beansAmber : Color.beansLabel)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        (active ? Color.beansAmber.opacity(0.16) : Color.primary.opacity(0.05)),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(active ? Color.beansAmber.opacity(0.5) : .clear, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     /// 歌词显示卡片：字号 / 行距 / 翻译
     private var lyricOffsetText: String {
         if lyricOffset == 0 { return "同步" }
@@ -4611,6 +4787,59 @@ struct PlayerSettingsSheet: View {
             Divider().opacity(0.5)
             settingToggle("显示歌词翻译", isOn: $lyricTranslation,
                           caption: "当前播放歌词下方显示译文（网易云 tlyric）")
+        }
+    }
+
+    /// 歌词舞台卡片：30 种动态演出，可开关与切换
+    private var lyricStageCard: some View {
+        let current = LyricStage.stage(id: lyricStageID)
+        return settingCard("歌词舞台", isExpanded: $lyricStageExpanded) {
+            settingToggle("启用动态歌词舞台", isOn: $lyricStageEnabled,
+                          caption: "歌词页改用动态演出呈现，手势与播放控制不变")
+            if lyricStageEnabled {
+                Divider().opacity(0.5)
+                Button {
+                    BeansHaptics.tap()
+                    showLyricStagePicker = true
+                } label: {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [(current?.tint ?? Color.beansAmber).opacity(0.95), (current?.tint ?? Color.beansAmber).opacity(0.4)],
+                                        startPoint: .topLeading, endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(current?.name ?? "选择舞台")
+                                .font(BeansFont.appFont(13, .semibold))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("共 \(LyricStage.all.count) 种效果，可随时切换")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                        Spacer()
+                        Text("切换")
+                            .font(BeansFont.appFont(12, .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.beansComment)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            Text("舞台效果来自开源项目 liziair，原本是 Web 实现，已打包进 App 离线运行。动态效果较吃性能，发热明显时可以关掉。")
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -4980,5 +5209,75 @@ struct CoverSpin: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+// MARK: - 沉浸式封面（全宽、任意高度，支持模糊与占位）
+
+/// 播放器里其它封面都用固定正方形 `CoverImage`，沉浸式需要全屏宽的长方形，
+/// 因此单独走一次缩略图缓存，按目标尺寸裁剪，避免把正方形封面拉变形。
+struct ImmersiveCoverArt: View {
+    let url: URL?
+    let width: CGFloat
+    let height: CGFloat
+    var blur: CGFloat = 0
+    /// 未加载完成时的提示（仅主封面用）
+    var emptyHint: String? = nil
+
+    @State private var image: UIImage?
+    @State private var failed = false
+    @State private var loadedKey: String?
+
+    private var displayImage: UIImage? {
+        if loadedKey == url?.absoluteString { return image }
+        return CoverThumbCache.shared.memoryImage(for: url, maxPixel: pixelBudget)
+    }
+
+    private var pixelBudget: CGFloat {
+        min(max(width, height) * 2, 2000)
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.black)
+            .frame(width: width, height: height)
+            .overlay {
+                Group {
+                    if let image = displayImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else if let emptyHint, failed || url == nil {
+                        Text(emptyHint)
+                            .font(BeansFont.appFont(13, .medium))
+                            .foregroundStyle(.white.opacity(0.5))
+                    } else if url == nil {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 46, weight: .light))
+                            .foregroundStyle(.white.opacity(0.22))
+                    } else {
+                        ProgressView().tint(.white.opacity(0.6))
+                    }
+                }
+                .frame(width: width, height: height)
+                .clipped()
+            }
+            .clipped()
+            .blur(radius: blur)
+            .task(id: url?.absoluteString) {
+                let key = url?.absoluteString
+                if loadedKey == key, image != nil { return }
+                guard let url else {
+                    loadedKey = key
+                    image = nil
+                    return
+                }
+                failed = false
+                let loaded = await CoverThumbCache.shared.image(for: url, maxPixel: pixelBudget)
+                guard !Task.isCancelled else { return }
+                loadedKey = key
+                image = loaded
+                failed = (loaded == nil)
+            }
     }
 }

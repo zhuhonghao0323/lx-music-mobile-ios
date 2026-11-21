@@ -38,6 +38,44 @@ struct LibraryCloudSyncSummary: Codable, Equatable {
         if seconds < 60 { return String(format: "%.0f 秒", seconds) }
         return String(format: "%.0f 分 %.0f 秒", seconds / 60, seconds.truncatingRemainder(dividingBy: 60))
     }
+
+    /// 平均每个歌单的耗时，用来直观看同步效率
+    var speedText: String {
+        guard playlists > 0, seconds > 0 else { return "—" }
+        return String(format: "%.2f 秒/歌单", seconds / Double(playlists))
+    }
+}
+
+/// 单个歌单的同步产物（只带可跨并发域的值，避免整首歌对象在任务间来回传）
+private struct SyncJobResult: Sendable {
+    let name: String
+    let count: Int
+    let covers: [URL]
+    let failure: String?
+}
+
+/// 跨并发域的安全标志：同步任务在多个 task 里轮询「是否要停」
+private final class SyncCancelFlag {
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func set() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+
+    func reset() {
+        lock.lock()
+        value = false
+        lock.unlock()
+    }
 }
 
 final class LibraryCloudSyncStore: ObservableObject {
@@ -54,8 +92,11 @@ final class LibraryCloudSyncStore: ObservableObject {
     @Published private(set) var cachedSongs: [Song] = []
     @Published private(set) var cancelled = false
 
+    /// 是否顺带把封面缩略图也缓存下来（默认关：只同步歌曲信息最快）
+    static let prefetchCoversKey = "beans.cloudSync.prefetchCovers"
+
     private let summaryKey = "beans.library.cloudSync.summary"
-    private var cancelRequested = false
+    private let cancelFlag = SyncCancelFlag()
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: summaryKey),
@@ -72,16 +113,23 @@ final class LibraryCloudSyncStore: ObservableObject {
     @MainActor
     func cancel() {
         guard isSyncing else { return }
-        cancelRequested = true
+        cancelFlag.set()
         progressText = "正在停止…"
     }
 
-    /// 全量同步：逐个歌单拉歌曲 → 落盘 → 预下载封面缩略图
+    /// 全量同步：歌单之间并发拉取（3 路），每个歌单落盘只写自己那一个文件。
+    /// 封面缩略图不再是阻塞项：默认不下载，开启后也在后台慢慢补。
     @MainActor
     func sync(sources: [LibraryCloudSyncSource]) async {
         guard !isSyncing else { return }
-        let total = sources.reduce(0) { $0 + $1.playlists.count }
-        guard total > 0 else {
+
+        var jobs: [(platform: String, playlist: Playlist, accountID: String)] = []
+        for group in sources {
+            for playlist in group.playlists {
+                jobs.append((group.displayName, playlist, group.accountID))
+            }
+        }
+        guard !jobs.isEmpty else {
             summary = LibraryCloudSyncSummary(
                 date: Date(), playlists: 0, songs: 0, covers: 0,
                 failures: ["没有可同步的歌单，请先登录对应平台"], seconds: 0
@@ -90,56 +138,70 @@ final class LibraryCloudSyncStore: ObservableObject {
         }
 
         isSyncing = true
-        cancelRequested = false
+        cancelFlag.reset()
         cancelled = false
         donePlaylists = 0
-        plannedPlaylists = total
+        plannedPlaylists = jobs.count
         songCount = 0
         coverCount = 0
         progressText = "准备同步…"
         let started = Date()
+        let wantedCovers = UserDefaults.standard.object(forKey: Self.prefetchCoversKey) as? Bool ?? false
+
         var failures: [String] = []
         var coverURLs = Set<String>()
-        var pendingCovers: [URL] = []
+        var pendingCoverURLs: [URL] = []
 
-        for group in sources {
-            for playlist in group.playlists {
-                if cancelRequested { break }
-                progressText = "\(group.displayName) · \(playlist.name)"
-                do {
-                    let songs = try await fetchSongs(playlist)
-                    if !songs.isEmpty {
-                        SyncedPlaylistCache.shared.saveSongs(songs, playlist: playlist, accountID: group.accountID, pinned: true)
-                        songCount += songs.count
-                        for song in songs {
-                            guard let url = song.coverURL, coverURLs.insert(url.absoluteString).inserted else { continue }
-                            pendingCovers.append(url)
-                        }
-                    }
-                    if let cover = playlist.coverURL, coverURLs.insert(cover.absoluteString).inserted {
-                        pendingCovers.append(cover)
-                    }
-                } catch {
-                    failures.append("\(playlist.name)：\(error.localizedDescription)")
-                }
-                donePlaylists += 1
+        let maxConcurrent = 3
+        var cursor = 0
 
-                // 每同步完一个歌单就顺手把封面缓存掉，进度与结果都能对上
-                if !pendingCovers.isEmpty {
-                    let batch = pendingCovers
-                    pendingCovers.removeAll(keepingCapacity: true)
-                    await prewarmCovers(batch)
+        await withTaskGroup(of: SyncJobResult.self) { group in
+            let warmup = min(maxConcurrent, jobs.count)
+            for _ in 0..<warmup {
+                let job = jobs[cursor]
+                cursor += 1
+                group.addTask {
+                    await Self.perform(job: job.playlist, accountID: job.accountID)
                 }
             }
-            if cancelRequested { break }
+
+            while let result = await group.next() {
+                guard !cancelFlag.isSet else { continue }
+                donePlaylists += 1
+                songCount += result.count
+                progressText = result.count > 0
+                    ? "\(result.name) · \(result.count) 首"
+                    : result.name
+                if let failure = result.failure {
+                    failures.append(failure)
+                }
+                if wantedCovers {
+                    for url in result.covers where coverURLs.insert(url.absoluteString).inserted {
+                        pendingCoverURLs.append(url)
+                    }
+                    // 攒一批就交给后台，绝不阻塞歌曲信息的同步
+                    if pendingCoverURLs.count >= 120 {
+                        let batch = pendingCoverURLs
+                        pendingCoverURLs.removeAll(keepingCapacity: true)
+                        startBackgroundCoverWarm(batch)
+                    }
+                }
+                if cursor < jobs.count, !cancelFlag.isSet {
+                    let job = jobs[cursor]
+                    cursor += 1
+                    group.addTask {
+                        await Self.perform(job: job.playlist, accountID: job.accountID)
+                    }
+                }
+            }
         }
 
-        if !pendingCovers.isEmpty {
-            await prewarmCovers(pendingCovers)
+        if cancelFlag.isSet { cancelled = true }
+        if wantedCovers, !pendingCoverURLs.isEmpty {
+            startBackgroundCoverWarm(pendingCoverURLs)
         }
-        if cancelRequested { cancelled = true }
 
-        let summary = LibraryCloudSyncSummary(
+        let snapshot = LibraryCloudSyncSummary(
             date: Date(),
             playlists: donePlaylists,
             songs: songCount,
@@ -147,8 +209,8 @@ final class LibraryCloudSyncStore: ObservableObject {
             failures: Array(failures.prefix(6)),
             seconds: Date().timeIntervalSince(started)
         )
-        self.summary = summary
-        if let data = try? JSONEncoder().encode(summary) {
+        summary = snapshot
+        if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: summaryKey)
         }
         await rebuildFromCache()
@@ -156,20 +218,37 @@ final class LibraryCloudSyncStore: ObservableObject {
         isSyncing = false
     }
 
-    /// 从本地缓存重建「全部歌曲」索引（不联网）。
-    /// 直接读缓存里所有歌单，不依赖当前平台是否已加载歌单列表。
-    @MainActor
-    func rebuildFromCache() async {
-        let all = SyncedPlaylistCache.shared.allCachedSongs()
-        let merged = LibrarySongAggregator.merge([all])
-        cachedSongs = merged
-        BeansLogger.shared.log(
-            "曲库同步：本地缓存汇总 \(merged.count) 首（\(SyncedPlaylistCache.shared.cachedSongEntryCount) 个歌单）",
-            level: .debug
-        )
+    /// 拉一个歌单：网络 → 落盘（只写这一个歌单的文件）→ 返回统计
+    private static func perform(job: Playlist, accountID: String) async -> SyncJobResult {
+        do {
+            let songs = try await fetchSongs(job)
+            guard !songs.isEmpty else {
+                return SyncJobResult(name: job.name, count: 0, covers: [], failure: nil)
+            }
+            SyncedPlaylistCache.shared.saveSongs(
+                songs,
+                playlist: job,
+                accountID: accountID,
+                pinned: true
+            )
+            var covers: [URL] = []
+            covers.reserveCapacity(songs.count + 1)
+            for song in songs {
+                if let url = song.coverURL { covers.append(url) }
+            }
+            if let cover = job.coverURL { covers.append(cover) }
+            return SyncJobResult(name: job.name, count: songs.count, covers: covers, failure: nil)
+        } catch {
+            return SyncJobResult(
+                name: job.name,
+                count: 0,
+                covers: [],
+                failure: "\(job.name)：\(error.localizedDescription)"
+            )
+        }
     }
 
-    private func fetchSongs(_ playlist: Playlist) async throws -> [Song] {
+    private static func fetchSongs(_ playlist: Playlist) async throws -> [Song] {
         switch playlist.source {
         case .kugou:
             return try await KugouMusicAPI.shared.playlistSongs(listID: playlist.id, externalID: playlist.externalID)
@@ -184,28 +263,47 @@ final class LibraryCloudSyncStore: ObservableObject {
         }
     }
 
-    /// 封面预热：4 路并发，避免一次开几十个请求
+    /// 后台补封面：低优先级、6 路并发，用户此时已经能正常浏览歌曲了
     @MainActor
-    private func prewarmCovers(_ urls: [URL]) async {
-        let maxConcurrent = 4
-        var index = 0
-        while index < urls.count {
-            if cancelRequested { return }
-            let end = min(index + maxConcurrent, urls.count)
-            let slice = Array(urls[index..<end])
-            let results = await withTaskGroup(of: Bool.self) { group -> [Bool] in
-                for url in slice {
-                    group.addTask {
-                        await CoverThumbCache.shared.prewarm(url: url, maxPixel: 320)
+    private func startBackgroundCoverWarm(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            var covered = 0
+            var index = 0
+            let batch = 6
+            while index < urls.count {
+                let slice = Array(urls[index..<min(index + batch, urls.count)])
+                let hits = await withTaskGroup(of: Bool.self) { group -> Int in
+                    for url in slice {
+                        group.addTask {
+                            await CoverThumbCache.shared.prewarm(url: url, maxPixel: 320)
+                        }
                     }
+                    var count = 0
+                    for await ok in group where ok { count += 1 }
+                    return count
                 }
-                var values: [Bool] = []
-                for await value in group { values.append(value) }
-                return values
+                covered += hits
+                index += batch
             }
-            coverCount += results.filter { $0 }.count
-            index = end
+            let total = covered
+            guard total > 0 else { return }
+            await MainActor.run { self?.coverCount += total }
         }
+    }
+
+    /// 从本地缓存重建「全部歌曲」索引（不联网）。
+    @MainActor
+    func rebuildFromCache() async {
+        let all = await SyncedPlaylistCache.shared.allCachedSongs()
+        let merged = await Task.detached(priority: .userInitiated) {
+            LibrarySongAggregator.merge([all])
+        }.value
+        cachedSongs = merged
+        BeansLogger.shared.log(
+            "曲库同步：本地缓存汇总 \(merged.count) 首（\(SyncedPlaylistCache.shared.cachedSongEntryCount) 个歌单）",
+            level: .debug
+        )
     }
 }
 
@@ -217,9 +315,16 @@ struct LibraryCloudSyncSheet: View {
     @ObservedObject private var store = LibraryCloudSyncStore.shared
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(LibraryCloudSyncStore.prefetchCoversKey) private var prefetchCovers = false
 
     private var totalPlaylists: Int {
         sources.reduce(0) { $0 + $1.playlists.count }
+    }
+
+    private var totalSongsEstimate: Int {
+        sources.reduce(0) { partial, group in
+            partial + group.playlists.reduce(0) { $0 + $1.trackCount }
+        }
     }
 
     var body: some View {
@@ -230,8 +335,9 @@ struct LibraryCloudSyncSheet: View {
                     if store.isSyncing || store.summary != nil {
                         resultCard
                     }
+                    optionCard
                     platformCard
-                    Text("同步会把每个歌单的歌曲写入本机缓存，并把这些歌曲的封面缩略图一并下载。之后打开歌单或列表都直接读本地，不再重复请求网络；只有再次点开歌曲详情或手动同步时才会更新。")
+                    Text("同步只保存歌曲信息（歌名、歌手、专辑、封面地址、音质 hash），不下载音频文件。歌曲按歌单分文件保存，所以歌单多也不会越同步越慢；同步完就能离线浏览歌单和全部歌曲。")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                         .fixedSize(horizontal: false, vertical: true)
@@ -268,7 +374,9 @@ struct LibraryCloudSyncSheet: View {
                     Text("把云端歌单存到本机")
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(totalPlaylists > 0 ? "共 \(totalPlaylists) 个歌单待同步" : "当前平台没有可同步的歌单")
+                    Text(totalPlaylists > 0
+                         ? "共 \(totalPlaylists) 个歌单" + (totalSongsEstimate > 0 ? " · 约 \(totalSongsEstimate) 首" : "")
+                         : "当前平台没有可同步的歌单")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                 }
@@ -291,7 +399,10 @@ struct LibraryCloudSyncSheet: View {
                     }
                     HStack(spacing: 14) {
                         statChip(icon: "music.note", text: "\(store.songCount) 首")
-                        statChip(icon: "photo", text: "\(store.coverCount) 张封面")
+                        if prefetchCovers {
+                            statChip(icon: "photo", text: "\(store.coverCount) 张封面")
+                        }
+                        statChip(icon: "bolt.horizontal", text: "3 路并发")
                     }
                 }
                 Button {
@@ -347,8 +458,15 @@ struct LibraryCloudSyncSheet: View {
                 HStack(spacing: 8) {
                     resultCell(value: "\(summary.playlists)", label: "歌单")
                     resultCell(value: "\(summary.songs)", label: "歌曲")
-                    resultCell(value: "\(summary.covers)", label: "封面")
+                    if prefetchCovers {
+                        resultCell(value: "\(summary.covers)", label: "封面")
+                    }
                     resultCell(value: summary.durationText, label: "用时")
+                }
+                if !store.isSyncing {
+                    Text("平均 \(summary.speedText)")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
                 }
                 if !summary.failures.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
@@ -368,6 +486,29 @@ struct LibraryCloudSyncSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)) }
         }
+    }
+
+    private var optionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("同步选项")
+                .font(BeansFont.appFont(13, .bold))
+                .foregroundStyle(Color.beansLabel)
+            Toggle(isOn: $prefetchCovers) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("同时缓存封面缩略图")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansLabel)
+                    Text("关掉最快。封面会在真正浏览时按需下载并缓存。")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                }
+            }
+            .tint(Color.beansAmber)
+            .disabled(store.isSyncing)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)) }
     }
 
     private var platformCard: some View {

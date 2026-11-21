@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import MediaPlayer
 
 private struct ReferenceLyricCenterKey: PreferenceKey {
@@ -56,6 +57,8 @@ struct ReferencePlaybackView: View {
     @AppStorage("beans.lyricSpacing") private var lyricSpacing = 24
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     @AppStorage("beans.lyricGlow") private var lyricGlowLevel = 1
+    @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
+    @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
     private let downloadFeatureUnlocked = true
     @State private var lyricCenters: [UUID: CGFloat] = [:]
     @State private var focusedLyricID: UUID?
@@ -68,6 +71,24 @@ struct ReferencePlaybackView: View {
     /// 字号以 17pt 为基准，按用户设置整体缩放
     private var lyricScale: CGFloat {
         CGFloat(min(max(lyricFontSize, 12), 28)) / 17.0
+    }
+
+    private var lyricStage: LyricStage? {
+        LyricStage.stage(id: lyricStageID)
+    }
+
+    private var lyricStageActive: Bool {
+        lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty && showLyrics
+    }
+
+    private var stageAccentHex: String? {
+        let ui = UIColor(accentColor)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 
     private func layoutEntry(_ part: AppleMusicLayoutPart) -> PlayerLayoutEntry {
@@ -84,12 +105,36 @@ struct ReferencePlaybackView: View {
 
                     ZStack {
                         if showLyrics {
-                            lyricsPage
-                                .simultaneousGesture(lyricsSwipeBackGesture)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                                    removal: .move(edge: .top).combined(with: .opacity)
-                                ))
+                            ZStack {
+                                if lyricStageActive, let stage = lyricStage {
+                                    ZStack {
+                                        Color.black
+                                        LyricStageWebView(
+                                            stage: stage,
+                                            lines: lyrics,
+                                            progress: clock.progress,
+                                            isPlaying: player.isPlaying,
+                                            accentHex: stageAccentHex
+                                        )
+                                        VStack {
+                                            LinearGradient(
+                                                colors: [.black.opacity(0.62), .clear],
+                                                startPoint: .top, endPoint: .bottom
+                                            )
+                                            .frame(height: 170)
+                                            Spacer()
+                                        }
+                                        .allowsHitTesting(false)
+                                    }
+                                    .ignoresSafeArea()
+                                }
+                                lyricsPage
+                                    .simultaneousGesture(lyricsSwipeBackGesture)
+                            }
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
                         } else {
                             coverPage(size: geometry.size)
                                 .simultaneousGesture(coverSwipeGesture)
@@ -274,7 +319,10 @@ struct ReferencePlaybackView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 10)
 
-            if lyrics.isEmpty {
+            if lyricStageActive {
+                // 舞台自己会画歌词，原生歌词行隐掉，只留顶部信息与底部控制
+                Spacer(minLength: 0)
+            } else if lyrics.isEmpty {
                 emptyLyricsView
             } else {
                 ScrollViewReader { proxy in
@@ -623,14 +671,16 @@ struct ReferencePlaybackView: View {
 
     /// 封面页手势：上滑下一曲、下滑上一曲、右滑看歌词、左滑返回
     private var coverSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 26)
+        DragGesture(minimumDistance: 20)
             .onEnded { value in
                 let dx = value.translation.width
                 let dy = value.translation.height
-                guard max(abs(dx), abs(dy)) > 42 else { return }
+                let vx = value.predictedEndTranslation.width
+                let vy = value.predictedEndTranslation.height
+                guard max(abs(dx), abs(dy)) > 34 || max(abs(vx), abs(vy)) > 80 else { return }
                 if abs(dx) > abs(dy) {
                     BeansHaptics.tap()
-                    if dx < 0 {
+                    if dx < 0 || vx < -130 {
                         // 左滑返回（与系统返回手势一致）
                         onClose()
                     } else if lyrics.isEmpty {
@@ -665,21 +715,25 @@ struct ReferencePlaybackView: View {
 
     /// 歌词页手势：左滑回到专辑封面
     private var lyricsSwipeBackGesture: some Gesture {
-        DragGesture(minimumDistance: 26)
+        DragGesture(minimumDistance: 18)
             .onEnded { value in
                 let dx = value.translation.width
-                guard dx < -60, abs(dx) > abs(value.translation.height) else { return }
+                let vx = value.predictedEndTranslation.width
+                guard abs(dx) >= abs(value.translation.height),
+                      dx < -52 || vx < -110 else { return }
                 BeansHaptics.tap()
                 withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
             }
     }
 
     private var primaryColor: Color {
+        if lyricStageActive { return .white }
         if primaryHex.hasPrefix("#"), let color = Color(hex: primaryHex) { return color }
         return .white
     }
 
     private var secondaryColor: Color {
+        if lyricStageActive { return .white.opacity(0.62) }
         if secondaryHex.hasPrefix("#"), let color = Color(hex: secondaryHex) { return color }
         return .white.opacity(0.58)
     }
