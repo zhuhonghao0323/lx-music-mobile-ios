@@ -111,7 +111,7 @@ struct LibraryView: View {
     @State private var source: LibraryProvider = .netease
     /// 音乐库左上角默认「全部歌单」：展示所有平台的歌单；切到某平台后只看该平台
     @State private var libraryShowsAll = true
-    /// 左上角选中「手动导入音源」：只展示本机导入的歌单
+    /// 左上角选中「手动导入歌单」：只展示本机导入的歌单
     @State private var libraryShowsImported = false
     @AppStorage("beans.homeHeaderHideSort") private var hideSortButton = false
     @AppStorage(PlatformPreferenceStore.hidePickerKey) private var hidePlatformPicker = false
@@ -511,13 +511,13 @@ struct LibraryView: View {
                 }
             }
             Divider()
-            // 手动导入音源：与酷狗、QQ 等并列
+            // 手动导入歌单：与酷狗、QQ 等并列
             Button {
                 BeansHaptics.tap()
                 libraryShowsImported = true
                 libraryShowsAll = false
             } label: {
-                Label("手动导入音源", systemImage: libraryShowsImported ? "checkmark" : "square.and.arrow.down")
+                Label("手动导入歌单", systemImage: libraryShowsImported ? "checkmark" : "square.and.arrow.down")
             }
         } label: {
             // 大图标 + 小名称：去掉与副标题重复的大号标题文字，图标放大更美观
@@ -869,7 +869,13 @@ struct LibraryView: View {
     // MARK: - 导入歌单（LX 式「打开歌单 / 收藏」：本地保存，可更新）
 
     private var importedItems: [ImportedPlaylist] {
-        importedStore.playlists(for: source.songSource)
+        // 「全部歌单」与「手动导入」都要看到所有平台的导入歌单。
+        // 之前这里写死按当前平台过滤，导入了酷狗概念版歌单却停在网易云，
+        // 于是下方永远空着——看起来像「导入没成功」。
+        if libraryShowsImported || libraryShowsAll {
+            return importedStore.items
+        }
+        return importedStore.playlists(for: source.songSource)
     }
 
     private var importedSection: some View {

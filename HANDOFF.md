@@ -46,6 +46,19 @@
 
 > 舞台 HTML 已用 Chromium 实测（001 粒子歌词）：init/tick 协议正常、canvas 正常出帧，问题在原生侧的 ready 门控。
 
+### 0.4.0 本轮（2026-11-21，版本 **1.18.0 (88)**）
+
+用户 4 条反馈。**最重要的结论：歌词舞台 HTML 从未被打进安装包**——`beans-project.yml` 把 `LyricStages/**` 从 sources 排除，又试图用 `resources:` 补回，但 XcodeGen 的 target 没有 `resources` 字段，该段被静默忽略。CI 构建日志可验证：全程没有一行 `.html` 的 `builtin-copy`。
+
+| # | 反馈 | 处理（改动文件） |
+|---|---|---|
+| 1 | 导入歌单下方不显示已导入歌单 | `LibraryView.swift` `importedItems`：`libraryShowsImported` / `libraryShowsAll` 时返回 `importedStore.items`（全部平台），不再按 `source` 过滤把人导入的酷狗歌单藏起来 |
+| 2 | 舞台开关打开后没变化、回头又自动关闭 | ① `beans-project.yml`：`LyricStages` 改为 `type: folderReference` + `buildPhase: resources`，保留目录（353 舞台要引 `assets/353-grain.png`）；② `LyricStage.swift` 新增 `LyricStageResources` 直拼路径 + 存在性检查 + 缓存；③ 两个播放器删掉 `onReady(false)` 里的 `lyricStageEnabled = false`；④ 资源缺失时不挂 WebView，`task` 兜底也加资源 guard；⑤ 设置页加「舞台资源已就绪 30/30」自检 |
+| 3 | 「手动导入音源」改名 | `LibraryView.swift` 菜单项改「手动导入歌单」，两处注释同步 |
+| 4 | 集成酷我 / 哔哩哔哩登录与歌单 | **本轮未做**，原因见下 |
+
+> 平台级接入的真实成本：`SongSource` 只有 5 个硬编码 case（`netease/qq/kugou/migu/bodian`），全仓 `.bodian` 相关分支 111 处；`Song` 还要为每家加专属字段（酷我 rid、B 站 bvid/cid），并各自实现「搜索 / 歌单 / 播放地址 / 歌词 / 登录态」五条链路（参考 `KugouMusicAPI.swift` 2479 行、`BodianMusicAPI.swift` 556 行）。两个平台约等于 2500~3000 行新代码 + 贯穿 20+ 文件的 switch 扩展，需要单独一轮专项做，否则极易把已稳定的播放链路改崩。另：B 站还需要 SESSDATA Cookie 与 wbi 签名，版权音轨大量不可播，体验会明显弱于现有平台。
+
 ### 0.3.0 上一轮（2026-11-21，版本 **1.16.0 (86)**）
 
 按用户 7 条反馈继续改（本地已改完，push 后 CI 出包覆盖 beans-latest）：

@@ -81,9 +81,14 @@ struct ReferencePlaybackView: View {
         LyricStage.stage(id: lyricStageID)
     }
 
-    /// 舞台是否已配置（决定是否尝试挂载 WebView）
+    /// 舞台是否已配置（决定是否尝试挂载 WebView）。
+    /// 这里同时校验 HTML 是否真在包里：缺失时不挂 WebView，直接留在原生歌词。
     private var lyricStageConfigured: Bool {
-        lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty && showLyrics
+        lyricStageEnabled
+            && lyricStage != nil
+            && !lyrics.isEmpty
+            && showLyrics
+            && LyricStageResources.url(for: lyricStageID) != nil
     }
 
     /// 舞台就绪后才隐藏原生歌词
@@ -127,12 +132,8 @@ struct ReferencePlaybackView: View {
                                             isPlaying: player.isPlaying,
                                             accentHex: stageAccentHex,
                                             onReady: { ok in
-                                                if ok {
-                                                    lyricStageReady = true
-                                                } else {
-                                                    lyricStageReady = false
-                                                    lyricStageEnabled = false
-                                                }
+                                                // 只切换「舞台 / 原生歌词」，不动用户的开关
+                                                lyricStageReady = ok
                                             }
                                         )
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -183,9 +184,11 @@ struct ReferencePlaybackView: View {
         .onChange(of: lyricStageID) { _ in lyricStageReady = false }
         .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
         .onChange(of: showLyrics) { _ in lyricStageReady = false }
-        // 兜底：2.4s 仍未 ready 就直接放行，避免舞台被 ready 门控永久挡住
+        // 兜底：2.4s 仍未 ready 就直接放行，避免舞台被 ready 门控永久挡住。
+        // 资源缺失时不能放行，否则空 WebView 会顶掉原生歌词。
         .task(id: "stage-" + lyricStageID + "-" + (song?.identityKey ?? "") + "-" + (lyricStageEnabled ? "1" : "0") + "-" + (showLyrics ? "1" : "0")) {
             guard lyricStageEnabled, showLyrics else { return }
+            guard LyricStageResources.url(for: lyricStageID) != nil, !lyrics.isEmpty else { return }
             try? await Task.sleep(nanoseconds: 2_400_000_000)
             guard !Task.isCancelled else { return }
             if !lyricStageReady { lyricStageReady = true }

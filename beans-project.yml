@@ -16,6 +16,13 @@ targets:
       - path: beans-ios
         excludes:
           - "LyricStages/**"
+      # 歌词舞台：30 个 HTML + assets 必须原样进包（保留 LyricStages 目录结构，
+      # 353-acid-lime 用相对路径引 assets/353-grain.png，平铺会 404）。
+      # 之前只写在下面的 resources: 里，而 XcodeGen 的 target 并没有 resources 字段，
+      # 于是这些 HTML 既不进源码也不进资源，App 里 Bundle.main 根本找不到 → 舞台永远不生效。
+      - path: beans-ios/LyricStages
+        type: folderReference
+        buildPhase: resources
     resources:
       - beans-ios/en.lproj
       - beans-ios/zh-Hans.lproj
@@ -25,8 +32,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app
-        MARKETING_VERSION: "1.17.0"
-        CURRENT_PROJECT_VERSION: "87"
+        MARKETING_VERSION: "1.18.0"
+        CURRENT_PROJECT_VERSION: "88"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_OBJC_BRIDGING_HEADER: beans-ios/Beans-Bridging-Header.h
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

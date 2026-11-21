@@ -1928,8 +1928,13 @@ struct PlayerView: View {
 
     /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
     private func lyricsPanel(geo: GeometryProxy) -> some View {
-        // 舞台只有在 WebView 成功首帧绘制后才顶替原生歌词，否则保持原生歌词，杜绝黑屏
-        let stageConfigured = lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty
+        // 舞台只有在 WebView 成功首帧绘制后才顶替原生歌词，否则保持原生歌词，杜绝黑屏。
+        // 先确认 HTML 真的在包里：资源缺失时干脆不挂 WebView，直接留在原生歌词，
+        // 避免「空舞台把原生歌词顶掉 → 一片空白」。
+        let stageConfigured = lyricStageEnabled
+            && lyricStage != nil
+            && !lyrics.isEmpty
+            && LyricStageResources.url(for: lyricStageID) != nil
         let stageOn = stageConfigured && lyricStageReady
         return ZStack {
             if stageConfigured, let stage = lyricStage {
@@ -1943,13 +1948,10 @@ struct PlayerView: View {
                         isPlaying: player.isPlaying,
                         accentHex: lyricStageAccentHex,
                         onReady: { ok in
-                            if ok {
-                                lyricStageReady = true
-                            } else {
-                                // 舞台资源缺失：自动关闭舞台，回到原生歌词
-                                lyricStageReady = false
-                                lyricStageEnabled = false
-                            }
+                            // 只在「显示舞台 / 回落原生歌词」之间切换。
+                            // 之前这里在失败时把 lyricStageEnabled 写回 false，
+                            // 于是用户看到的现象是「设置里刚打开，回头又自己关了」。
+                            lyricStageReady = ok
                         }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2086,6 +2088,8 @@ struct PlayerView: View {
         // 避免个别机型/舞台的 ready 消息被吞时永远只显示原生歌词（看起来像「舞台没生效」）
         .task(id: "stage-" + lyricStageID + "-" + (song?.identityKey ?? "") + "-" + (lyricStageEnabled ? "1" : "0")) {
             guard lyricStageEnabled else { return }
+            // 资源缺失就别放行，否则会用空 WebView 顶掉原生歌词
+            guard LyricStageResources.url(for: lyricStageID) != nil, !lyrics.isEmpty else { return }
             try? await Task.sleep(nanoseconds: 2_400_000_000)
             guard !Task.isCancelled else { return }
             if !lyricStageReady { lyricStageReady = true }
@@ -4933,9 +4937,22 @@ struct PlayerSettingsSheet: View {
     /// 歌词舞台卡片：30 种动态演出，可开关与切换
     private var lyricStageCard: some View {
         let current = LyricStage.stage(id: lyricStageID)
+        let bundled = LyricStageResources.bundledCount
+        let total = LyricStage.all.count
         return settingCard("歌词舞台", isExpanded: $lyricStageExpanded) {
             settingToggle("启用动态歌词舞台", isOn: $lyricStageEnabled,
                           caption: "歌词页改用动态演出呈现，手势与播放控制不变")
+            HStack(spacing: 6) {
+                Image(systemName: bundled == total ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(bundled == total ? Color.beansAmber : Color.orange)
+                Text(bundled == total
+                     ? "舞台资源已就绪（\(bundled)/\(total)）"
+                     : "舞台资源缺失（\(bundled)/\(total)），请安装最新构建包")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(bundled == total ? Color.beansComment : Color.orange)
+                Spacer(minLength: 0)
+            }
             if lyricStageEnabled {
                 Divider().opacity(0.5)
                 Button {

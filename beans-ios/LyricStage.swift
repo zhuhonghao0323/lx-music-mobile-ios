@@ -94,6 +94,39 @@ enum LyricStageSettings {
     static let defaultEnabled = false
 }
 
+/// 舞台 HTML 的资源定位。
+///
+/// 打包方式可能是「LyricStages 整目录拷贝」（保留子目录），
+/// 也可能是「逐个 HTML 平铺进 .app 根目录」，两种都要能找到。
+/// 这里直接拼路径 + 存在性检查，比 `Bundle.paths(forResourcesOfType:)` 可靠：
+/// 后者不会递归子目录，用 folder reference 打包时会直接返回空。
+enum LyricStageResources {
+    private static let bundleRoot = Bundle.main.bundleURL
+    private static let lock = NSLock()
+    private static var cache: [String: URL?] = [:]
+
+    static func url(for id: String) -> URL? {
+        let name = "\(id).html"
+        lock.lock()
+        defer { lock.unlock() }
+        // 注意用双层可选：nil 也要缓存，避免每次 body 求值都去问一次文件系统
+        if let cached = cache[name] { return cached }
+
+        let candidates = [
+            bundleRoot.appendingPathComponent("LyricStages").appendingPathComponent(name),
+            bundleRoot.appendingPathComponent(name)
+        ]
+        let found = candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+        cache[name] = found
+        return found
+    }
+
+    /// 当前 App 内实际可用的舞台 HTML 数量（用于设置页自检提示）
+    static var bundledCount: Int {
+        LyricStage.all.filter { url(for: $0.id) != nil }.count
+    }
+}
+
 // MARK: - WKWebView 桥接
 
 struct LyricStageWebView: UIViewRepresentable {
@@ -233,11 +266,9 @@ struct LyricStageWebView: UIViewRepresentable {
 
         private func loadStage(_ stage: LyricStage) {
             guard let webView else { return }
-            let url = Bundle.main.url(forResource: stage.id, withExtension: "html", subdirectory: "LyricStages")
-                ?? Bundle.main.url(forResource: stage.id, withExtension: "html")
-            guard let url else {
-                BeansLogger.shared.log("歌词舞台：找不到资源 \(stage.id).html", level: .warn)
-                // 资源缺失：通知外层关掉舞台，回到原生歌词，绝不留下空白黑屏
+            guard let url = LyricStageResources.url(for: stage.id) else {
+                BeansLogger.shared.log("歌词舞台：找不到资源 \(stage.id).html（打包缺失）", level: .warn)
+                // 资源缺失：只上报失败让外层回落到原生歌词，绝不擅自改用户的开关
                 DispatchQueue.main.async { [weak self] in self?.onReady?(false) }
                 return
             }
