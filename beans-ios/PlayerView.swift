@@ -450,13 +450,19 @@ struct PlayerView: View {
                         immersiveBackground(geo: geo)
 
                         VStack(spacing: 0) {
-                            headerBar
+                            if !stageImmersive { headerBar }
                             content(geo: geo)
                                 .offset(y: verticalSwitchOffset)
                         }
                         .foregroundStyle(.white)
 
-                        immersiveControlBar(bottomInset: geo.safeAreaInsets.bottom)
+                        if stageImmersive {
+                            stageExitChrome
+                        }
+
+                        if !stageImmersive {
+                            immersiveControlBar(bottomInset: geo.safeAreaInsets.bottom)
+                        }
 
                         if showMoreActions {
                             Color.black.opacity(0.001)
@@ -486,9 +492,15 @@ struct PlayerView: View {
                         content(geo: geo)
                             .offset(y: verticalSwitchOffset)
 
-                        controlDeck(bottomInset: geo.safeAreaInsets.bottom)
-                            .frame(maxWidth: .infinity)
-                            .frame(maxHeight: .infinity, alignment: .bottom)
+                        if stageImmersive {
+                            stageExitChrome
+                        }
+
+                        if !stageImmersive {
+                            controlDeck(bottomInset: geo.safeAreaInsets.bottom)
+                                .frame(maxWidth: .infinity)
+                                .frame(maxHeight: .infinity, alignment: .bottom)
+                        }
 
                         if layoutMode && coverPlayerStyle != .vinyl {
                             layoutToolbar
@@ -525,15 +537,21 @@ struct PlayerView: View {
                             .ignoresSafeArea()
 
                         VStack(spacing: 0) {
-                            headerBar
+                            if !stageImmersive { headerBar }
                             content(geo: geo)
                                 .offset(y: verticalSwitchOffset)
                         }
                         .foregroundStyle(palette.text)
 
-                        controlDeck(bottomInset: geo.safeAreaInsets.bottom)
-                            .frame(maxWidth: .infinity)
-                            .frame(maxHeight: .infinity, alignment: .bottom)
+                        if stageImmersive {
+                            stageExitChrome
+                        }
+
+                        if !stageImmersive {
+                            controlDeck(bottomInset: geo.safeAreaInsets.bottom)
+                                .frame(maxWidth: .infinity)
+                                .frame(maxHeight: .infinity, alignment: .bottom)
+                        }
 
                         // 布局编辑工具栏：组件选择 + X/Y/Z 滑杆 + 恢复默认 + 完成
                         if layoutMode {
@@ -2449,6 +2467,37 @@ struct PlayerView: View {
     /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡；可视化开启时控制栏更高）
     private var deckInset: CGFloat { 102 }
 
+    /// 原生风格下的沉浸舞台：歌词页 + 舞台已就绪时，收掉底部整套播放控件，
+    /// 只留顶部返回/收藏按钮，避免上下两块毛玻璃压住舞台。
+    private var stageImmersive: Bool {
+        guard showLyrics, lyricStageEnabled, lyricStageReady, !lyrics.isEmpty else { return false }
+        guard lyricStage != nil else { return false }
+        return LyricStageResources.url(for: lyricStageID) != nil
+    }
+
+    /// 舞台沉浸时顶部/底部控件全部收起，只留一个最小返回入口，避免「进了舞台出不来」
+    private var stageExitChrome: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Button {
+                    BeansHaptics.tap()
+                    withAnimation(.easeInOut(duration: 0.22)) { toggleLyrics() }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(.black.opacity(0.34)))
+                }
+                .buttonStyle(GlassPressButtonStyle())
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            Spacer(minLength: 0)
+        }
+    }
+
     @ViewBuilder
     private func controlDeck(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
@@ -3281,6 +3330,12 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://www.kuwo.cn/search/list?key=\(encoded)")
+        case .kuwo:
+            if song.id > 0 {
+                return URL(string: "https://www.kuwo.cn/play_detail/\(song.id)")
+            }
+            let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://www.kuwo.cn/search/list?key=\(encoded)")
         }
     }
 
@@ -3440,6 +3495,10 @@ struct PlayerView: View {
             }
         } else if song.source == .bodian {
             if let raw = await BodianMusicAPI.shared.lyric(id: song.id) {
+                apply(LyricParser.parse(raw))
+            }
+        } else if song.source == .kuwo {
+            if let raw = await KuwoMusicAPI.shared.lyric(id: song.id) {
                 apply(LyricParser.parse(raw))
             }
         } else if song.source == .qq, let mid = song.qqMid {

@@ -121,6 +121,8 @@ final class HiddenPlaylistStore: ObservableObject {
 struct PlaylistWallView: View {
     let items: [LibraryWallItem]
 
+    @ObservedObject private var prefs = LibraryPlaylistPrefs.shared
+
     private let rows = 2
     private let columns = 3
     private let spacing: CGFloat = 12
@@ -186,6 +188,20 @@ struct PlaylistWallView: View {
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.96))
         .contextMenu {
+            Button {
+                BeansHaptics.tap()
+                if prefs.isPinned(item.id) {
+                    prefs.unpin(item.id)
+                    ToastCenter.shared.show("已取消置顶「\(item.name)」")
+                } else if prefs.pin(item.id) {
+                    ToastCenter.shared.show("已置顶「\(item.name)」，最多 6 个")
+                } else {
+                    ToastCenter.shared.show("最多置顶 6 个歌单，先取消一个吧")
+                }
+            } label: {
+                Label(prefs.isPinned(item.id) ? "取消置顶" : "置顶到音乐库",
+                      systemImage: prefs.isPinned(item.id) ? "pin.slash" : "pin")
+            }
             if let onUpdate = item.onUpdate {
                 Button {
                     BeansHaptics.tap()
@@ -227,6 +243,9 @@ struct LibraryAllPlaylistsSheet: View {
     let items: [LibraryWallItem]
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var hidden = HiddenPlaylistStore.shared
+    @ObservedObject private var prefs = LibraryPlaylistPrefs.shared
+    @EnvironmentObject private var theme: ThemeStore
+    @State private var showPlaylistOrder = false
 
     /// nil = 全部平台
     @State private var platformFilter: String? = nil
@@ -333,6 +352,17 @@ struct LibraryAllPlaylistsSheet: View {
                         Button {
                             BeansHaptics.tap()
                             manageMode = false
+                            showPlaylistOrder = true
+                        } label: {
+                            Label {
+                                Text(verbatim: "调整歌单顺序")
+                            } icon: {
+                                Image(systemName: "arrow.up.arrow.down")
+                            }
+                        }
+                        Button {
+                            BeansHaptics.tap()
+                            manageMode = false
                             showHiddenList = true
                         } label: {
                             Label {
@@ -362,6 +392,10 @@ struct LibraryAllPlaylistsSheet: View {
             }
             .sheet(isPresented: $showHiddenList) {
                 hiddenListSheet
+            }
+            .sheet(isPresented: $showPlaylistOrder) {
+                LibraryPlaylistOrderSheet(items: items)
+                    .environmentObject(theme)
             }
             .confirmationDialog(
                 "删除这个歌单？",
@@ -507,6 +541,19 @@ struct LibraryAllPlaylistsSheet: View {
                 }
                 .contextMenu {
                     if !manageMode {
+                        Button {
+                            if prefs.isPinned(item.id) {
+                                prefs.unpin(item.id)
+                                ToastCenter.shared.show("已取消置顶「\(item.name)」")
+                            } else if prefs.pin(item.id) {
+                                ToastCenter.shared.show("已置顶「\(item.name)」，最多 6 个")
+                            } else {
+                                ToastCenter.shared.show("最多置顶 6 个歌单，先取消一个吧")
+                            }
+                        } label: {
+                            Label(prefs.isPinned(item.id) ? "取消置顶" : "置顶到音乐库",
+                                  systemImage: prefs.isPinned(item.id) ? "pin.slash" : "pin")
+                        }
                         if let onUpdate = item.onUpdate {
                             Button {
                                 dismiss()

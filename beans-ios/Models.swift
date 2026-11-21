@@ -114,6 +114,7 @@ enum ThirdPartyAudioQuality: String, CaseIterable, Identifiable, Sendable {
         case .kugou: return supported(providerCode: "kg")
         case .migu: return supported(providerCode: "mg")
         case .bodian: return supported(providerCode: "kw")
+        case .kuwo: return supported(providerCode: "kw")
         }
     }
 
@@ -147,6 +148,8 @@ enum SongSource: String, Codable, Sendable {
     case kugou
     case migu
     case bodian
+    /// 酷我音乐：歌单来自网页账号，播放走 antiserver 公开接口，歌词复用同曲库通道
+    case kuwo
 
     /// 兼容旧版本地收藏：未知或已下线来源统一回退为网易云
     init(from decoder: Decoder) throws {
@@ -193,6 +196,7 @@ struct Song: Identifiable, Hashable, Codable {
         case .netease: return "netease-\(id)"
         case .migu: return "migu-\(id)"
         case .bodian: return "bodian-\(id)"
+        case .kuwo: return "kuwo-\(id)"
         }
     }
 
@@ -210,6 +214,8 @@ struct Song: Identifiable, Hashable, Codable {
         case .migu:
             return fee != 0
         case .bodian:
+            return fee != 0
+        case .kuwo:
             return fee != 0
         }
     }
@@ -382,6 +388,11 @@ struct Playlist: Identifiable, Hashable, Codable {
     /// 波点的「我喜欢」歌单
     var isBodianLikedPlaylist: Bool {
         source == .bodian && (name.contains("喜欢") || name.contains("红心"))
+    }
+
+    /// 酷我的「我喜欢」歌单
+    var isKuwoLikedPlaylist: Bool {
+        source == .kuwo && (name.contains("喜欢") || name.contains("红心"))
     }
 
     /// 跨平台唯一键：聚合多个平台的歌单时，数字 id 会撞车，用来源 + 平台侧 id 区分

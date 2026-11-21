@@ -15,6 +15,7 @@ struct LibraryCloudSyncSource {
         case .kugou: return "酷狗音乐"
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
+        case .kuwo: return "酷我音乐"
         }
     }
 }
@@ -242,6 +243,8 @@ final class LibraryCloudSyncStore: ObservableObject {
             return try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
         case .bodian:
             return try await BodianMusicAPI.shared.playlistTracks(playlistID: playlist.externalID ?? String(playlist.id))
+        case .kuwo:
+            return try await KuwoMusicAPI.shared.playlistTracks(id: playlist.externalID ?? String(playlist.id))
         case .netease:
             return try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
         case .migu:
@@ -297,6 +300,8 @@ final class LibraryCloudSyncStore: ObservableObject {
 
 struct LibraryCloudSyncSheet: View {
     let sources: [LibraryCloudSyncSource]
+    /// 面板已经显示后再去后台补歌单，避免点按钮时要等所有平台请求跑完
+    var onRefresh: (() async -> Void)? = nil
 
     @ObservedObject private var store = LibraryCloudSyncStore.shared
     @EnvironmentObject private var theme: ThemeStore
@@ -309,6 +314,11 @@ struct LibraryCloudSyncSheet: View {
     /// 展开的平台
     @State private var expandedPlatforms: Set<SongSource> = []
     @State private var didInitSelection = false
+    /// 已经出现过的歌单：后台补到新歌单时只自动勾选「新增」的，不覆盖用户手动取消
+    @State private var knownPlaylistKeys: Set<String> = []
+    /// 每个平台展开后最多先渲染多少个歌单（上千歌单全量渲染会卡住主线程）
+    @State private var expandedLimits: [String: Int] = [:]
+    @State private var isRefreshingSources = false
 
     private func key(_ source: SongSource, _ playlist: Playlist) -> String {
         "\(source.rawValue)-\(playlist.id)"
@@ -379,6 +389,35 @@ struct LibraryCloudSyncSheet: View {
                     selectedPlatforms.insert(group.source)
                     for p in group.playlists { selectedPlaylistKeys.insert(key(group.source, p)) }
                 }
+                knownPlaylistKeys = allPlaylistKeys
+            }
+            .task {
+                guard let onRefresh, !isRefreshingSources else { return }
+                isRefreshingSources = true
+                await onRefresh()
+                isRefreshingSources = false
+                mergeNewPlaylists()
+            }
+            .onChange(of: sourcesSignature) { _ in
+                mergeNewPlaylists()
+            }
+        }
+    }
+
+    /// 只比较各平台歌单数量：重命名等变化不需要重新合并选择
+    private var sourcesSignature: String {
+        sources.map { "\($0.source.rawValue):\($0.playlists.count)" }.joined(separator: ",")
+    }
+
+    /// 后台补齐的歌单只自动勾选新增项；用户手动取消过的不会被重新选上
+    private func mergeNewPlaylists() {
+        guard didInitSelection else { return }
+        for group in sources {
+            for playlist in group.playlists {
+                let k = key(group.source, playlist)
+                if knownPlaylistKeys.insert(k).inserted, selectedPlatforms.contains(group.source) {
+                    selectedPlaylistKeys.insert(k)
+                }
             }
         }
     }
@@ -403,6 +442,15 @@ struct LibraryCloudSyncSheet: View {
                          : "请勾选下方要同步的平台和歌单")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
+                    if isRefreshingSources {
+                        HStack(spacing: 5) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("正在补齐各平台歌单…")
+                                .font(BeansFont.appFont(10.5))
+                                .foregroundStyle(Color.beansComment.opacity(0.9))
+                        }
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -606,8 +654,10 @@ struct LibraryCloudSyncSheet: View {
             }
 
             if expandedPlatforms.contains(group.source) && !group.playlists.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(group.playlists) { playlist in
+                let limit = expandedLimits[group.source.rawValue] ?? 60
+                let shown = Array(group.playlists.prefix(limit))
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(shown) { playlist in
                         Button {
                             BeansHaptics.tap()
                             let k = key(group.source, playlist)
@@ -637,6 +687,18 @@ struct LibraryCloudSyncSheet: View {
                             }
                             .padding(.vertical, 6)
                             .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if group.playlists.count > shown.count {
+                        Button {
+                            BeansHaptics.tap()
+                            expandedLimits[group.source.rawValue] = min(group.playlists.count, limit + 200)
+                        } label: {
+                            Text("显示更多（还有 \(group.playlists.count - shown.count) 个）")
+                                .font(BeansFont.appFont(11.5, .semibold))
+                                .foregroundStyle(Color.beansAmber)
+                                .padding(.vertical, 8)
                         }
                         .buttonStyle(.plain)
                     }

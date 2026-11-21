@@ -563,6 +563,13 @@ final class PlayerManager: NSObject, ObservableObject {
                     thirdPartyQuality: thirdPartyQuality,
                     enableUnblock: enableUnblock
                 )
+            } else if song.source == .kuwo {
+                (urlString, resolvedThirdParty) = await kuwoResolve(
+                    song: song,
+                    quality: quality,
+                    thirdPartyQuality: thirdPartyQuality,
+                    enableUnblock: enableUnblock
+                )
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(
                     song: song,
@@ -678,6 +685,31 @@ final class PlayerManager: NSObject, ObservableObject {
                 artists: song.artists,
                 neteaseID: song.id,
                 songSource: .bodian,
+                quality: thirdPartyQuality
+            )
+        }
+        return (urlString, resolved)
+    }
+
+    /// 酷我播放地址：先走公开的 antiserver 接口（免登录），失败再交给自定义音源（kw）。
+    private func kuwoResolve(
+        song: Song,
+        quality: BeansAudioQuality,
+        thirdPartyQuality: ThirdPartyAudioQuality = .current,
+        enableUnblock: Bool
+    ) async -> (String?, UnblockService.Resolved?) {
+        var urlString = await KuwoMusicAPI.shared.songURL(id: song.id)
+        var resolved: UnblockService.Resolved?
+        BeansLogger.shared.log(
+            "酷我解析：\(song.name) 音质=\(quality.level) 官方URL=\(urlString == nil ? "无" : "有")",
+            level: .debug
+        )
+        if urlString == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: song.id,
+                songSource: .kuwo,
                 quality: thirdPartyQuality
             )
         }
@@ -1390,6 +1422,17 @@ final class PlayerManager: NSObject, ObservableObject {
                 strict: strict,
                 excludedHosts: excludedHosts
             )
+        case .kuwo:
+            // 酷我的歌曲 id 就是酷我音乐 id，自定义音源按 kw 处理器解析
+            return await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                neteaseID: song.id,
+                songSource: .kuwo,
+                quality: quality,
+                strict: strict,
+                excludedHosts: excludedHosts
+            )
         }
     }
 
@@ -1570,6 +1613,9 @@ final class PlayerManager: NSObject, ObservableObject {
         case .bodian:
             // 波点只能扫码登录，登录后按同一账号继续走官方地址
             return BodianMusicAuth.shared.isLoggedIn
+        case .kuwo:
+            // 酷我只能扫码登录，登录后按同一账号继续走官方地址
+            return KuwoMusicAuth.shared.isLoggedIn
         }
     }
 

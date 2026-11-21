@@ -32,6 +32,7 @@ private extension SongSource {
         case .kugou: return "酷狗音乐"
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
+        case .kuwo: return "酷我音乐"
         }
     }
 }
@@ -88,7 +89,12 @@ enum PlaylistImportService {
             }
         }
         // 波点 / 酷我：分享页把歌单 id 放在 id= 参数里，优先取它，避免抓到别的数字
-        if lower.contains("bodian") || lower.contains("kuwo.cn") {
+        if lower.contains("kuwo.cn") && !lower.contains("bodian") {
+            if let id = Self.kuwoPlaylistID(from: raw) {
+                return (.kuwo, id)
+            }
+        }
+        if lower.contains("bodian") {
             if let id = firstMatch(#"[?&]id=(\d+)"#, in: text, group: 1)
                 ?? firstMatch(#"/(\d{6,})(?:\.html|$)"#, in: text, group: 1)
                 ?? firstMatch(#"(\d{3,})"#, in: text, group: 1) {
@@ -99,6 +105,16 @@ enum PlaylistImportService {
         if let id = firstMatch(#"^(\d{3,})$"#, in: text, group: 1) {
             return (preferred, id)
         }
+        return nil
+    }
+
+    /// 从酷我分享文案里取歌单 id：支持 playlist_detail/123、id=123、纯数字
+    static func kuwoPlaylistID(from text: String) -> String? {
+        if let id = firstMatch(#"(?:playlist_detail/|playlist/|id=|pid=)(\d{6,})"#, in: text, group: 1) {
+            return id
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.allSatisfy({ $0.isNumber }), trimmed.count >= 6 { return trimmed }
         return nil
     }
 
@@ -184,6 +200,8 @@ enum PlaylistImportService {
             playlist = try? await KugouMusicAPI.shared.playlistDetail(sourceID: sourceID)
         case .bodian:
             playlist = nil
+        case .kuwo:
+            playlist = nil
         case .migu:
             throw PlaylistImportError.unsupportedPlatform(source.displayName)
         }
@@ -227,6 +245,8 @@ enum PlaylistImportService {
             )
         case .bodian:
             return try await BodianMusicAPI.shared.playlistTracks(playlistID: sourceID)
+        case .kuwo:
+            return try await KuwoMusicAPI.shared.playlistTracks(id: sourceID)
         case .migu:
             throw PlaylistImportError.unsupportedPlatform(source.displayName)
         }

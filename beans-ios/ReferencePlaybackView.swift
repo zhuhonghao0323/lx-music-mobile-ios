@@ -66,6 +66,8 @@ struct ReferencePlaybackView: View {
     private let downloadFeatureUnlocked = true
     @State private var lyricCenters: [UUID: CGFloat] = [:]
     @State private var focusedLyricID: UUID?
+    /// 沉浸舞台：点一下屏幕才呼出极简控制层，默认全部隐藏
+    @State private var stageChromeVisible = false
     @State private var lyricsViewportHeight: CGFloat = 0
     @State private var isDraggingLyrics = false
     @State private var resumeTask: Task<Void, Never>?
@@ -115,62 +117,41 @@ struct ReferencePlaybackView: View {
             ZStack {
                 playerBackground
 
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: ReferencePlaybackPresentationMetrics.headerTopSpacing)
+                // 舞台 WebView 常驻：未就绪时 0.001 透明度预热，
+                // 就绪后整块铺满屏幕并盖住顶部信息条与底部播放控件（不再有毛玻璃上下栏）。
+                if lyricStageConfigured, let stage = lyricStage {
+                    stageCanvas(stage, insets: geometry.safeAreaInsets)
+                        .opacity(lyricStageActive ? 1 : 0.001)
+                        .allowsHitTesting(lyricStageActive)
+                        .zIndex(lyricStageActive ? 2 : 0)
+                }
 
-                    ZStack {
-                        if showLyrics {
-                            ZStack {
-                                if lyricStageConfigured, let stage = lyricStage {
-                                    ZStack {
-                                        // 舞台异常时透出播放器背景，避免一块纯黑
-                                        Color.clear
-                                        LyricStageWebView(
-                                            stage: stage,
-                                            lines: lyrics,
-                                            progress: clock.progress,
-                                            isPlaying: player.isPlaying,
-                                            accentHex: stageAccentHex,
-                                            onReady: { ok in
-                                                // 只切换「舞台 / 原生歌词」，不动用户的开关
-                                                lyricStageReady = ok
-                                            }
-                                        )
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        // 0.001 而不是 0：避免 WebKit 被判定为不可见后暂停出帧
-                                        .opacity(lyricStageActive ? 1 : 0.001)
-                                        VStack {
-                                            LinearGradient(
-                                                colors: [.black.opacity(0.62), .clear],
-                                                startPoint: .top, endPoint: .bottom
-                                            )
-                                            .frame(height: 170)
-                                            Spacer()
-                                        }
-                                        .allowsHitTesting(false)
-                                    }
-                                    .ignoresSafeArea()
-                                }
+                if !lyricStageActive {
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: ReferencePlaybackPresentationMetrics.headerTopSpacing)
+
+                        ZStack {
+                            if showLyrics {
                                 lyricsPage
                                     .simultaneousGesture(lyricsSwipeBackGesture)
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                                        removal: .move(edge: .top).combined(with: .opacity)
+                                    ))
+                            } else {
+                                coverPage(size: geometry.size)
+                                    .simultaneousGesture(coverSwipeGesture)
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .top).combined(with: .opacity),
+                                        removal: .move(edge: .top).combined(with: .opacity)
+                                    ))
                             }
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .bottom).combined(with: .opacity),
-                                removal: .move(edge: .top).combined(with: .opacity)
-                            ))
-                        } else {
-                            coverPage(size: geometry.size)
-                                .simultaneousGesture(coverSwipeGesture)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .top).combined(with: .opacity),
-                                    removal: .move(edge: .top).combined(with: .opacity)
-                                ))
                         }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .animation(.easeInOut(duration: 0.22), value: showLyrics)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .animation(.easeInOut(duration: 0.22), value: showLyrics)
 
-                    playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
+                        playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
+                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -183,7 +164,13 @@ struct ReferencePlaybackView: View {
         .onDisappear { resumeTask?.cancel() }
         .onChange(of: lyricStageID) { _ in lyricStageReady = false }
         .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
-        .onChange(of: showLyrics) { _ in lyricStageReady = false }
+        .onChange(of: showLyrics) { _ in
+            lyricStageReady = false
+            stageChromeVisible = false
+        }
+        .onChange(of: lyricStageActive) { active in
+            if !active { stageChromeVisible = false }
+        }
         // 兜底：2.4s 仍未 ready 就直接放行，避免舞台被 ready 门控永久挡住。
         // 资源缺失时不能放行，否则空 WebView 会顶掉原生歌词。
         .task(id: "stage-" + lyricStageID + "-" + (song?.identityKey ?? "") + "-" + (lyricStageEnabled ? "1" : "0") + "-" + (showLyrics ? "1" : "0")) {
@@ -346,6 +333,132 @@ struct ReferencePlaybackView: View {
             }
         }
         .frame(maxWidth: 420)
+    }
+
+    // MARK: - 沉浸舞台
+
+    /// 舞台画布：铺满全屏，歌词由 WebView 自己绘制。
+    /// 轻点任意位置呼出/收起极简控制层；从左往右滑仍然回到封面。
+    private func stageCanvas(_ stage: LyricStage, insets: EdgeInsets) -> some View {
+        ZStack {
+            LyricStageWebView(
+                stage: stage,
+                lines: lyrics,
+                progress: clock.progress,
+                isPlaying: player.isPlaying,
+                accentHex: stageAccentHex,
+                onReady: { ok in lyricStageReady = ok }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if lyricStageActive {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            stageChromeVisible.toggle()
+                        }
+                    }
+                    .simultaneousGesture(lyricsSwipeBackGesture)
+
+                if stageChromeVisible {
+                    immersiveChrome(insets: insets)
+                        .transition(.opacity)
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    /// 沉浸模式下临时呼出的控制层：没有毛玻璃、没有常驻栏，只在点击后出现
+    private func immersiveChrome(insets: EdgeInsets) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    BeansHaptics.tap()
+                    withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(.black.opacity(0.34)))
+                }
+                .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(song?.name ?? "")
+                        .font(BeansFont.appFont(14, .semibold))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(BeansFont.appFont(11))
+                        .opacity(0.72)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    BeansHaptics.tap()
+                    withAnimation(.easeInOut(duration: 0.18)) { stageChromeVisible = false }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(.black.opacity(0.34)))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, max(insets.top, 20) + 4)
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 14) {
+                ReferenceScrubber()
+                HStack(spacing: 40) {
+                    Button {
+                        BeansHaptics.tap()
+                        player.previous()
+                    } label: {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        BeansHaptics.tap()
+                        player.togglePlayPause()
+                    } label: {
+                        PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 22)
+                            .frame(width: 58, height: 58)
+                            .background(Circle().fill(.white.opacity(0.14)))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        BeansHaptics.tap()
+                        player.next()
+                    } label: {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 26)
+            .padding(.bottom, max(insets.bottom, 16) + 14)
+        }
+        .foregroundStyle(.white)
+        .background {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0.52), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 150)
+                Spacer(minLength: 0)
+                LinearGradient(colors: [.clear, .black.opacity(0.62)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 220)
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var lyricsPage: some View {

@@ -51,6 +51,10 @@ struct PlaylistView: View {
             // 波点按当前登录账号隔离缓存，未登录用固定值
             let bodianAuth = BodianMusicAuth.shared
             return bodianAuth.isLoggedIn ? bodianAuth.uid : "bodian-guest"
+        case .kuwo:
+            // 酷我按当前登录账号隔离缓存，未登录用固定值
+            let kuwoAuth = KuwoMusicAuth.shared
+            return kuwoAuth.isLoggedIn ? kuwoAuth.uid : "kuwo-guest"
         }
     }
 
@@ -265,6 +269,11 @@ struct PlaylistView: View {
                 if tracks.isEmpty, playlist.isBodianLikedPlaylist {
                     tracks = favorites.bodianFavoriteSongs
                     BeansLogger.shared.log("波点我的喜欢页面网络结果为空，使用本地收藏回退 count=\(tracks.count)", level: tracks.isEmpty ? .warn : .info)
+                }
+            } else if playlist.source == .kuwo {
+                tracks = try await KuwoMusicAPI.shared.playlistTracks(id: playlist.externalID ?? String(playlist.id))
+                if tracks.isEmpty, playlist.isKuwoLikedPlaylist {
+                    tracks = favorites.kuwoFavoriteSongs
                 }
             } else {
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)

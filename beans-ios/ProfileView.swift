@@ -66,6 +66,7 @@ struct ProfileView: View {
             case .kugou: return "Kugou Music"
             case .migu: return "Migu Music"
             case .bodian: return "Bodian Music"
+            case .kuwo: return "Kuwo Music"
             case .all: return "All Platforms"
             }
         }.joined(separator: " / ")
@@ -874,6 +875,7 @@ struct AccountHubSheet: View {
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
+    @ObservedObject private var kuwoAuth = KuwoMusicAuth.shared
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
     @AppStorage("beans.language") private var languageRaw = AppLanguage.chinese.rawValue
     @Environment(\.dismiss) private var dismiss
@@ -882,6 +884,8 @@ struct AccountHubSheet: View {
     @State private var showQQLogin = false
     @State private var showKugouLogin = false
     @State private var showBodianLogin = false
+    @State private var showKuwoLogin = false
+    @State private var confirmKuwoLogout = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
     @State private var confirmKugouLogout = false
@@ -897,6 +901,7 @@ struct AccountHubSheet: View {
             case .kugou: return "Kugou Music"
             case .migu: return "Migu Music"
             case .bodian: return "Bodian Music"
+            case .kuwo: return "Kuwo Music"
             case .all: return "All Platforms"
             }
         }.joined(separator: " / ")
@@ -913,6 +918,7 @@ struct AccountHubSheet: View {
                         if platformPrefs.isEnabled(SearchProvider.qq) { qqCard }
                         if platformPrefs.isEnabled(SearchProvider.kugou) { kugouCard }
                         if platformPrefs.isEnabled(SearchProvider.bodian) { bodianCard }
+                        if platformPrefs.isEnabled(SearchProvider.kuwo) { kuwoCard }
                         Text(isEnglish ? "Sign in to \(displayPlatformSummary) to sync playlists and improve playback availability" : "\(platformPrefs.summaryText) 登录后可同步歌单并提升可播成功率")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
@@ -945,6 +951,10 @@ struct AccountHubSheet: View {
         }
         .sheet(isPresented: $showBodianLogin) {
             BodianLoginSheet()
+                .environmentObject(theme)
+        }
+        .sheet(isPresented: $showKuwoLogin) {
+            KuwoLoginSheet()
                 .environmentObject(theme)
         }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
@@ -1177,6 +1187,48 @@ struct AccountHubSheet: View {
                 Text(bodianAuth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(bodianAuth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background { BeansSurface(shape: Capsule()) }
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+
+    private var kuwoCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if kuwoAuth.isLoggedIn { confirmKuwoLogout = true } else { showKuwoLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "k.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .foregroundStyle(Color(red: 0.97, green: 0.70, blue: 0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color(red: 0.97, green: 0.70, blue: 0.08).opacity(0.28), radius: 10, y: 4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("酷我音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(kuwoAuth.isLoggedIn
+                         ? (kuwoAuth.nickname.isEmpty ? "已登录" : kuwoAuth.nickname)
+                         : "未登录 · 网页登录同步歌单")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer()
+                Text(kuwoAuth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(kuwoAuth.isLoggedIn ? Color.red : Color.beansAmber)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background { BeansSurface(shape: Capsule()) }

@@ -27,6 +27,7 @@ func beansPlatformName(_ provider: SearchProvider) -> String {
     case .kugou: return beansLocalized("酷狗音乐", "Kugou Music")
     case .migu: return beansLocalized("咪咕音乐", "Migu Music")
     case .bodian: return beansLocalized("波点音乐", "Bodian Music")
+    case .kuwo: return beansLocalized("酷我音乐", "Kuwo Music")
     case .all: return beansLocalized("全部平台", "All Platforms")
     }
 }

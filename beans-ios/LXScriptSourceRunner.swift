@@ -772,6 +772,7 @@ final class LXScriptSourceRunner {
         case .kugou: return "kg"
         case .migu: return "mg"
         case .bodian: return "kw"
+        case .kuwo: return "kw"
         }
     }
 

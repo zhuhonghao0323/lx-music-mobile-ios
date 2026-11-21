@@ -44,13 +44,14 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     case kugou = "酷狗音乐"
     case migu = "咪咕音乐"
     case bodian = "波点音乐"
+    case kuwo = "酷我音乐"
     /// 首页聚合模式：把各平台首页内容合并展示。不是真实平台，因此不参与平台启用/排序。
     case all = "全部平台"
 
     /// 真实平台列表（排除聚合模式）。`allCases` 被它覆盖，所以平台启用开关、排序、
     /// 搜索页的平台选择器都不会出现「全部平台」。
     static var allCases: [SearchProvider] {
-        [.netease, .qq, .kugou, .migu, .bodian]
+        [.netease, .qq, .kugou, .migu, .bodian, .kuwo]
     }
 
     /// 是否是真实平台（可登录、可搜索、可播放）。
@@ -61,7 +62,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     var supportsHomeFeed: Bool {
         switch self {
         case .netease, .qq, .kugou, .bodian, .all: return true
-        case .migu: return false
+        case .migu, .kuwo: return false
         }
     }
 
@@ -71,7 +72,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     var supportsCharts: Bool {
         switch self {
         case .netease, .qq, .kugou, .all: return true
-        case .migu, .bodian: return false
+        case .migu, .bodian, .kuwo: return false
         }
     }
 
@@ -79,7 +80,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     var supportsPlaylistSquare: Bool {
         switch self {
         case .netease, .qq, .kugou, .bodian, .all: return true
-        case .migu: return false
+        case .migu, .kuwo: return false
         }
     }
 
@@ -101,6 +102,9 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .bodian: return LinearGradient(
             colors: [Color(red: 0.10, green: 0.80, blue: 0.62), Color(red: 0.03, green: 0.55, blue: 0.48)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .kuwo: return LinearGradient(
+            colors: [Color(red: 0.98, green: 0.72, blue: 0.12), Color(red: 0.90, green: 0.52, blue: 0.02)],
+            startPoint: .topLeading, endPoint: .bottomTrailing)
         case .all: return LinearGradient(
             colors: [Color(red: 0.45, green: 0.42, blue: 0.92), Color(red: 0.20, green: 0.66, blue: 0.86)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -114,6 +118,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .kugou: return "music.note"
         case .migu: return "dot.radiowaves.left.and.right"
         case .bodian: return "b.circle.fill"
+        case .kuwo: return "k.circle.fill"
         case .all: return "square.grid.2x2.fill"
         }
     }
@@ -125,6 +130,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .kugou: return "BrandKugou"
         case .migu: return nil
         case .bodian: return "BrandBodian"
+        case .kuwo: return nil
         case .all: return "BrandAll"
         }
     }
@@ -137,6 +143,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .kugou: return "酷狗"
         case .migu: return "咪咕"
         case .bodian: return "波点"
+        case .kuwo: return "酷我"
         case .all: return "全部"
         }
     }
@@ -148,6 +155,7 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .kugou: self = .kugou
         case .migu: self = .migu
         case .bodian: self = .bodian
+        case .kuwo: self = .kuwo
         }
     }
 }
@@ -242,6 +250,8 @@ enum SearchAggregator {
             return (try? await MiguMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
         case .bodian:
             return (try? await BodianMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
+        case .kuwo:
+            return (try? await KuwoMusicAPI.shared.searchSongs(keyword: keyword, limit: limit)) ?? []
         case .all:
             return []
         }
@@ -961,6 +971,7 @@ struct SearchView: View {
         case .kugou: return "酷狗音乐热搜"
         case .bodian: return "波点音乐热搜"
         case .migu: return "咪咕音乐热搜"
+        case .kuwo: return "酷我音乐热搜"
         case .all: return "热门搜索"
         }
     }
@@ -976,6 +987,8 @@ struct SearchView: View {
             hotWords = []
         } else if provider == .bodian {
             hotWords = await BodianMusicAPI.shared.hotWords()
+        } else if provider == .kuwo {
+            hotWords = []
         } else if let words = try? await NetEaseAPI.shared.hotSearch() {
             hotWords = words
         }
@@ -1058,6 +1071,23 @@ struct SearchView: View {
                     await MainActor.run { artistResults = artists }
                 case (.migu, .album):
                     let albums = try await MiguMusicAPI.shared.searchAlbums(keyword: trimmed)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { albumResults = albums }
+                case (.kuwo, .song):
+                    let songs = try await KuwoMusicAPI.shared.searchSongs(keyword: trimmed, limit: 40)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        songResults = songs
+                        if !songs.isEmpty { BeansHaptics.success() }
+                    }
+                case (.kuwo, .artist):
+                    let songs = (try? await KuwoMusicAPI.shared.searchSongs(keyword: trimmed, limit: 60)) ?? []
+                    let artists = SearchAggregator.artists(from: songs)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { artistResults = artists }
+                case (.kuwo, .album):
+                    let songs = (try? await KuwoMusicAPI.shared.searchSongs(keyword: trimmed, limit: 60)) ?? []
+                    let albums = SearchAggregator.albums(from: songs)
                     guard !Task.isCancelled else { return }
                     await MainActor.run { albumResults = albums }
                 case (.bodian, .song):
@@ -1200,6 +1230,8 @@ struct AlbumDetailView: View {
         do {
             let result: [Song]
             switch album.source {
+            case .kuwo:
+                result = []
             case .netease:
                 guard let id = Int(album.id.replacingOccurrences(of: "netease-", with: "")) else {
                     throw NSError(domain: "BeansAlbum", code: 1, userInfo: [NSLocalizedDescriptionKey: "专辑 ID 无效"])

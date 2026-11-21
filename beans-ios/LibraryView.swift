@@ -11,6 +11,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
     case kugou = "酷狗音乐"
     case migu = "咪咕音乐"
     case bodian = "波点音乐"
+    case kuwo = "酷我音乐"
 
     var id: String { rawValue }
 
@@ -26,6 +27,8 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
             return LinearGradient(colors: [Color(red: 0.98, green: 0.36, blue: 0.42), Color(red: 0.85, green: 0.16, blue: 0.36)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .bodian:
             return LinearGradient(colors: [Color(red: 0.10, green: 0.80, blue: 0.62), Color(red: 0.03, green: 0.55, blue: 0.48)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .kuwo:
+            return LinearGradient(colors: [Color(red: 0.98, green: 0.72, blue: 0.12), Color(red: 0.90, green: 0.52, blue: 0.02)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -36,6 +39,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .kugou: return "music.note"
         case .migu: return "dot.radiowaves.left.and.right"
         case .bodian: return "b.circle.fill"
+        case .kuwo: return "k.circle.fill"
         }
     }
 
@@ -46,6 +50,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .kugou: return "BrandKugou"
         case .migu: return nil
         case .bodian: return "BrandBodian"
+        case .kuwo: return nil
         }
     }
 
@@ -57,6 +62,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .kugou: return "酷狗"
         case .migu: return "咪咕"
         case .bodian: return "波点"
+        case .kuwo: return "酷我"
         }
     }
 
@@ -68,6 +74,7 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
         case .kugou: return Color(red: 0.06, green: 0.40, blue: 0.78)
         case .migu: return Color(red: 0.90, green: 0.20, blue: 0.36)
         case .bodian: return Color(red: 0.05, green: 0.60, blue: 0.52)
+        case .kuwo: return Color(red: 0.92, green: 0.62, blue: 0.06)
         }
     }
 
@@ -84,6 +91,7 @@ private extension LibraryProvider {
         case .kugou: return .kugou
         case .migu: return .migu
         case .bodian: return .bodian
+        case .kuwo: return .kuwo
         }
     }
 }
@@ -124,13 +132,20 @@ struct LibraryView: View {
     @State private var bodianPlaylists: [Playlist] = []
     @State private var bodianLoading = false
     @State private var bodianSavedAt = Date.distantPast
+    @State private var kuwoPlaylists: [Playlist] = []
+    @State private var kuwoLoading = false
+    @State private var kuwoSavedAt = Date.distantPast
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
+    @ObservedObject private var kuwoAuth = KuwoMusicAuth.shared
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
     @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
     @ObservedObject private var localLibrary = LocalLibraryStore.shared
     @ObservedObject private var favoritePlaylists = FavoritePlaylistStore.shared
     @ObservedObject private var cloudSync = LibraryCloudSyncStore.shared
+    @ObservedObject private var playlistPrefs = LibraryPlaylistPrefs.shared
     @State private var showCloudSyncSheet = false
+    @State private var showPlaylistOrder = false
+    @State private var showKuwoLogin = false
     @State private var showAllPlaylistsSheet = false
     @State private var showAllSongsSheet = false
     @State private var selectedLocalPlaylist: LocalPlaylist?
@@ -161,6 +176,10 @@ struct LibraryView: View {
         SyncedPlaylistOrderStore.shared.ordered(bodianPlaylists, source: .bodian)
     }
 
+    private var orderedKuwoPlaylists: [Playlist] {
+        SyncedPlaylistOrderStore.shared.ordered(kuwoPlaylists, source: .kuwo)
+    }
+
     private var qqCacheAccountID: String {
         let raw = qqAuth.rawUin
         return raw.isEmpty ? qqAuth.playlistUin : raw
@@ -174,6 +193,10 @@ struct LibraryView: View {
         bodianAuth.isLoggedIn ? bodianAuth.uid : "bodian-guest"
     }
 
+    private var kuwoCacheAccountID: String {
+        kuwoAuth.isLoggedIn ? kuwoAuth.uid : "kuwo-guest"
+    }
+
     private var syncedPlaylistBinding: Binding<[Playlist]> {
         Binding(
             get: {
@@ -183,6 +206,7 @@ struct LibraryView: View {
                 case .kugou: return orderedKugouPlaylists
                 case .migu: return []
                 case .bodian: return orderedBodianPlaylists
+                case .kuwo: return orderedKuwoPlaylists
                 }
             },
             set: { value in
@@ -192,6 +216,7 @@ struct LibraryView: View {
                 case .kugou: kugouPlaylists = value
                 case .migu: break
                 case .bodian: bodianPlaylists = value
+                case .kuwo: kuwoPlaylists = value
                 }
                 SyncedPlaylistOrderStore.shared.save(value, source: source.songSource)
             }
@@ -244,6 +269,9 @@ struct LibraryView: View {
                                 } else if source == .migu {
                                     miguSection
                                 } else {
+                                    if source == .kuwo && !kuwoAuth.isLoggedIn {
+                                        kuwoLoginBanner
+                                    }
                                     playlistsWallSection
                                     LibraryAllSongsSection(songs: aggregatedSongs) {
                                         showAllSongsSheet = true
@@ -305,6 +333,11 @@ struct LibraryView: View {
             source = .bodian
             Task { await loadBodianPlaylists(force: true) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .beansKuwoLoginDidUpdate)) { _ in
+            guard platformPrefs.isEnabled(SearchProvider.kuwo) else { return }
+            if kuwoAuth.isLoggedIn { source = .kuwo }
+            Task { await loadKuwoPlaylists(force: true) }
+        }
         .sheet(isPresented: $showHistory) {
             HistoryView()
                 .environmentObject(player)
@@ -335,6 +368,14 @@ struct LibraryView: View {
             ImportPlaylistSheet(defaultSource: source.songSource, presetPlaylist: importPreset)
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showKuwoLogin) {
+            KuwoLoginSheet()
+                .environmentObject(theme)
+        }
+        .sheet(isPresented: $showPlaylistOrder) {
+            LibraryPlaylistOrderSheet(items: wallItems)
+                .environmentObject(theme)
+        }
         .fullScreenCover(isPresented: $showAllPlaylistsSheet) {
             LibraryAllPlaylistsSheet(items: wallItems)
                 .environmentObject(theme)
@@ -346,8 +387,10 @@ struct LibraryView: View {
                 .environmentObject(auth)
         }
         .sheet(isPresented: $showCloudSyncSheet) {
-            LibraryCloudSyncSheet(sources: syncSources)
-                .environmentObject(theme)
+            LibraryCloudSyncSheet(sources: syncSources) {
+                await refreshCloudSyncSources()
+            }
+            .environmentObject(theme)
         }
         .fullScreenCover(isPresented: $showAllSongsSheet) {
             LibraryAllSongsSheet(songs: aggregatedSongs)
@@ -572,17 +615,73 @@ struct LibraryView: View {
     // MARK: - 歌单墙（3 列 × 2 行，可一直右滑）
 
     private var playlistsWallSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "全部歌单", trailing: wallItems.isEmpty ? nil : "查看全部") {
-                BeansHaptics.tap()
-                showAllPlaylistsSheet = true
+        VStack(alignment: .leading, spacing: 22) {
+            if !pinnedWallItems.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionHeader(title: "置顶歌单", trailing: "排序") {
+                        BeansHaptics.tap()
+                        showPlaylistOrder = true
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(pinnedWallItems) { item in
+                                LibraryPinnedPlaylistCard(item: item)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
             }
-            if wallItems.isEmpty {
-                EmptyStateView(icon: "music.note.list", text: "还没有歌单\n登录任一平台或导入歌单后会显示在这里")
-            } else {
-                PlaylistWallView(items: wallItems)
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "全部歌单", trailing: wallItems.isEmpty ? nil : "查看全部") {
+                    BeansHaptics.tap()
+                    showAllPlaylistsSheet = true
+                }
+                if wallItems.isEmpty {
+                    EmptyStateView(icon: "music.note.list", text: "还没有歌单\n登录任一平台或导入歌单后会显示在这里")
+                } else {
+                    PlaylistWallView(items: wallItems)
+                }
             }
         }
+    }
+
+    /// 酷我未登录时的引导卡：直接在音乐库完成登录，不用再绕到「我的」
+    private var kuwoLoginBanner: some View {
+        Button {
+            BeansHaptics.tap()
+            showKuwoLogin = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "k.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(Color(red: 0.97, green: 0.70, blue: 0.08))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("登录酷我音乐")
+                        .font(BeansFont.appFont(14, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text("网页登录后自动同步「我的歌单」，也可以直接粘贴歌单链接")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.beansComment.opacity(0.6))
+            }
+            .padding(14)
+            .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous)) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.98))
+    }
+
+    /// 置顶歌单：按置顶顺序取墙上的卡片，隐藏/删除后自动消失
+    private var pinnedWallItems: [LibraryWallItem] {
+        guard !playlistPrefs.pinned.isEmpty else { return [] }
+        let lookup = Dictionary(wallItems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return playlistPrefs.pinned.compactMap { lookup[$0] }
     }
 
     /// 当前平台账号同步回来的歌单
@@ -592,6 +691,7 @@ struct LibraryView: View {
         case .qq: return qqAuth.isLoggedIn ? qqPlaylists : []
         case .kugou: return kugouAuth.isLoggedIn ? kugouPlaylists : []
         case .bodian: return bodianAuth.isLoggedIn ? bodianPlaylists : []
+        case .kuwo: return kuwoAuth.isLoggedIn ? kuwoPlaylists : []
         case .migu: return []
         }
     }
@@ -614,6 +714,9 @@ struct LibraryView: View {
             case .bodian:
                 guard bodianAuth.isLoggedIn else { continue }
                 result += orderedBodianPlaylists.map { ($0, .bodian) }
+            case .kuwo:
+                guard kuwoAuth.isLoggedIn else { continue }
+                result += orderedKuwoPlaylists.map { ($0, .kuwo) }
             case .migu:
                 continue
             }
@@ -627,6 +730,7 @@ struct LibraryView: View {
         case .qq: return qqCacheAccountID
         case .kugou: return kugouCacheAccountID
         case .bodian: return bodianCacheAccountID
+        case .kuwo: return kuwoCacheAccountID
         case .migu: return ""
         }
     }
@@ -728,7 +832,8 @@ struct LibraryView: View {
                 )
             )
         }
-        return items
+        // 用户在「歌单排序」里拖拽过的顺序优先，其余保持上面分组顺序
+        return playlistPrefs.sorted(items)
     }
 
     /// 云同步覆盖范围：已登录平台的云端歌单
@@ -737,7 +842,8 @@ struct LibraryView: View {
             LibraryCloudSyncSource(source: .netease, accountID: "\(auth.user?.uid ?? 0)", playlists: auth.isLoggedIn ? auth.playlists : []),
             LibraryCloudSyncSource(source: .qq, accountID: qqCacheAccountID, playlists: qqAuth.isLoggedIn ? qqPlaylists : []),
             LibraryCloudSyncSource(source: .kugou, accountID: kugouCacheAccountID, playlists: kugouAuth.isLoggedIn ? kugouPlaylists : []),
-            LibraryCloudSyncSource(source: .bodian, accountID: bodianCacheAccountID, playlists: bodianAuth.isLoggedIn ? bodianPlaylists : [])
+            LibraryCloudSyncSource(source: .bodian, accountID: bodianCacheAccountID, playlists: bodianAuth.isLoggedIn ? bodianPlaylists : []),
+            LibraryCloudSyncSource(source: .kuwo, accountID: kuwoCacheAccountID, playlists: kuwoAuth.isLoggedIn ? kuwoPlaylists : [])
         ]
     }
 
@@ -1126,22 +1232,31 @@ struct LibraryView: View {
     /// 各平台的歌单数组原本只在切到该平台时才懒加载，同步面板会读到空数组。
     private func prepareAndShowCloudSync() {
         BeansHaptics.tap()
-        Task {
-            await withTaskGroup(of: Void.self) { group in
-                if platformPrefs.isEnabled(SearchProvider.netease) && auth.isLoggedIn {
-                    group.addTask { await auth.loadLibrary(force: false) }
-                }
-                if platformPrefs.isEnabled(SearchProvider.qq) && qqAuth.isLoggedIn {
-                    group.addTask { await loadQQPlaylists(force: false) }
-                }
-                if platformPrefs.isEnabled(SearchProvider.kugou) && kugouAuth.isLoggedIn {
-                    group.addTask { await loadKugouPlaylists(force: false) }
-                }
-                if platformPrefs.isEnabled(SearchProvider.bodian) && bodianAuth.isLoggedIn {
-                    group.addTask { await loadBodianPlaylists(force: false) }
-                }
+        // 关键：先把面板弹出来，再去后台补歌单。
+        // 旧实现要等所有平台请求跑完才 show，任何一个平台超时（18s）都会让按钮看起来「点了没反应」，
+        // 期间还在主线程上做解码，App 会明显卡住。
+        if !showCloudSyncSheet { showCloudSyncSheet = true }
+        Task { await refreshCloudSyncSources() }
+    }
+
+    /// 后台补齐各平台歌单：只更新 @State，不阻塞弹窗
+    private func refreshCloudSyncSources() async {
+        await withTaskGroup(of: Void.self) { group in
+            if platformPrefs.isEnabled(SearchProvider.netease) && auth.isLoggedIn {
+                group.addTask { await auth.loadLibrary(force: false) }
             }
-            await MainActor.run { showCloudSyncSheet = true }
+            if platformPrefs.isEnabled(SearchProvider.qq) && qqAuth.isLoggedIn {
+                group.addTask { await loadQQPlaylists(force: false) }
+            }
+            if platformPrefs.isEnabled(SearchProvider.kugou) && kugouAuth.isLoggedIn {
+                group.addTask { await loadKugouPlaylists(force: false) }
+            }
+            if platformPrefs.isEnabled(SearchProvider.bodian) && bodianAuth.isLoggedIn {
+                group.addTask { await loadBodianPlaylists(force: false) }
+            }
+            if platformPrefs.isEnabled(SearchProvider.kuwo) && kuwoAuth.isLoggedIn {
+                group.addTask { await loadKuwoPlaylists(force: false) }
+            }
         }
     }
 
@@ -1158,6 +1273,8 @@ struct LibraryView: View {
             break
         case .bodian:
             await loadBodianPlaylists(force: force)
+        case .kuwo:
+            await loadKuwoPlaylists(force: force)
         }
     }
 
@@ -1486,6 +1603,38 @@ struct LibraryView: View {
         bodianLoading = false
     }
 
+    private func loadKuwoPlaylists(force: Bool = false) async {
+        guard kuwoAuth.isLoggedIn else {
+            kuwoPlaylists = []
+            kuwoLoading = false
+            return
+        }
+        let cache = SyncedPlaylistCache.shared
+        if kuwoPlaylists.isEmpty,
+           let cached = cache.cachedPlaylists(source: .kuwo, accountID: kuwoCacheAccountID) {
+            kuwoPlaylists = cached.playlists
+            kuwoSavedAt = cached.savedAt
+        }
+        if !force, !kuwoPlaylists.isEmpty, Date().timeIntervalSince(kuwoSavedAt) < cache.playlistTTL { return }
+        kuwoLoading = kuwoPlaylists.isEmpty
+        // 登录时 WebView 已经抓到过歌单，先用它兜底；接口能通再覆盖
+        if kuwoPlaylists.isEmpty, !kuwoAuth.playlists.isEmpty {
+            kuwoPlaylists = kuwoAuth.playlists
+        }
+        do {
+            let list = try await KuwoMusicAPI.shared.fetchMyPlaylists()
+            if !list.isEmpty {
+                kuwoPlaylists = list
+                kuwoSavedAt = Date()
+                kuwoAuth.savePlaylists(list)
+                cache.savePlaylists(list, source: .kuwo, accountID: kuwoCacheAccountID)
+            }
+        } catch {
+            BeansLogger.shared.log("酷我歌单同步失败：\(error.localizedDescription)", level: .warn)
+        }
+        kuwoLoading = false
+    }
+
     private func fillQQPlaylistCovers(_ list: [Playlist]) async {
         let missing = list.filter { $0.coverURL == nil }
         guard !missing.isEmpty else { return }
@@ -1553,6 +1702,8 @@ struct LibraryView: View {
             ToastCenter.shared.show("咪咕暂不支持新建歌单")
         case .bodian:
             ToastCenter.shared.show("波点歌单暂不支持新建")
+        case .kuwo:
+            ToastCenter.shared.show("酷我歌单请到酷我 App 或网页版新建")
         }
     }
 
@@ -1599,6 +1750,8 @@ struct LibraryView: View {
             ToastCenter.shared.show("咪咕暂不支持删除歌单")
         case .bodian:
             ToastCenter.shared.show("波点歌单暂不支持删除")
+        case .kuwo:
+            ToastCenter.shared.show("酷我歌单请到酷我 App 或网页版删除")
         }
     }
 

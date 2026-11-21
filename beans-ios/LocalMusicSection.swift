@@ -716,6 +716,8 @@ struct LocalSearchAddSheet: View {
                     songs = try await MiguMusicAPI.shared.searchSongs(keyword: trimmed, limit: 30)
                 case .bodian:
                     songs = try await BodianMusicAPI.shared.searchSongs(keyword: trimmed, limit: 30)
+                case .kuwo:
+                    songs = try await KuwoMusicAPI.shared.searchSongs(keyword: trimmed, limit: 30)
                 case .all:
                     // 该面板只在真实平台间切换，落到「全部」时按网易云处理，避免空结果
                     songs = try await NetEaseAPI.shared.search(keyword: trimmed, limit: 30)

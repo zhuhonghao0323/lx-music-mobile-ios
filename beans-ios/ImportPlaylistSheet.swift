@@ -16,7 +16,7 @@ struct ImportPlaylistSheet: View {
     @State private var loading = false
     @State private var message: String?
 
-    private static let importableSources: [SongSource] = [.netease, .qq, .kugou, .bodian]
+    private static let importableSources: [SongSource] = [.netease, .qq, .kugou, .bodian, .kuwo]
 
     init(defaultSource: SongSource, presetPlaylist: Playlist? = nil) {
         self.defaultSource = defaultSource
@@ -149,6 +149,7 @@ struct ImportPlaylistSheet: View {
         case .qq: return "例如 https://y.qq.com/n/ryqq/playlist/7890123456"
         case .kugou: return "例如 https://www.kugou.com/songlist/gcid_xxxx/ 或 https://www.kugou.com/yy/special/single/123456.html"
         case .bodian: return "填写波点歌单 id（纯数字）"
+        case .kuwo: return "粘贴酷我歌单链接，例如 https://www.kuwo.cn/playlist_detail/2947959139"
         case .migu: return "咪咕暂不支持导入歌单"
         }
     }
@@ -159,6 +160,7 @@ struct ImportPlaylistSheet: View {
         case .qq: return "QQ音乐"
         case .kugou: return "酷狗"
         case .bodian: return "波点"
+        case .kuwo: return "酷我"
         case .migu: return "咪咕"
         }
     }

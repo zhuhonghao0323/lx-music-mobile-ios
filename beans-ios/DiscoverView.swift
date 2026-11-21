@@ -595,7 +595,7 @@ struct DiscoverView: View {
         case .netease: return neteaseTopLists.count
         case .qq: return qqTopLists.count
         case .kugou: return kugouTopLists.count
-        case .migu, .bodian: return 0
+        case .migu, .bodian, .kuwo: return 0
         case .all: return allRankEntries.count
         }
     }
@@ -610,7 +610,7 @@ struct DiscoverView: View {
         case .netease: return !topLists.isEmpty
         case .qq: return !qqTopLists.isEmpty
         case .kugou: return !kugouTopLists.isEmpty
-        case .migu, .bodian: return false
+        case .migu, .bodian, .kuwo: return false
         case .all: return !allRankEntries.isEmpty
         }
     }
@@ -1379,6 +1379,7 @@ struct DiscoverView: View {
         case .kugou: return "歌单广场"
         case .migu: return "咪咕歌单"
         case .bodian: return "波点推荐歌单"
+        case .kuwo: return "酷我歌单"
         case .all: return "热门歌单"
         }
     }
@@ -1390,6 +1391,7 @@ struct DiscoverView: View {
         case .kugou: return "歌单广场暂时没有内容"
         case .migu: return "咪咕暂未开放歌单接口"
         case .bodian: return "波点推荐歌单暂时没有内容"
+        case .kuwo: return "酷我歌单暂时没有内容"
         case .all: return "各平台歌单暂时没有内容\n下拉刷新可重新获取"
         }
     }
@@ -1592,6 +1594,10 @@ struct DiscoverView: View {
         case .bodian:
             // 波点只开放推荐歌单，没有每日推荐与榜单
             async let playlists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 18)) ?? []
+            snapshot.personalized = await playlists
+        case .kuwo:
+            // 酷我暂未提供公开推荐接口，首页保持空态
+            async let playlists: [Playlist] = []
             snapshot.personalized = await playlists
         case .migu:
             // 咪咕不提供首页内容快照
@@ -2461,6 +2467,8 @@ private struct HomeUnifiedSearchSheet: View {
             return (try? await MiguMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
         case .bodian:
             return (try? await BodianMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
+        case .kuwo:
+            return (try? await KuwoMusicAPI.shared.searchSongs(keyword: keyword, limit: 30)) ?? []
         case .all:
             return []
         }

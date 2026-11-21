@@ -12,6 +12,7 @@ struct LyricStage: Identifiable, Hashable {
     let group: String
 
     static let all: [LyricStage] = [
+        // 经典
         .init(id: "001-particle-lyrics", name: "粒子歌词", group: "经典"),
         .init(id: "002-starfield-lyrics", name: "星际歌词", group: "经典"),
         .init(id: "008-snow-lyrics", name: "静雪歌词", group: "经典"),
@@ -21,27 +22,68 @@ struct LyricStage: Identifiable, Hashable {
         .init(id: "027-code-rain-lyrics", name: "代码雨", group: "经典"),
         .init(id: "031-css-cube-lyrics", name: "立方体", group: "经典"),
         .init(id: "048-sierpinski-lyrics", name: "谢尔宾斯基", group: "经典"),
+        // 图形
         .init(id: "066-thrown-splat", name: "泼墨黏墙", group: "图形"),
         .init(id: "067-arc-etch", name: "电蚀刻痕", group: "图形"),
         .init(id: "083-frost", name: "霜花结晶", group: "图形"),
         .init(id: "099-bioluma", name: "生物荧光", group: "图形"),
         .init(id: "304-kidcore", name: "超扁童心", group: "图形"),
+        .init(id: "305-cobalt-grid", name: "Cobalt Grid", group: "图形"),
         .init(id: "306-bauhaus-target", name: "靶心构成", group: "图形"),
+        .init(id: "339-superflat-candy", name: "超扁平糖果", group: "图形"),
         .init(id: "353-acid-lime", name: "酸性青柠", group: "图形"),
         .init(id: "359-midnight-visitor", name: "午夜访客", group: "图形"),
+        .init(id: "361-dead-air-carrier", name: "载波残影", group: "图形"),
         .init(id: "366-neon-cartridge", name: "霓虹卡匣", group: "图形"),
         .init(id: "368-stock-meltdown", name: "图库事故", group: "图形"),
         .init(id: "370-scissor-riot", name: "剪刀暴动", group: "图形"),
+        .init(id: "383-flesh-matrix", name: "裂肉矩阵", group: "图形"),
         .init(id: "396-crate-label", name: "七寸留声", group: "图形"),
         .init(id: "398-mirrorball-glitz", name: "银球夜", group: "图形"),
+        .init(id: "406-glacial-fissure", name: "冰隙微光", group: "图形"),
         .init(id: "408-audio-crystal-bloom", name: "音生晶簇", group: "图形"),
         .init(id: "413-thorn-glass-heart", name: "熔心棘冠", group: "图形"),
         .init(id: "428-thermal-cctv", name: "热像监控", group: "图形"),
         .init(id: "429-sunlit-diary", name: "晴日手记", group: "图形"),
         .init(id: "443-silk-cavern", name: "沉纱", group: "图形"),
+        // 影像
+        .init(id: "504-imessage-lyric", name: "已发送", group: "影像"),
+        .init(id: "505-metalheart-prism", name: "棱镜阈限", group: "影像"),
+        .init(id: "506-chroma-pass", name: "偏色过境", group: "影像"),
+        .init(id: "508-future-is-here", name: "未来已来", group: "影像"),
+        .init(id: "509-kinetic-montage", name: "活字蒙太奇", group: "影像"),
+        .init(id: "510-block-wall", name: "积木字墙", group: "影像"),
+        .init(id: "517-chromatic-pulse", name: "失焦记忆", group: "影像"),
+        .init(id: "518-kinetic-whip", name: "瞬态撕裂", group: "影像"),
+        .init(id: "519-prism-euphoria", name: "琉璃幻境", group: "影像"),
+        .init(id: "520-amber-shutter", name: "胶片慢门", group: "影像"),
+        .init(id: "521-glitch-requiem", name: "赛博挽歌", group: "影像"),
         .init(id: "522-abyssal-echo", name: "深海回响", group: "影像"),
+        .init(id: "524-monolith-void", name: "引力坍缩", group: "影像"),
+        .init(id: "525-neon-raindrop", name: "雨夜霓虹", group: "影像"),
+        .init(id: "540-aurora-ice-cavern", name: "极地冰洞", group: "影像"),
         .init(id: "542-thunderhead-cumulonimbus", name: "雷暴云砧", group: "影像"),
-        .init(id: "588-trigger-impact-frames", name: "扳机闪光帧", group: "影像"),
+        .init(id: "552-ink-wash-rain-pavilion", name: "烟雨江南", group: "影像"),
+        .init(id: "557-y2k-chrome-inflatable", name: "千禧液态气球", group: "影像"),
+        .init(id: "559-synthwave-outrun-highway", name: "落日合成器公路", group: "影像"),
+        .init(id: "561-halftone-comic-popart", name: "波普网点分镜", group: "影像"),
+        .init(id: "563-pixel-arcade-voxel", name: "体素街机厅", group: "影像"),
+        // 实验
+        .init(id: "571-acid-techno-liquid-metal", name: "酸性液态镀铬", group: "实验"),
+        .init(id: "572-barbed-wire-lightning", name: "雷霆荆棘", group: "实验"),
+        .init(id: "580-red-velvet-theater-curtain", name: "丝绒歌剧院", group: "实验"),
+        .init(id: "582-concrete-tunnel-headlight", name: "隧道远光灯", group: "实验"),
+        .init(id: "588-trigger-impact-frames", name: "扳机闪光帧", group: "实验"),
+        .init(id: "590-chainsaw-manga-collage", name: "狂乱漫剪", group: "实验"),
+        .init(id: "603-folded-metal-ribbon-red", name: "折曲红绸", group: "实验"),
+        .init(id: "604-monochrome-noir-rain-blind", name: "百叶窗黑色电影", group: "实验"),
+        .init(id: "614-non-euclidean-portal-rooms", name: "非欧传送门", group: "实验"),
+        .init(id: "617-underwater-classroom-sunbeam", name: "水底教室", group: "实验"),
+        .init(id: "621-apocalyptic-sunset-overpass", name: "末日高架桥", group: "实验"),
+        .init(id: "627-ink-line-rush", name: "墨线暴走", group: "实验"),
+        .init(id: "628-paper-flash", name: "纸页快闪", group: "实验"),
+        .init(id: "629-motion-path", name: "运动路径", group: "实验"),
+        .init(id: "631-stellar-tracking", name: "星轨跟拍", group: "实验"),
     ]
 
     static func stage(id: String) -> LyricStage? {
@@ -81,7 +123,11 @@ struct LyricStage: Identifiable, Hashable {
         case "522-abyssal-echo": return Color(red: 0.08, green: 0.24, blue: 0.46)
         case "542-thunderhead-cumulonimbus": return Color(red: 0.28, green: 0.34, blue: 0.45)
         case "588-trigger-impact-frames": return Color(red: 0.95, green: 0.25, blue: 0.55)
-        default: return Color.beansAmber
+        default:
+            // 新增舞台不逐个手写色卡：用编号做一个稳定的黄金分割取色，保证相邻舞台颜色不撞
+            let seed = Double(Int(id.prefix(3)) ?? 0)
+            let hue = (seed * 0.6180339887).truncatingRemainder(dividingBy: 1.0)
+            return Color(hue: hue, saturation: 0.56, brightness: 0.80)
         }
     }
 }
@@ -364,13 +410,18 @@ struct LyricStagePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(LyricStageSettings.idKey) private var selectedID = LyricStageSettings.defaultID
     @AppStorage(LyricStageSettings.enabledKey) private var stageEnabled = LyricStageSettings.defaultEnabled
+    @State private var searchText = ""
 
     private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
     private var groups: [(title: String, stages: [LyricStage])] {
         var order: [String] = []
         var map: [String: [LyricStage]] = [:]
-        for stage in LyricStage.all {
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = keyword.isEmpty
+            ? LyricStage.all
+            : LyricStage.all.filter { $0.name.localizedCaseInsensitiveContains(keyword) || $0.id.localizedCaseInsensitiveContains(keyword) }
+        for stage in source {
             if map[stage.group] == nil { order.append(stage.group) }
             map[stage.group, default: []].append(stage)
         }
@@ -394,6 +445,27 @@ struct LyricStagePickerSheet: View {
                     .tint(Color.beansAmber)
                     .padding(14)
                     .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.beansComment)
+                        TextField("搜索舞台（共 \(LyricStage.all.count) 种）", text: $searchText)
+                            .font(BeansFont.appFont(13))
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.beansComment.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
 
                     Button {
                         BeansHaptics.tap()

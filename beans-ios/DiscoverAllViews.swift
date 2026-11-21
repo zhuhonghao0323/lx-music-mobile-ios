@@ -150,7 +150,7 @@ struct AllChartsView: View {
         case .netease: return neteaseCharts.count
         case .qq: return qqCharts.count
         case .kugou: return kugouCharts.count
-        case .migu, .bodian: return 0
+        case .migu, .bodian, .kuwo: return 0
         case .all: return allChartEntries.count
         }
     }
@@ -225,7 +225,7 @@ struct AllChartsView: View {
                         divider
                     }
                 }
-            case .migu, .bodian:
+            case .migu, .bodian, .kuwo:
                 EmptyView()
             case .all:
                 ForEach(Array(chartGroups.enumerated()), id: \.offset) { _, group in
@@ -324,8 +324,8 @@ struct AllChartsView: View {
                 if force || kugouCharts.isEmpty {
                     kugouCharts = try await KugouMusicAPI.shared.topLists(limit: 50)
                 }
-            case .migu, .bodian:
-                // 咪咕 / 波点暂未开放榜单接口
+            case .migu, .bodian, .kuwo:
+                // 咪咕 / 波点 / 酷我暂未开放榜单接口
                 break
             case .all:
                 if force {
@@ -818,6 +818,8 @@ struct PlaylistSquareView: View {
             return []
         case .bodian:
             return try await BodianMusicAPI.shared.recommendPlaylists(limit: limit)
+        case .kuwo:
+            return []
         case .all:
             return await fetchAllPlatforms()
         }
@@ -1083,6 +1085,7 @@ struct FavoritePlaylistsView: View {
         case .kugou: return "酷狗音乐"
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
+        case .kuwo: return "酷我音乐"
         }
     }
 

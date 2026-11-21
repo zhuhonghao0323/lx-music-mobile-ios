@@ -48,7 +48,7 @@ struct ArtistHomeSheet: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 artistHeader
                                 hotSongsSection
-                                if artistSource == .netease || artistSource == .migu || artistSource == .bodian {
+                                if artistSource == .netease || artistSource == .migu || artistSource == .bodian || artistSource == .kuwo {
                                     albumsSection
                                 }
                             }
@@ -93,7 +93,7 @@ struct ArtistHomeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                Text(artistSource == .netease || artistSource == .migu || artistSource == .bodian
+                Text(artistSource == .netease || artistSource == .migu || artistSource == .bodian || artistSource == .kuwo
                      ? beansLocalized("热门歌曲 \(hotSongs.count) 首 · 专辑 \(albums.count) 张", "Popular songs: \(hotSongs.count) · Albums: \(albums.count)")
                      : beansLocalized("热门歌曲 \(hotSongs.count) 首", "Popular songs: \(hotSongs.count)"))
                     .font(BeansFont.appFont(12))
@@ -301,9 +301,28 @@ struct ArtistHomeSheet: View {
             await loadMiguArtist()
         } else if artistSource == .bodian {
             await loadBodianArtist()
+        } else if artistSource == .kuwo {
+            await loadKuwoArtist()
         } else {
             await loadNetEaseArtist()
         }
+    }
+
+    /// 酷我没有歌手详情接口，用「歌手名搜索」兜底热歌与专辑
+    private func loadKuwoArtist() async {
+        let songs = (try? await KuwoMusicAPI.shared.searchSongs(keyword: artistName, limit: 80)) ?? []
+        let matched = songs.filter { $0.artists.contains(artistName) }
+        let list = matched.isEmpty ? songs : matched
+        artist = Artist(
+            id: "kuwo-\(artistName)",
+            name: artistName,
+            avatarURL: list.first?.coverURL,
+            albumCount: 0,
+            songCount: list.count
+        )
+        hotSongs = Array(list.prefix(50))
+        albums = SearchAggregator.albums(from: songs)
+        loading = false
     }
 
     /// 波点没有歌手详情接口，用「歌手名搜索」兜底热歌与专辑
