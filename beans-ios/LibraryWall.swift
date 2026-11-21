@@ -1,6 +1,53 @@
 import SwiftUI
 import UIKit
 
+// MARK: - 全屏子页返回（左上角按钮 + 从左往右手势）
+
+/// 全屏页面的左上角返回按钮，外观与主页返回一致
+struct LibraryBackButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button {
+            BeansHaptics.tap()
+            action()
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("返回")
+                    .font(BeansFont.appFont(14))
+            }
+            .foregroundStyle(Color.beansAmber)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 从左往右滑（dx>0）返回，用于全屏子页
+private struct LibrarySwipeBackModifier: ViewModifier {
+    let action: () -> Void
+    func body(content: Content) -> some View {
+        content.gesture(
+            DragGesture(minimumDistance: 40)
+                .onEnded { value in
+                    let dx = value.translation.width
+                    let vx = value.predictedEndTranslation.width
+                    guard dx > 90 || vx > 220,
+                          abs(dx) > abs(value.translation.height) else { return }
+                    BeansHaptics.tap()
+                    action()
+                }
+        )
+    }
+}
+
+extension View {
+    func librarySwipeBack(_ action: @escaping () -> Void) -> some View {
+        modifier(LibrarySwipeBackModifier(action: action))
+    }
+}
+
 // MARK: - 音乐库：歌单墙 + 全部歌曲汇总
 
 /// 歌单封面上的来源平台徽章
@@ -284,11 +331,12 @@ struct LibraryAllPlaylistsSheet: View {
             .navigationTitle("全部歌单")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    LibraryBackButton { dismiss() }
                 }
             }
         }
+        .librarySwipeBack { dismiss() }
     }
 
     private func filterChip(title: String, tint: Color, active: Bool, action: @escaping () -> Void) -> some View {
@@ -520,14 +568,15 @@ struct LibraryAllSongsSheet: View {
             .navigationTitle("全部歌曲")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    LibraryBackButton { dismiss() }
                 }
             }
             .onChange(of: searchText) { _ in resetPaging() }
             .onChange(of: artistFilter) { _ in resetPaging() }
             .onChange(of: languageFilter) { _ in resetPaging() }
         }
+        .librarySwipeBack { dismiss() }
     }
 
     private func resetPaging() {

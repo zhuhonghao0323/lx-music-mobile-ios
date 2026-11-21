@@ -92,9 +92,6 @@ final class LibraryCloudSyncStore: ObservableObject {
     @Published private(set) var cachedSongs: [Song] = []
     @Published private(set) var cancelled = false
 
-    /// 是否顺带把封面缩略图也缓存下来（默认关：只同步歌曲信息最快）
-    static let prefetchCoversKey = "beans.cloudSync.prefetchCovers"
-
     private let summaryKey = "beans.library.cloudSync.summary"
     private let cancelFlag = SyncCancelFlag()
 
@@ -118,7 +115,7 @@ final class LibraryCloudSyncStore: ObservableObject {
     }
 
     /// 全量同步：歌单之间并发拉取（3 路），每个歌单落盘只写自己那一个文件。
-    /// 封面缩略图不再是阻塞项：默认不下载，开启后也在后台慢慢补。
+    /// 封面只在后台缓存「歌单封面」一张（不是每首歌的封面），不阻塞歌曲信息。
     @MainActor
     func sync(sources: [LibraryCloudSyncSource]) async {
         guard !isSyncing else { return }
@@ -146,7 +143,6 @@ final class LibraryCloudSyncStore: ObservableObject {
         coverCount = 0
         progressText = "准备同步…"
         let started = Date()
-        let wantedCovers = UserDefaults.standard.object(forKey: Self.prefetchCoversKey) as? Bool ?? false
 
         var failures: [String] = []
         var coverURLs = Set<String>()
@@ -175,16 +171,9 @@ final class LibraryCloudSyncStore: ObservableObject {
                 if let failure = result.failure {
                     failures.append(failure)
                 }
-                if wantedCovers {
-                    for url in result.covers where coverURLs.insert(url.absoluteString).inserted {
-                        pendingCoverURLs.append(url)
-                    }
-                    // 攒一批就交给后台，绝不阻塞歌曲信息的同步
-                    if pendingCoverURLs.count >= 120 {
-                        let batch = pendingCoverURLs
-                        pendingCoverURLs.removeAll(keepingCapacity: true)
-                        startBackgroundCoverWarm(batch)
-                    }
+                // 只缓存歌单封面（perform 已只返回歌单封面），后台处理，不阻塞歌曲信息
+                for url in result.covers where coverURLs.insert(url.absoluteString).inserted {
+                    pendingCoverURLs.append(url)
                 }
                 if cursor < jobs.count, !cancelFlag.isSet {
                     let job = jobs[cursor]
@@ -197,7 +186,7 @@ final class LibraryCloudSyncStore: ObservableObject {
         }
 
         if cancelFlag.isSet { cancelled = true }
-        if wantedCovers, !pendingCoverURLs.isEmpty {
+        if !pendingCoverURLs.isEmpty {
             startBackgroundCoverWarm(pendingCoverURLs)
         }
 
@@ -231,11 +220,8 @@ final class LibraryCloudSyncStore: ObservableObject {
                 accountID: accountID,
                 pinned: true
             )
+            // 只缓存歌单封面这一张，不逐首下载歌曲封面
             var covers: [URL] = []
-            covers.reserveCapacity(songs.count + 1)
-            for song in songs {
-                if let url = song.coverURL { covers.append(url) }
-            }
             if let cover = job.coverURL { covers.append(cover) }
             return SyncJobResult(name: job.name, count: songs.count, covers: covers, failure: nil)
         } catch {
@@ -315,16 +301,46 @@ struct LibraryCloudSyncSheet: View {
     @ObservedObject private var store = LibraryCloudSyncStore.shared
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(LibraryCloudSyncStore.prefetchCoversKey) private var prefetchCovers = false
 
-    private var totalPlaylists: Int {
-        sources.reduce(0) { $0 + $1.playlists.count }
+    /// 勾选参与同步的平台
+    @State private var selectedPlatforms: Set<SongSource> = []
+    /// 勾选的具体歌单，key = "\(source)-\(playlist.id)"
+    @State private var selectedPlaylistKeys: Set<String> = []
+    /// 展开的平台
+    @State private var expandedPlatforms: Set<SongSource> = []
+    @State private var didInitSelection = false
+
+    private func key(_ source: SongSource, _ playlist: Playlist) -> String {
+        "\(source.rawValue)-\(playlist.id)"
     }
 
-    private var totalSongsEstimate: Int {
-        sources.reduce(0) { partial, group in
+    /// 选中的歌单（按平台分组）
+    private var selectedSources: [LibraryCloudSyncSource] {
+        sources.compactMap { group in
+            guard selectedPlatforms.contains(group.source) else { return nil }
+            let picked = group.playlists.filter { selectedPlaylistKeys.contains(key(group.source, $0)) }
+            return picked.isEmpty ? nil : LibraryCloudSyncSource(
+                source: group.source, accountID: group.accountID, playlists: picked
+            )
+        }
+    }
+
+    private var selectedPlaylistCount: Int {
+        selectedSources.reduce(0) { $0 + $1.playlists.count }
+    }
+
+    private var selectedSongEstimate: Int {
+        selectedSources.reduce(0) { partial, group in
             partial + group.playlists.reduce(0) { $0 + $1.trackCount }
         }
+    }
+
+    private var allPlaylistKeys: Set<String> {
+        var set: Set<String> = []
+        for group in sources {
+            for p in group.playlists { set.insert(key(group.source, p)) }
+        }
+        return set
     }
 
     var body: some View {
@@ -335,9 +351,8 @@ struct LibraryCloudSyncSheet: View {
                     if store.isSyncing || store.summary != nil {
                         resultCard
                     }
-                    optionCard
                     platformCard
-                    Text("同步只保存歌曲信息（歌名、歌手、专辑、封面地址、音质 hash），不下载音频文件。歌曲按歌单分文件保存，所以歌单多也不会越同步越慢；同步完就能离线浏览歌单和全部歌曲。")
+                    Text("同步只保存歌曲信息（歌名、歌手、专辑、封面地址、音质 hash），不下载音频文件；封面仅缓存每个歌单的封面图。歌曲按歌单分文件保存，歌单再多也不会越同步越慢。可勾选平台和具体歌单，只同步你需要的部分。")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                         .fixedSize(horizontal: false, vertical: true)
@@ -354,6 +369,15 @@ struct LibraryCloudSyncSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
+                }
+            }
+            .onAppear {
+                guard !didInitSelection else { return }
+                didInitSelection = true
+                // 默认全选所有「有歌单」的平台及其歌单
+                for group in sources where !group.playlists.isEmpty {
+                    selectedPlatforms.insert(group.source)
+                    for p in group.playlists { selectedPlaylistKeys.insert(key(group.source, p)) }
                 }
             }
         }
@@ -374,9 +398,9 @@ struct LibraryCloudSyncSheet: View {
                     Text("把云端歌单存到本机")
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(totalPlaylists > 0
-                         ? "共 \(totalPlaylists) 个歌单" + (totalSongsEstimate > 0 ? " · 约 \(totalSongsEstimate) 首" : "")
-                         : "当前平台没有可同步的歌单")
+                    Text(selectedPlaylistCount > 0
+                         ? "已选 \(selectedPlaylistCount) 个歌单" + (selectedSongEstimate > 0 ? " · 约 \(selectedSongEstimate) 首" : "")
+                         : "请勾选下方要同步的平台和歌单")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                 }
@@ -399,9 +423,7 @@ struct LibraryCloudSyncSheet: View {
                     }
                     HStack(spacing: 14) {
                         statChip(icon: "music.note", text: "\(store.songCount) 首")
-                        if prefetchCovers {
-                            statChip(icon: "photo", text: "\(store.coverCount) 张封面")
-                        }
+                        statChip(icon: "photo", text: "\(store.coverCount) 张封面")
                         statChip(icon: "bolt.horizontal", text: "3 路并发")
                     }
                 }
@@ -420,11 +442,11 @@ struct LibraryCloudSyncSheet: View {
             } else {
                 Button {
                     BeansHaptics.tap()
-                    Task { await store.sync(sources: sources) }
+                    Task { await store.sync(sources: selectedSources) }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.down.circle.fill")
-                        Text(totalPlaylists > 0 ? "开始同步" : "暂无可同步歌单")
+                        Text(selectedPlaylistCount > 0 ? "开始同步（\(selectedPlaylistCount) 个歌单）" : "请先勾选歌单")
                     }
                     .font(BeansFont.appFont(14, .semibold))
                     .foregroundStyle(.white)
@@ -433,8 +455,8 @@ struct LibraryCloudSyncSheet: View {
                     .background(Color.beansAmber, in: Capsule())
                 }
                 .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-                .disabled(totalPlaylists == 0)
-                .opacity(totalPlaylists == 0 ? 0.6 : 1)
+                .disabled(selectedPlaylistCount == 0)
+                .opacity(selectedPlaylistCount == 0 ? 0.6 : 1)
             }
         }
         .padding(16)
@@ -458,9 +480,7 @@ struct LibraryCloudSyncSheet: View {
                 HStack(spacing: 8) {
                     resultCell(value: "\(summary.playlists)", label: "歌单")
                     resultCell(value: "\(summary.songs)", label: "歌曲")
-                    if prefetchCovers {
-                        resultCell(value: "\(summary.covers)", label: "封面")
-                    }
+                    resultCell(value: "\(summary.covers)", label: "封面")
                     resultCell(value: summary.durationText, label: "用时")
                 }
                 if !store.isSyncing {
@@ -488,54 +508,144 @@ struct LibraryCloudSyncSheet: View {
         }
     }
 
-    private var optionCard: some View {
+    private var platformCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("同步选项")
-                .font(BeansFont.appFont(13, .bold))
-                .foregroundStyle(Color.beansLabel)
-            Toggle(isOn: $prefetchCovers) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("同时缓存封面缩略图")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansLabel)
-                    Text("关掉最快。封面会在真正浏览时按需下载并缓存。")
-                        .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansComment)
+            HStack {
+                Text("同步范围")
+                    .font(BeansFont.appFont(13, .bold))
+                    .foregroundStyle(Color.beansLabel)
+                Spacer()
+                Button {
+                    BeansHaptics.tap()
+                    let allSelected = selectedPlaylistCount == allPlaylistKeys.count && !allPlaylistKeys.isEmpty
+                    if allSelected {
+                        selectedPlaylistKeys.removeAll()
+                        selectedPlatforms.removeAll()
+                    } else {
+                        selectedPlaylistKeys = allPlaylistKeys
+                        selectedPlatforms = Set(sources.filter { !$0.playlists.isEmpty }.map { $0.source })
+                    }
+                } label: {
+                    Text(selectedPlaylistCount == allPlaylistKeys.count && !allPlaylistKeys.isEmpty ? "取消全选" : "全选")
+                        .font(BeansFont.appFont(12, .semibold))
+                        .foregroundStyle(Color.beansAmber)
                 }
+                .buttonStyle(.plain)
             }
-            .tint(Color.beansAmber)
-            .disabled(store.isSyncing)
+
+            ForEach(sources, id: \.source) { group in
+                platformSection(group)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)) }
     }
 
-    private var platformCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("同步范围")
-                .font(BeansFont.appFont(13, .bold))
-                .foregroundStyle(Color.beansLabel)
-            ForEach(sources, id: \.source) { group in
-                HStack(spacing: 10) {
-                    Image(systemName: "music.note.list")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.beansAmber)
-                        .frame(width: 26, height: 26)
-                        .background(Color.beansAmber.opacity(0.12), in: Circle())
-                    Text(group.displayName)
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansLabel)
-                    Spacer()
-                    Text(group.playlists.isEmpty ? "未登录 / 无歌单" : "\(group.playlists.count) 个歌单")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansComment)
+    @ViewBuilder
+    private func platformSection(_ group: LibraryCloudSyncSource) -> some View {
+        let allSelected = !group.playlists.isEmpty && group.playlists.allSatisfy { selectedPlaylistKeys.contains(key(group.source, $0)) }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                // 平台勾选
+                Button {
+                    BeansHaptics.tap()
+                    let keys = group.playlists.map { key(group.source, $0) }
+                    if allSelected {
+                        selectedPlatforms.remove(group.source)
+                        selectedPlaylistKeys.subtract(keys)
+                    } else {
+                        selectedPlatforms.insert(group.source)
+                        selectedPlaylistKeys.formUnion(keys)
+                    }
+                } label: {
+                    Image(systemName: allSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(allSelected ? Color.beansAmber : Color.beansComment.opacity(0.5))
                 }
+                .buttonStyle(.plain)
+
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 26, height: 26)
+                    .background(Color.beansAmber.opacity(0.12), in: Circle())
+
+                Button {
+                    BeansHaptics.tap()
+                    if expandedPlatforms.contains(group.source) {
+                        expandedPlatforms.remove(group.source)
+                    } else {
+                        expandedPlatforms.insert(group.source)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(group.displayName)
+                            .font(BeansFont.appFont(13, .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                        if group.playlists.isEmpty {
+                            Text("未登录 / 无歌单")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        } else {
+                            Text("\(group.playlists.filter { selectedPlaylistKeys.contains(key(group.source, $0)) }.count)/\(group.playlists.count)")
+                                .font(BeansFont.appFont(11, .medium))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                        Spacer()
+                        if !group.playlists.isEmpty {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.beansComment)
+                                .rotationEffect(.degrees(expandedPlatforms.contains(group.source) ? 90 : 0))
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if expandedPlatforms.contains(group.source) && !group.playlists.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(group.playlists) { playlist in
+                        Button {
+                            BeansHaptics.tap()
+                            let k = key(group.source, playlist)
+                            if selectedPlaylistKeys.contains(k) {
+                                selectedPlaylistKeys.remove(k)
+                                if !group.playlists.contains(where: { selectedPlaylistKeys.contains(key(group.source, $0)) }) {
+                                    selectedPlatforms.remove(group.source)
+                                }
+                            } else {
+                                selectedPlaylistKeys.insert(k)
+                                selectedPlatforms.insert(group.source)
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: selectedPlaylistKeys.contains(key(group.source, playlist)) ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(selectedPlaylistKeys.contains(key(group.source, playlist)) ? Color.beansAmber : Color.beansComment.opacity(0.5))
+                                CoverImage(url: playlist.coverURL, size: 30, cornerRadius: 6)
+                                Text(playlist.name)
+                                    .font(BeansFont.appFont(12))
+                                    .foregroundStyle(Color.beansLabel)
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                Text("\(playlist.trackCount)")
+                                    .font(BeansFont.appFont(11))
+                                    .foregroundStyle(Color.beansComment)
+                            }
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.leading, 66)
+                .padding(.top, 4)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)) }
+        .padding(.vertical, 4)
     }
 
     private func statChip(icon: String, text: String) -> some View {

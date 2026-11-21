@@ -246,7 +246,15 @@ struct LyricStageWebView: UIViewRepresentable {
                 payload["accent"] = accentHex
             }
             guard let json = Self.jsonString(payload) else { return }
-            let js = "window.postMessage({__c100:1,type:'init',payload:\(json)},'*');"
+            // init 后补一个 resize：不少舞台在 WebGL/Canvas 尺寸为 0 时建场会失败，
+            // WKWebView 首帧布局完成后派发一次 resize 让它们按真实尺寸重建。
+            let js = """
+            window.postMessage({__c100:1,type:'init',payload:\(json)},'*');
+            setTimeout(function(){
+              try { window.dispatchEvent(new Event('resize')); } catch(e) {}
+              window.postMessage({__c100:1,type:'tick',payload:{time:\(latestTime),playing:\(latestPlaying ? "true" : "false")}},'*');
+            }, 120);
+            """
             webView.evaluateJavaScript(js, completionHandler: nil)
         }
 

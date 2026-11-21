@@ -973,7 +973,7 @@ struct PlayerView: View {
         .simultaneousGesture(lyricsSwipeBackGesture)
     }
 
-    /// 歌词页左滑返回专辑封面（三种封面风格共用）
+    /// 歌词页左滑（从左往右 dx>0）返回专辑封面（三种封面风格共用）
     private var lyricsSwipeBackGesture: some Gesture {
         DragGesture(minimumDistance: 18)
             .onEnded { value in
@@ -981,7 +981,7 @@ struct PlayerView: View {
                 let vx = value.predictedEndTranslation.width
                 guard showLyrics,
                       abs(dx) >= abs(value.translation.height),
-                      dx < -52 || vx < -110 else { return }
+                      dx > 52 || vx > 110 else { return }
                 BeansHaptics.tap()
                 withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
             }
@@ -1865,7 +1865,8 @@ struct PlayerView: View {
                             .font(BeansFont.appFont(12, item.isCurrent ? .semibold : .regular))
                             .foregroundStyle(item.isCurrent ? albumPreviewForeground : albumPreviewDimForeground)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .shadow(color: albumGlow(item.isCurrent ? albumPreviewLyricColor : albumPreviewDimColor), radius: albumTextGlow && item.isCurrent ? 8 : 0, y: 1)
                     }
                     .frame(maxWidth: .infinity)
@@ -1935,6 +1936,7 @@ struct PlayerView: View {
                         isPlaying: player.isPlaying,
                         accentHex: lyricStageAccentHex
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     VStack {
                         LinearGradient(
                             colors: [.black.opacity(0.62), .clear],
@@ -2130,38 +2132,32 @@ struct PlayerView: View {
 
     // MARK: - 沉浸式播放（封面溶于背景）
 
-    /// 沉浸式封面高度：全屏宽，高度略作长方形，底部留给标题与歌词
+    /// 沉浸式封面高度：宽度贴满屏，高度不超过屏高的 46%，给标题和歌词留出空间
     private func immersiveCoverHeight(geo: GeometryProxy) -> CGFloat {
-        let raw = geo.size.height * 0.54
-        return min(max(raw, 300), geo.size.width * 1.30)
+        let raw = geo.size.height * 0.46
+        return min(max(raw, 260), geo.size.width * 1.24)
     }
 
-    /// 沉浸背景：整屏模糊封面打底 + 封面本体边缘虚化外溢 + 呼吸光晕
+    /// 沉浸背景：整屏模糊封面打底 + 呼吸光晕。
+    /// 注意：这里只放「模糊氛围」，不再叠一张放大的封面，避免任何超出屏幕的硬边。
     private func immersiveBackground(geo: GeometryProxy) -> some View {
         let width = geo.size.width
         let height = geo.size.height
-        let coverH = immersiveCoverHeight(geo: geo)
 
         return ZStack {
             Color.black
             CoverBlurBackground(url: song?.coverURL, scheme: .dark)
-                .scaleEffect(1.22)
-                .opacity(0.62)
-
-            // 封面放大 + 重度模糊，作为「溶进背景」的过渡带
-            ImmersiveCoverArt(url: song?.coverURL, width: width * 1.34, height: coverH * 1.30, blur: 56)
-                .opacity(0.66)
-                .offset(y: -height * 0.045)
-                .mask(immersiveVerticalMask(width: width * 1.34, height: coverH * 1.30, feather: 0.30))
-                .mask(immersiveHorizontalMask(width: width * 1.34, height: coverH * 1.30))
+                .scaleEffect(1.35)
+                .blur(radius: 18)
+                .opacity(0.78)
 
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.46), location: 0.0),
-                    .init(color: .black.opacity(0.10), location: 0.20),
-                    .init(color: .clear, location: 0.44),
-                    .init(color: .black.opacity(0.34), location: 0.74),
-                    .init(color: .black.opacity(0.90), location: 1.0)
+                    .init(color: .black.opacity(0.42), location: 0.0),
+                    .init(color: .black.opacity(0.08), location: 0.22),
+                    .init(color: .clear, location: 0.46),
+                    .init(color: .black.opacity(0.38), location: 0.72),
+                    .init(color: .black.opacity(0.92), location: 1.0)
                 ],
                 startPoint: .top, endPoint: .bottom
             )
@@ -2227,62 +2223,43 @@ struct PlayerView: View {
             .frame(width: width, height: height)
     }
 
-    /// 沉浸式：封面全屏宽、上下溢出并羽化，标题压在封面下缘的渐隐区里
+    /// 沉浸式：封面宽度严格贴屏、四周渐隐羽化溶进背景；标题与歌词移到封面下方，不再压图、不再溢出
     private func immersiveAlbumPanel(geo: GeometryProxy) -> some View {
         let width = geo.size.width
         let height = immersiveCoverHeight(geo: geo)
-        let bleed: CGFloat = 36
 
         return VStack(spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                ImmersiveCoverArt(url: song?.coverURL, width: width, height: height + bleed)
-                    .offset(y: -bleed)
-                    .mask(immersiveVerticalMask(width: width, height: height + bleed, feather: 0.16))
-                    .mask(immersiveHorizontalMask(width: width, height: height + bleed))
-                    .overlay(alignment: .bottom) {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: .black.opacity(0.10), location: 0.32),
-                                .init(color: .black.opacity(0.44), location: 0.66),
-                                .init(color: .black.opacity(0.80), location: 1.0)
-                            ],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: height * 0.42)
-                        .allowsHitTesting(false)
-                    }
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 15)
-                            .onChanged { value in
-                                coverDrag = value.translation
-                                let x = value.translation.width
-                                if abs(x) > abs(value.translation.height) {
-                                    swipeOffset = x
-                                }
-                            }
-                            .onEnded { value in
-                                handleSwipeEnd(value)
-                            }
-                    )
-                    .onTapGesture(count: 2) {
-                        guard let song else { return }
-                        BeansHaptics.success()
-                        toggleLocalFavorite(song)
-                    }
-                    .onTapGesture { toggleLyrics() }
-                    .scaleEffect(coverSwitchPulse ? 0.975 : 1)
-                    .animation(.easeOut(duration: 0.26), value: coverSwitchPulse)
+            Spacer(minLength: 10)
 
-                immersiveTitleBlock
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 18)
-            }
-            .frame(width: width, height: height)
-            .clipped()
+            // 封面本体：宽度 = 屏宽，绝不放宽；上下左右四周都做渐隐，边缘融进模糊背景
+            ImmersiveCoverArt(url: song?.coverURL, width: width, height: height)
+                .mask(immersiveFeatherMask(width: width, height: height))
+                .scaleEffect(coverSwitchPulse ? 0.985 : 1)
+                .animation(.easeOut(duration: 0.26), value: coverSwitchPulse)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 15)
+                        .onChanged { value in
+                            coverDrag = value.translation
+                            let x = value.translation.width
+                            if abs(x) > abs(value.translation.height) { swipeOffset = x }
+                        }
+                        .onEnded { value in handleSwipeEnd(value) }
+                )
+                .onTapGesture(count: 2) {
+                    guard let song else { return }
+                    BeansHaptics.success()
+                    toggleLocalFavorite(song)
+                }
+                .onTapGesture { toggleLyrics() }
+                .frame(width: width, height: height)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 18)
+
+            immersiveTitleBlock
+                .padding(.horizontal, 26)
+
+            Spacer(minLength: 16)
 
             lyricPreviewBox
                 .padding(.horizontal, 16)
@@ -2290,7 +2267,28 @@ struct PlayerView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.bottom, 148 + geo.safeAreaInsets.bottom)
+        .frame(width: width)
+        .padding(.bottom, 150 + geo.safeAreaInsets.bottom)
+    }
+
+    /// 四周羽化蒙版：中心不透明，向四边渐隐到 0，让封面看起来是「长」在背景里
+    private func immersiveFeatherMask(width: CGFloat, height: CGFloat) -> some View {
+        Rectangle()
+            .fill(
+                RadialGradient(
+                    gradient: Gradient(stops: [
+                        .init(color: .black, location: 0.0),
+                        .init(color: .black, location: 0.52),
+                        .init(color: .black.opacity(0.92), location: 0.70),
+                        .init(color: .black.opacity(0.55), location: 0.86),
+                        .init(color: .black.opacity(0.0), location: 1.0)
+                    ]),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: max(width, height) * 0.72
+                )
+            )
+            .frame(width: width, height: height)
     }
 
     private var immersiveTitleBlock: some View {
@@ -2704,6 +2702,14 @@ struct PlayerView: View {
 
     @ViewBuilder
     private func playerButtonSurface(size: CGFloat, active: Bool = false, primary: Bool = false, appleLiquid: Bool = false) -> some View {
+        // 液态玻璃质感：材质底 + 顶部内高光 + 底部冷影 + 环形描边，
+        // 让按钮在模糊背景上有「凸起的水滴」观感，而不是一块半透明灰饼。
+        let liquidHighlight = LinearGradient(
+            colors: [.white.opacity(primary ? 0.34 : 0.24), .white.opacity(0.0)],
+            startPoint: .top, endPoint: .center
+        )
+        let rimColor: Color = active || primary ? controlAccent.opacity(0.55) : .white.opacity(0.28)
+
         switch playerButtonStyle {
         case .glass:
             ZStack {
@@ -2718,30 +2724,48 @@ struct PlayerView: View {
                             )
                         )
                 }
+                // 内高光
+                Circle().fill(liquidHighlight)
+                // 内冷影（底部）
                 Circle()
-                    .strokeBorder(
-                        active || primary ? controlAccent.opacity(0.52) : .white.opacity(0.22),
-                        lineWidth: primary ? 1.1 : 0.8
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.10)],
+                            startPoint: .center, endPoint: .bottom
+                        )
                     )
+                Circle().strokeBorder(rimColor, lineWidth: primary ? 1.2 : 0.9)
             }
             .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.16), radius: 6, y: 3)
         case .appleMusic:
             if appleLiquid {
-                if #available(iOS 26, *) {
-                    GlassEffectContainer {
+                ZStack {
+                    if #available(iOS 26, *) {
+                        GlassEffectContainer {
+                            Circle()
+                                .fill(.clear)
+                                .glassEffect(
+                                    primary ? .regular.tint(.white.opacity(0.96)) : .regular,
+                                    in: Circle()
+                                )
+                        }
+                    } else {
                         Circle()
-                            .fill(.clear)
-                            .glassEffect(
-                                primary ? .regular.tint(.white.opacity(0.96)) : .regular,
-                                in: Circle()
-                            )
+                            .fill(.ultraThinMaterial)
                     }
-                    .frame(width: size, height: size)
-                } else {
+                    Circle().fill(liquidHighlight)
                     Circle()
-                        .fill(.ultraThinMaterial)
-                        .frame(width: size, height: size)
+                        .fill(
+                            LinearGradient(
+                                colors: [.clear, .black.opacity(0.10)],
+                                startPoint: .center, endPoint: .bottom
+                            )
+                        )
+                    Circle().strokeBorder(rimColor, lineWidth: primary ? 1.2 : 0.9)
                 }
+                .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.16), radius: 6, y: 3)
             } else {
                 Color.clear
                     .frame(width: size, height: size)
@@ -3300,21 +3324,21 @@ struct PlayerView: View {
         isPresented = false
     }
 
-    /// 封面手势：左滑返回、右滑看歌词、上滑下一曲、下滑上一曲。
+    /// 封面手势（按用户口径）：左滑=从左往右(dx>0)返回、右滑=从右往左(dx<0)看歌词、上滑下一曲、下滑上一曲。
     private func handleSwipeEnd(_ value: DragGesture.Value) {
         let dx = value.translation.width
         let dy = value.translation.height
         let vx = value.predictedEndTranslation.width
         let vy = value.predictedEndTranslation.height
         if abs(dx) >= abs(dy) {
-            if dx < -62 || vx < -130 {
-                // 左滑：返回（关闭播放页）
+            if dx > 62 || vx > 130 {
+                // 左滑（从左往右）：返回（关闭播放页）
                 BeansHaptics.tap()
                 coverDrag = .zero
                 swipeOffset = 0
                 isPresented = false
-            } else if dx > 62 || vx > 130 {
-                // 右滑：打开歌词页
+            } else if dx < -62 || vx < -130 {
+                // 右滑（从右往左）：打开歌词页
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     swipeOffset = 0
                     coverDrag = .zero

@@ -144,6 +144,8 @@ struct DiscoverView: View {
                         if !hidePlatformPicker {
                             providerPicker
                         }
+                        // 图标下方、第一排歌曲上方的分区标题
+                        todayRecommendationTitle
                         if let errorMessage {
                             ErrorStateView(message: errorMessage) {
                                 Task { await load(force: true) }
@@ -528,6 +530,20 @@ struct DiscoverView: View {
             }
             .padding(.vertical, 2)
         }
+    }
+
+    /// 平台图标下方、第一排内容上方的分区标题
+    private var todayRecommendationTitle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("今日推荐")
+                .font(BeansFont.appFont(isNativeClean ? 26 : 22, .bold))
+                .foregroundStyle(Color.beansLabel)
+            Text("为你精选，每天更新")
+                .font(BeansFont.appFont(12))
+                .foregroundStyle(Color.beansComment)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 2)
     }
 
     private var greeting: String {
@@ -1363,7 +1379,7 @@ struct DiscoverView: View {
         case .kugou: return "歌单广场"
         case .migu: return "咪咕歌单"
         case .bodian: return "波点推荐歌单"
-        case .all: return "全部平台歌单"
+        case .all: return "热门歌单"
         }
     }
 

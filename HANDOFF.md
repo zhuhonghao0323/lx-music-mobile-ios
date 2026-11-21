@@ -81,6 +81,30 @@
 4. 迷你栏 `.fill` / `.bar` 两种横向进度在四种 UI 风格 × 深浅色下的观感
 5. 30 个歌词舞台是否都能正常出词（个别舞台字段差异已用别名兼容），WKWebView 内存与发热
 
+### 0.5 本轮改动（2026-11-21，版本 **1.15.0 (85)**）
+
+按用户 9 条反馈继续改：
+
+| # | 反馈 | 处理 |
+|---|---|---|
+| 1 | 手势方向说反了：左滑=从左往右(dx>0)、右滑=从右往左(dx<0) | `PlayerView.handleSwipeEnd` + `lyricsSwipeBackGesture`、`ReferencePlaybackView.coverSwipeGesture` + `lyricsSwipeBackGesture` 全部翻转：播放页从左往右返回 / 从右往左进歌词；歌词页从左往右回播放页 |
+| 2 | 沉浸式封面/歌词溢出屏幕 | 去掉背景里 1.34 倍放大的封面（溢出元凶）；封面宽度严格=屏宽、四周径向羽化溶进背景；歌名与歌词移到封面下方独立区；`lyricPreviewBox` 歌词 `Text` 加 `frame(maxWidth:.infinity)` 防撑破 |
+| 3 | 同步面板 | 新增按平台 + 按歌单勾选（默认全选）；封面改为默认只缓存「歌单封面」一张，去掉开关；修「已登录却显示未登录」bug——打开面板前 `prepareAndShowCloudSync()` 并发拉取所有平台歌单 |
+| 4 | 音乐库左上角默认全部歌单 | 新增 `libraryShowsAll=true`；标题用 BrandAll 图标 + "全部歌单"，菜单第一项「全部」，点击切换平台或手动导入；`wallItems` / `librarySubtitle` 按选择过滤 |
+| 5 | 全屏页面 + 手动导入音源类别 | `LibraryAllPlaylistsSheet` / `LibraryAllSongsSheet` 由 `.sheet` 改 `.fullScreenCover`；新增 `LibraryBackButton` + `.librarySwipeBack`（从左往右滑返回）；左上角菜单新增「手动导入音源」，复用 `importedSection`（导入/更新/删除） |
+| 6 | lizi 歌词舞台全黑 | 根因：`LyricStageWebView`(UIViewRepresentable) 没有 frame，WKWebView 尺寸为 0；两处挂载点补 `.frame(maxWidth:.infinity,maxHeight:.infinity)`，`sendInit` 里追加 `resize` 事件让 WebGL/Canvas 重建 |
+| 7 | 播放按钮无液态玻璃感 | `playerButtonSurface` 的 glass/appleMusic 分支统一加：顶部内高光渐变 + 底部冷影 + 环形描边 + 外阴影 |
+| 8 | 主页「全部平台歌单」改名 | `playlistSectionTitle` 的 `.all` → "热门歌单" |
+| 9 | 主页图标下方加标题 | providerPicker 下方、板块上方新增 `todayRecommendationTitle`（"今日推荐" + "为你精选，每天更新"） |
+
+需要真机重点验证：
+1. 手势方向是否符合直觉（从左往右返回 / 从右往左进歌词）
+2. 沉浸式封面是否不再溢出、四周羽化是否自然
+3. 同步面板勾选是否生效、平台登录态是否正确、封面只缓存歌单封面
+4. 全屏页左上角返回 + 从左往右滑返回是否都可用
+5. 歌词舞台是否不再全黑、30 种是否都能出词
+6. 播放按钮液态玻璃观感
+
 ---
 
 ## 一、仓库与基础信息

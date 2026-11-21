@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 private enum LibraryRoute: Hashable {
     case playlist(Playlist)
@@ -108,6 +109,10 @@ struct LibraryView: View {
     @State private var pendingDelete: Playlist?
     @State private var showDeleteConfirm = false
     @State private var source: LibraryProvider = .netease
+    /// 音乐库左上角默认「全部歌单」：展示所有平台的歌单；切到某平台后只看该平台
+    @State private var libraryShowsAll = true
+    /// 左上角选中「手动导入音源」：只展示本机导入的歌单
+    @State private var libraryShowsImported = false
     @AppStorage("beans.homeHeaderHideSort") private var hideSortButton = false
     @AppStorage(PlatformPreferenceStore.hidePickerKey) private var hidePlatformPicker = false
     @State private var qqPlaylists: [Playlist] = []
@@ -232,7 +237,9 @@ struct LibraryView: View {
                             LocalMusicSection()
                         case "我的歌单":
                             VStack(alignment: .leading, spacing: 26) {
-                                if source == .migu {
+                                if libraryShowsImported {
+                                    importedSection
+                                } else if source == .migu {
                                     miguSection
                                 } else {
                                     playlistsWallSection
@@ -241,7 +248,6 @@ struct LibraryView: View {
                                     } onPlay: { list, index in
                                         player.play(songs: list, startAt: index)
                                     }
-                                    importedSection
                                 }
                             }
                         case "最近播放":
@@ -327,7 +333,7 @@ struct LibraryView: View {
             ImportPlaylistSheet(defaultSource: source.songSource, presetPlaylist: importPreset)
                 .environmentObject(theme)
         }
-        .sheet(isPresented: $showAllPlaylistsSheet) {
+        .fullScreenCover(isPresented: $showAllPlaylistsSheet) {
             LibraryAllPlaylistsSheet(items: wallItems)
                 .environmentObject(theme)
                 .environmentObject(player)
@@ -336,7 +342,7 @@ struct LibraryView: View {
             LibraryCloudSyncSheet(sources: syncSources)
                 .environmentObject(theme)
         }
-        .sheet(isPresented: $showAllSongsSheet) {
+        .fullScreenCover(isPresented: $showAllSongsSheet) {
             LibraryAllSongsSheet(songs: aggregatedSongs)
                 .environmentObject(player)
                 .environmentObject(theme)
@@ -410,8 +416,7 @@ struct LibraryView: View {
                 Spacer()
                 HStack(spacing: 10) {
                 GlassIconButton(systemName: "icloud.and.arrow.down", forceLiquid: isNativeClean) {
-                    BeansHaptics.tap()
-                    showCloudSyncSheet = true
+                    prepareAndShowCloudSync()
                 }
                 if !hideSortButton {
                     GlassIconButton(systemName: "arrow.up.arrow.down", forceLiquid: isNativeClean) {
@@ -435,8 +440,7 @@ struct LibraryView: View {
                 libraryTitleButton
                 Spacer(minLength: 12)
                 GlassIconButton(systemName: "icloud.and.arrow.down", forceLiquid: isNativeClean) {
-                    BeansHaptics.tap()
-                    showCloudSyncSheet = true
+                    prepareAndShowCloudSync()
                 }
                 if !hideSortButton {
                     GlassIconButton(systemName: "arrow.up.arrow.down", forceLiquid: isNativeClean) {
@@ -460,27 +464,89 @@ struct LibraryView: View {
         .padding(.top, 4)
     }
 
+    private var libraryTitleText: String {
+        if libraryShowsImported { return "手动导入" }
+        if libraryShowsAll { return "全部歌单" }
+        return source.rawValue
+    }
+
     private var librarySubtitle: String {
-        let count = allCloudPlaylists.count + importedStore.items.count
-        if count == 0 { return "全部平台的歌单与收藏会汇总在这里" }
-        return "全部平台 · \(count) 个歌单"
+        if libraryShowsImported {
+            let n = importedStore.items.count
+            return n == 0 ? "用链接导入平台歌单，歌曲保存在本机" : "本地保存 \(n) 个 · 可更新 / 删除"
+        }
+        let cloud = libraryShowsAll ? allCloudPlaylists : allCloudPlaylists.filter { $0.provider == source }
+        let count = cloud.count + importedStore.items.count
+        if libraryShowsAll {
+            if count == 0 { return "全部平台的歌单与收藏会汇总在这里" }
+            return "全部平台 · \(count) 个歌单"
+        }
+        if count == 0 { return "该平台暂无歌单，可切换平台或手动导入" }
+        return "\(source.rawValue) · \(count) 个歌单"
     }
 
     private var libraryTitleButton: some View {
         Menu {
+            // 第一项：全部（与主页「全部」一致）
+            Button {
+                BeansHaptics.tap()
+                libraryShowsAll = true
+                libraryShowsImported = false
+            } label: {
+                Label("全部歌单", systemImage: (libraryShowsAll && !libraryShowsImported) ? "checkmark" : "square.grid.2x2.fill")
+            }
+            Divider()
             ForEach(libraryProviders) { candidate in
                 Button {
                     BeansHaptics.tap()
+                    libraryShowsAll = false
+                    libraryShowsImported = false
                     source = candidate
                 } label: {
-                    Label(LocalizedStringKey(candidate.rawValue), systemImage: candidate == source ? "checkmark" : candidate.icon)
+                    Label(LocalizedStringKey(candidate.rawValue), systemImage: (!libraryShowsAll && !libraryShowsImported && candidate == source) ? "checkmark" : candidate.icon)
                 }
+            }
+            Divider()
+            // 手动导入音源：与酷狗、QQ 等并列
+            Button {
+                BeansHaptics.tap()
+                libraryShowsImported = true
+                libraryShowsAll = false
+            } label: {
+                Label("手动导入音源", systemImage: libraryShowsImported ? "checkmark" : "square.and.arrow.down")
             }
         } label: {
             HStack(spacing: 8) {
-                Text("音乐库")
-                    .font(BeansFont.appFont(isNativeClean ? 34 : 30, .bold))
+                // 图标与主页「全部」一致：BrandAll 图片，缺失时用 grid 兜底
+                if libraryShowsImported {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                } else if libraryShowsAll {
+                    if let allIcon = UIImage(named: "BrandAll") {
+                        Image(uiImage: allIcon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: isNativeClean ? 26 : 22, height: isNativeClean ? 26 : 22)
+                    } else {
+                        Image(systemName: "square.grid.2x2.fill")
+                            .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                    }
+                } else if let brand = source.brandImageName, let img = UIImage(named: brand) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: isNativeClean ? 26 : 22, height: isNativeClean ? 26 : 22)
+                } else {
+                    Image(systemName: source.icon)
+                        .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                }
+                Text(verbatim: libraryTitleText)
+                    .font(BeansFont.appFont(isNativeClean ? 28 : 24, .bold))
                     .foregroundStyle(Color.beansLabel)
+                    .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Color.beansComment.opacity(0.7))
@@ -593,6 +659,8 @@ struct LibraryView: View {
         }
 
         for entry in allCloudPlaylists {
+            // 选定具体平台后，云歌单只看该平台；「全部」时不过滤
+            if !libraryShowsAll, entry.provider != source { continue }
             let playlist = entry.playlist
             let id = "synced-\(playlist.source.rawValue)-\(playlist.id)"
             guard !hiddenPlaylists.isHidden(id) else { continue }
@@ -999,6 +1067,29 @@ struct LibraryView: View {
                 .background { BeansSurface(shape: Capsule()) }
                 .clipShape(Capsule())
         .beansCardShadow(radius: isNativeClean ? 1 : 6, y: isNativeClean ? 0.5 : 2)
+    }
+
+    /// 打开云同步面板前：先把所有已登录平台的歌单拉全，避免「明明登录了却显示未登录/无歌单」。
+    /// 各平台的歌单数组原本只在切到该平台时才懒加载，同步面板会读到空数组。
+    private func prepareAndShowCloudSync() {
+        BeansHaptics.tap()
+        Task {
+            await withTaskGroup(of: Void.self) { group in
+                if platformPrefs.isEnabled(SearchProvider.netease) && auth.isLoggedIn {
+                    group.addTask { await auth.loadLibrary(force: false) }
+                }
+                if platformPrefs.isEnabled(SearchProvider.qq) && qqAuth.isLoggedIn {
+                    group.addTask { await loadQQPlaylists(force: false) }
+                }
+                if platformPrefs.isEnabled(SearchProvider.kugou) && kugouAuth.isLoggedIn {
+                    group.addTask { await loadKugouPlaylists(force: false) }
+                }
+                if platformPrefs.isEnabled(SearchProvider.bodian) && bodianAuth.isLoggedIn {
+                    group.addTask { await loadBodianPlaylists(force: false) }
+                }
+            }
+            await MainActor.run { showCloudSyncSheet = true }
+        }
     }
 
     private func refreshCurrentSource(force: Bool) async {

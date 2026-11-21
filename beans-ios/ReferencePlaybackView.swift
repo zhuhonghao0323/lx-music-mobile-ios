@@ -116,6 +116,7 @@ struct ReferencePlaybackView: View {
                                             isPlaying: player.isPlaying,
                                             accentHex: stageAccentHex
                                         )
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                                         VStack {
                                             LinearGradient(
                                                 colors: [.black.opacity(0.62), .clear],
@@ -669,7 +670,7 @@ struct ReferencePlaybackView: View {
             }
     }
 
-    /// 封面页手势：上滑下一曲、下滑上一曲、右滑看歌词、左滑返回
+    /// 封面页手势（按用户口径）：左滑=从左往右(dx>0)返回、右滑=从右往左(dx<0)看歌词、上滑下一曲、下滑上一曲
     private var coverSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
             .onEnded { value in
@@ -680,8 +681,8 @@ struct ReferencePlaybackView: View {
                 guard max(abs(dx), abs(dy)) > 34 || max(abs(vx), abs(vy)) > 80 else { return }
                 if abs(dx) > abs(dy) {
                     BeansHaptics.tap()
-                    if dx < 0 || vx < -130 {
-                        // 左滑返回（与系统返回手势一致）
+                    if dx > 0 || vx > 130 {
+                        // 左滑（从左往右）：返回
                         onClose()
                     } else if lyrics.isEmpty {
                         ToastCenter.shared.show("暂无歌词")
@@ -713,14 +714,14 @@ struct ReferencePlaybackView: View {
         }
     }
 
-    /// 歌词页手势：左滑回到专辑封面
+    /// 歌词页手势：左滑（从左往右 dx>0）回到专辑封面
     private var lyricsSwipeBackGesture: some Gesture {
         DragGesture(minimumDistance: 18)
             .onEnded { value in
                 let dx = value.translation.width
                 let vx = value.predictedEndTranslation.width
                 guard abs(dx) >= abs(value.translation.height),
-                      dx < -52 || vx < -110 else { return }
+                      dx > 52 || vx > 110 else { return }
                 BeansHaptics.tap()
                 withAnimation(.easeInOut(duration: 0.22)) { showLyrics = false }
             }
