@@ -4057,7 +4057,7 @@ struct LyricsSection: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: visualIndex)
-        ))
+        )
     }
 
     private func toggleSelect(_ index: Int) {
