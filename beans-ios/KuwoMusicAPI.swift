@@ -694,9 +694,6 @@ private struct KuwoLoginWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
-        let controller = WKUserContentController()
-        controller.add(context.coordinator, name: "kuwoLogin")
-        config.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -710,7 +707,6 @@ private struct KuwoLoginWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         coordinator.stop()
-        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "kuwoLogin")
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {

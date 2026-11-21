@@ -988,6 +988,14 @@ struct AccountHubSheet: View {
             }
             Button("取消", role: .cancel) {}
         }
+        .confirmationDialog("退出酷我音乐？", isPresented: $confirmKuwoLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                kuwoAuth.logout()
+                WebLoginDataCleaner.clearKuwo()
+                ToastCenter.shared.show("已退出酷我账号")
+            }
+            Button("取消", role: .cancel) {}
+        }
     }
 
     /// 网易云账号卡片

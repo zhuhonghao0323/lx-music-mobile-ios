@@ -90,7 +90,7 @@ enum PlaylistImportService {
         }
         // 波点 / 酷我：分享页把歌单 id 放在 id= 参数里，优先取它，避免抓到别的数字
         if lower.contains("kuwo.cn") && !lower.contains("bodian") {
-            if let id = Self.kuwoPlaylistID(from: raw) {
+            if let id = Self.kuwoPlaylistID(from: text) {
                 return (.kuwo, id)
             }
         }

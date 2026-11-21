@@ -316,12 +316,14 @@ struct ArtistHomeSheet: View {
         artist = Artist(
             id: "kuwo-\(artistName)",
             name: artistName,
-            avatarURL: list.first?.coverURL,
-            albumCount: 0,
-            songCount: list.count
+            coverURL: list.first?.coverURL,
+            source: .kuwo
         )
         hotSongs = Array(list.prefix(50))
-        albums = SearchAggregator.albums(from: songs)
+        albums = SearchAggregator.albums(from: list).filter { $0.artistName.contains(artistName) }
+        if hotSongs.isEmpty && albums.isEmpty {
+            errorMessage = "未找到歌手「\(artistName)」"
+        }
         loading = false
     }
 

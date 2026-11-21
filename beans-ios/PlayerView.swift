@@ -2480,8 +2480,7 @@ struct PlayerView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 Button {
-                    BeansHaptics.tap()
-                    withAnimation(.easeInOut(duration: 0.22)) { toggleLyrics() }
+                    toggleLyrics()
                 } label: {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 15, weight: .semibold))
