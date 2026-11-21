@@ -22,6 +22,7 @@ struct PlaylistView: View {
     @State private var searchText = ""
     @State private var sortMode: PlaylistSortMode = .original
     @State private var updatingImported = false
+    @State private var showCopyToLocal = false
     @AppStorage("beans.homeHeaderHideSort") private var hideSortButton = false
     @AppStorage("beans.uiStyle") private var uiStyleRaw = BeansUIStyle.liquid.rawValue
 
@@ -86,6 +87,10 @@ struct PlaylistView: View {
             }
             .navigationTitle(playlist.name)
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showCopyToLocal) {
+                CopyToLocalPlaylistSheet(songs: displayedTracks, suggestedName: playlist.name)
+                    .environmentObject(theme)
+            }
         .task { await load() }
     }
 
@@ -141,6 +146,20 @@ struct PlaylistView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background { BeansSurface(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)) }
+
+                // 保存到本地：把云端/第三方歌单复制到本地歌单，可自由增删歌曲
+                Button {
+                    BeansHaptics.tap()
+                    showCopyToLocal = true
+                } label: {
+                    Image(systemName: "square.and.arrow.down.on.square")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 38, height: 38)
+                        .background { BeansSurface(shape: Circle()) }
+                }
+                .buttonStyle(GlassPressButtonStyle())
+                .accessibilityLabel("保存到本地歌单")
 
                 if importedEntry != nil {
                     Button {

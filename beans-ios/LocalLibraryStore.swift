@@ -127,6 +127,12 @@ final class LocalLibraryStore: ObservableObject {
         playlists[idx].songs.removeAll { $0.identityKey == songIdentity }
     }
 
+    /// 用给定歌曲列表整体替换某个本地歌单的内容（用于去重等批量整理）
+    func replaceSongs(_ songs: [Song], in id: UUID) {
+        guard let idx = playlists.firstIndex(where: { $0.id == id }) else { return }
+        playlists[idx].songs = songs
+    }
+
     @discardableResult
     func removeSongFromAllPlaylists(_ song: Song) -> Int {
         var removed = 0

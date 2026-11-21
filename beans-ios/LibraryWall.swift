@@ -219,6 +219,10 @@ struct LibraryAllPlaylistsSheet: View {
 
     /// nil = 全部平台
     @State private var platformFilter: String? = nil
+    /// 管理模式：批量隐藏 / 恢复隐藏
+    @State private var manageMode = false
+    @State private var managedHidden: Set<String> = []
+    @State private var showHiddenOnly = false
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -266,58 +270,80 @@ struct LibraryAllPlaylistsSheet: View {
 
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
                         ForEach(filteredItems) { item in
-                            Button {
-                                dismiss()
-                                item.onOpen()
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ZStack(alignment: .bottomTrailing) {
-                                        CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
-                                        if let badge = item.badge {
-                                            LibraryPlatformBadgeView(badge: badge, compact: true)
-                                                .padding(5)
+                            ZStack(alignment: .topLeading) {
+                                Button {
+                                    if manageMode {
+                                        BeansHaptics.tap()
+                                        if managedHidden.contains(item.id) {
+                                            managedHidden.remove(item.id)
+                                        } else {
+                                            managedHidden.insert(item.id)
                                         }
+                                    } else {
+                                        dismiss()
+                                        item.onOpen()
                                     }
-                                    Text(item.name)
-                                        .font(BeansFont.appFont(12, .semibold))
-                                        .foregroundStyle(Color.beansLabel)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                    Text(item.subtitle)
-                                        .font(BeansFont.appFont(10))
-                                        .foregroundStyle(Color.beansComment)
-                                        .lineLimit(1)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ZStack(alignment: .bottomTrailing) {
+                                            CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
+                                            if let badge = item.badge {
+                                                LibraryPlatformBadgeView(badge: badge, compact: true)
+                                                    .padding(5)
+                                            }
+                                        }
+                                        Text(item.name)
+                                            .font(BeansFont.appFont(12, .semibold))
+                                            .foregroundStyle(Color.beansLabel)
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.leading)
+                                        Text(item.subtitle)
+                                            .font(BeansFont.appFont(10))
+                                            .foregroundStyle(Color.beansComment)
+                                            .lineLimit(1)
+                                    }
+                                    .opacity(manageMode && !managedHidden.contains(item.id) ? 0.55 : 1)
+                                }
+                                .buttonStyle(.plain)
+                                if manageMode {
+                                    Image(systemName: managedHidden.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(managedHidden.contains(item.id) ? Color.beansAmber : Color.beansComment.opacity(0.6))
+                                        .shadow(radius: 2)
+                                        .padding(4)
                                 }
                             }
-                            .buttonStyle(.plain)
                             .contextMenu {
-                                if let onUpdate = item.onUpdate {
-                                    Button {
-                                        dismiss()
-                                        onUpdate()
-                                    } label: {
-                                        Label("更新歌单", systemImage: "arrow.clockwise")
+                                if !manageMode {
+                                    if let onUpdate = item.onUpdate {
+                                        Button {
+                                            dismiss()
+                                            onUpdate()
+                                        } label: {
+                                            Label("更新歌单", systemImage: "arrow.clockwise")
+                                        }
                                     }
-                                }
-                                if let onRename = item.onRename {
-                                    Button {
-                                        dismiss()
-                                        onRename()
-                                    } label: {
-                                        Label("重命名", systemImage: "pencil")
+                                    if let onRename = item.onRename {
+                                        Button {
+                                            dismiss()
+                                            onRename()
+                                        } label: {
+                                            Label("重命名", systemImage: "pencil")
+                                        }
                                     }
-                                }
-                                Button {
-                                    hidden.hide(item.id)
-                                } label: {
-                                    Label("隐藏", systemImage: "eye.slash")
-                                }
-                                if let onDelete = item.onDelete {
-                                    Button(role: .destructive) {
-                                        dismiss()
-                                        onDelete()
+                                    Button {
+                                        hidden.hide(item.id)
+                                        ToastCenter.shared.show("已隐藏「\(item.name)」")
                                     } label: {
-                                        Label("删除", systemImage: "trash")
+                                        Label("隐藏", systemImage: "eye.slash")
+                                    }
+                                    if let onDelete = item.onDelete {
+                                        Button(role: .destructive) {
+                                            dismiss()
+                                            onDelete()
+                                        } label: {
+                                            Label("删除", systemImage: "trash")
+                                        }
                                     }
                                 }
                             }
@@ -328,11 +354,61 @@ struct LibraryAllPlaylistsSheet: View {
                 .padding(.top, 10)
                 .padding(.bottom, 40)
             }
-            .navigationTitle("全部歌单")
+            .navigationTitle(manageMode ? "管理歌单" : "全部歌单")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     LibraryBackButton { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(manageMode ? "完成" : "管理") {
+                        BeansHaptics.tap()
+                        withAnimation {
+                            manageMode.toggle()
+                            managedHidden.removeAll()
+                        }
+                    }
+                    .font(BeansFont.appFont(14, .semibold))
+                    .foregroundStyle(Color.beansAmber)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if manageMode {
+                    VStack(spacing: 8) {
+                        HStack(spacing: 10) {
+                            Button {
+                                BeansHaptics.tap()
+                                for id in managedHidden { hidden.hide(id) }
+                                let n = managedHidden.count
+                                managedHidden.removeAll()
+                                ToastCenter.shared.show(n > 0 ? "已隐藏 \(n) 个歌单" : "请先选择歌单")
+                            } label: {
+                                Label("隐藏所选", systemImage: "eye.slash")
+                                    .font(BeansFont.appFont(13, .semibold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.beansAmber)
+
+                            Button {
+                                BeansHaptics.tap()
+                                hidden.unhideAll()
+                                ToastCenter.shared.show("已恢复显示全部隐藏歌单")
+                            } label: {
+                                Label("恢复全部隐藏", systemImage: "eye")
+                                    .font(BeansFont.appFont(13, .semibold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(Color.beansAmber)
+                        }
+                        if !hidden.keys.isEmpty {
+                            Text("当前有 \(hidden.keys.count) 个歌单被隐藏")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial)
                 }
             }
         }
@@ -456,7 +532,9 @@ struct LibraryAllSongsSection: View {
 /// 全部歌曲页：分页加载 + 按歌手 / 语言筛选，几千首也不会一次渲染卡住。
 struct LibraryAllSongsSheet: View {
     @EnvironmentObject private var player: PlayerManager
+    @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var localLibrary = LocalLibraryStore.shared
 
     let songs: [Song]
 
@@ -466,6 +544,13 @@ struct LibraryAllSongsSheet: View {
     /// 分批渲染：首屏 60 首，滑到底自动加 60
     @State private var visibleCount = 60
     private let pageSize = 60
+
+    // 批量管理
+    @State private var selectionMode = false
+    @State private var selected: Set<String> = []
+    @State private var showAddToLocal = false
+    @State private var showDedupeConfirm = false
+    @State private var dedupeResult: String?
 
     /// 歌手 / 语言标签只算一次，避免每次滚动都重新遍历上千首
     private let artistsCache: [String]
@@ -534,8 +619,31 @@ struct LibraryAllSongsSheet: View {
 
                     LazyVStack(spacing: 0) {
                         ForEach(Array(shown.enumerated()), id: \.element.identityKey) { index, song in
-                            SongCell(song: song) {
-                                player.play(songs: filtered, startAt: index)
+                            HStack(spacing: 8) {
+                                if selectionMode {
+                                    Image(systemName: selected.contains(song.identityKey) ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(selected.contains(song.identityKey) ? Color.beansAmber : Color.beansComment.opacity(0.5))
+                                        .onTapGesture {
+                                            BeansHaptics.tap()
+                                            if selected.contains(song.identityKey) {
+                                                selected.remove(song.identityKey)
+                                            } else {
+                                                selected.insert(song.identityKey)
+                                            }
+                                        }
+                                }
+                                SongCell(song: song) {
+                                    if selectionMode {
+                                        if selected.contains(song.identityKey) {
+                                            selected.remove(song.identityKey)
+                                        } else {
+                                            selected.insert(song.identityKey)
+                                        }
+                                    } else {
+                                        player.play(songs: filtered, startAt: index)
+                                    }
+                                }
                             }
                             if index < shown.count - 1 {
                                 Divider().overlay(Color.beansComment.opacity(0.12))
@@ -565,18 +673,127 @@ struct LibraryAllSongsSheet: View {
                 .padding(.top, 8)
             }
             .searchable(text: $searchText, prompt: "搜索歌名 / 歌手 / 专辑")
-            .navigationTitle("全部歌曲")
+            .navigationTitle(selectionMode ? "已选 \(selected.count) 首" : "全部歌曲")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     LibraryBackButton { dismiss() }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 8) {
+                        if selectionMode {
+                            Button("全选") {
+                                BeansHaptics.tap()
+                                if selected.count == filtered.count {
+                                    selected.removeAll()
+                                } else {
+                                    selected = Set(filtered.map(\.identityKey))
+                                }
+                            }
+                            .font(BeansFont.appFont(13, .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                        }
+                        Menu {
+                            Button {
+                                BeansHaptics.tap()
+                                withAnimation { selectionMode.toggle() }
+                                if !selectionMode { selected.removeAll() }
+                            } label: {
+                                Label(selectionMode ? "退出多选" : "批量选择", systemImage: "checkmark.circle")
+                            }
+                            Button {
+                                BeansHaptics.tap()
+                                showDedupeConfirm = true
+                            } label: {
+                                Label("清除重复歌曲", systemImage: "wand.and.stars")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.beansAmber)
+                        }
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if selectionMode && !selected.isEmpty {
+                    HStack(spacing: 12) {
+                        Button {
+                            BeansHaptics.tap()
+                            let list = filtered.filter { selected.contains($0.identityKey) }
+                            let added = player.appendToQueue(list)
+                            ToastCenter.shared.show(added > 0 ? "已加入播放列表 \(added) 首" : "播放列表中没有新增歌曲")
+                        } label: {
+                            Label("加入播放列表", systemImage: "music.note.list")
+                                .font(BeansFont.appFont(13, .semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.beansAmber)
+
+                        Button {
+                            BeansHaptics.tap()
+                            showAddToLocal = true
+                        } label: {
+                            Label("存入本地歌单", systemImage: "square.and.arrow.down")
+                                .font(BeansFont.appFont(13, .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.beansAmber)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial)
+                }
+            }
+            .sheet(isPresented: $showAddToLocal) {
+                CopyToLocalPlaylistSheet(
+                    songs: filtered.filter { selected.contains($0.identityKey) },
+                    suggestedName: "我的收藏歌单"
+                )
+                .environmentObject(theme)
+            }
+            .alert("清除重复歌曲", isPresented: $showDedupeConfirm) {
+                Button("清除", role: .destructive) { dedupeLocalSongs() }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将扫描所有本地歌单，删除歌名与歌手相同的重复歌曲。此操作只影响本地歌单，不影响平台账号。")
+            }
+            .alert("去重完成", isPresented: Binding(
+                get: { dedupeResult != nil },
+                set: { if !$0 { dedupeResult = nil } }
+            )) {
+                Button("好的", role: .cancel) {}
+            } message: {
+                Text(dedupeResult ?? "")
             }
             .onChange(of: searchText) { _ in resetPaging() }
             .onChange(of: artistFilter) { _ in resetPaging() }
             .onChange(of: languageFilter) { _ in resetPaging() }
         }
         .librarySwipeBack { dismiss() }
+    }
+
+    private func dedupeLocalSongs() {
+        var removed = 0
+        for pl in localLibrary.playlists {
+            var seen = Set<String>()
+            var kept: [Song] = []
+            for song in pl.songs {
+                let name = song.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let artist = song.artists.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let key = "\(name)|\(artist)"
+                if seen.insert(key).inserted {
+                    kept.append(song)
+                } else {
+                    removed += 1
+                }
+            }
+            if kept.count != pl.songs.count {
+                // 直接重建该歌单内容
+                localLibrary.replaceSongs(kept, in: pl.id)
+            }
+        }
+        dedupeResult = removed == 0 ? "没有发现重复歌曲" : "已清除 \(removed) 首重复歌曲"
     }
 
     private func resetPaging() {

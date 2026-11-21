@@ -128,10 +128,12 @@ struct LibraryView: View {
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
     @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
     @ObservedObject private var localLibrary = LocalLibraryStore.shared
+    @ObservedObject private var favoritePlaylists = FavoritePlaylistStore.shared
     @ObservedObject private var cloudSync = LibraryCloudSyncStore.shared
     @State private var showCloudSyncSheet = false
     @State private var showAllPlaylistsSheet = false
     @State private var showAllSongsSheet = false
+    @State private var selectedLocalPlaylist: LocalPlaylist?
     @State private var showImportSheet = false
     @State private var importPreset: Playlist?
     @State private var refreshingImportKeys: Set<String> = []
@@ -338,6 +340,11 @@ struct LibraryView: View {
                 .environmentObject(theme)
                 .environmentObject(player)
         }
+        .sheet(item: $selectedLocalPlaylist) { playlist in
+            LocalPlaylistDetailSheet(playlistID: playlist.id)
+                .environmentObject(player)
+                .environmentObject(auth)
+        }
         .sheet(isPresented: $showCloudSyncSheet) {
             LibraryCloudSyncSheet(sources: syncSources)
                 .environmentObject(theme)
@@ -402,6 +409,11 @@ struct LibraryView: View {
         } else {
             legacyRoute = route
         }
+    }
+
+    /// 打开本机自建歌单详情
+    private func openLocalPlaylist(_ playlist: LocalPlaylist) {
+        selectedLocalPlaylist = playlist
     }
 
     private var header: some View {
@@ -516,40 +528,47 @@ struct LibraryView: View {
                 Label("手动导入音源", systemImage: libraryShowsImported ? "checkmark" : "square.and.arrow.down")
             }
         } label: {
-            HStack(spacing: 8) {
+            // 大图标 + 小名称：去掉与副标题重复的大号标题文字，图标放大更美观
+            let iconSize: CGFloat = isNativeClean ? 40 : 36
+            HStack(spacing: 6) {
                 // 图标与主页「全部」一致：BrandAll 图片，缺失时用 grid 兜底
                 if libraryShowsImported {
                     Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                        .font(.system(size: iconSize * 0.62, weight: .semibold))
                         .foregroundStyle(Color.beansLabel)
+                        .frame(width: iconSize, height: iconSize)
                 } else if libraryShowsAll {
                     if let allIcon = UIImage(named: "BrandAll") {
                         Image(uiImage: allIcon)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: isNativeClean ? 26 : 22, height: isNativeClean ? 26 : 22)
+                            .frame(width: iconSize, height: iconSize)
                     } else {
                         Image(systemName: "square.grid.2x2.fill")
-                            .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                            .font(.system(size: iconSize * 0.62, weight: .semibold))
                             .foregroundStyle(Color.beansLabel)
+                            .frame(width: iconSize, height: iconSize)
                     }
                 } else if let brand = source.brandImageName, let img = UIImage(named: brand) {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: isNativeClean ? 26 : 22, height: isNativeClean ? 26 : 22)
+                        .frame(width: iconSize, height: iconSize)
                 } else {
                     Image(systemName: source.icon)
-                        .font(.system(size: isNativeClean ? 22 : 19, weight: .semibold))
+                        .font(.system(size: iconSize * 0.62, weight: .semibold))
                         .foregroundStyle(Color.beansLabel)
+                        .frame(width: iconSize, height: iconSize)
                 }
-                Text(verbatim: libraryTitleText)
-                    .font(BeansFont.appFont(isNativeClean ? 28 : 24, .bold))
-                    .foregroundStyle(Color.beansLabel)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.beansComment.opacity(0.7))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(verbatim: libraryTitleText)
+                        .font(BeansFont.appFont(13, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.beansComment.opacity(0.7))
+                }
             }
             .contentShape(Rectangle())
         }
@@ -629,8 +648,8 @@ struct LibraryView: View {
     private var wallItems: [LibraryWallItem] {
         var items: [LibraryWallItem] = []
 
-        // 本机导入的歌单排在最前，这是用户自己「收藏」下来的
-        let localBadge = LibraryWallBadge(title: "本机", symbol: "iphone", brandImage: nil, tint: Color(white: 0.42))
+        // 本地歌单（手工导入 + 本机自建）排在最前，归到「本地」分类
+        let localBadge = LibraryWallBadge(title: "本地", symbol: "iphone", brandImage: nil, tint: Color(white: 0.42))
         for entry in importedStore.items {
             let id = "imported-\(entry.key)"
             guard !hiddenPlaylists.isHidden(id) else { continue }
@@ -676,6 +695,43 @@ struct LibraryView: View {
                     platformKey: entry.provider.rawValue,
                     onOpen: { openRoute(LibraryRoute.playlist(playlist)) },
                     onDelete: { requestDelete(playlist) }
+                )
+            )
+        }
+
+        // 本机自建歌单（在「我的」里创建的），同样归入「本地」分类
+        for pl in localLibrary.playlists {
+            let id = "local-\(pl.id.uuidString)"
+            guard !hiddenPlaylists.isHidden(id) else { continue }
+            items.append(
+                LibraryWallItem(
+                    id: id,
+                    name: pl.name,
+                    coverURL: pl.songs.first?.coverURL,
+                    count: pl.songs.count,
+                    subtitle: beansSongCountText(pl.songs.count),
+                    badge: localBadge,
+                    platformKey: "local",
+                    onOpen: { openLocalPlaylist(pl) }
+                )
+            )
+        }
+
+        // 收藏歌单：主页「歌单收藏」转入音乐库，单独成「收藏」分类
+        let favBadge = LibraryWallBadge(title: "收藏", symbol: "heart.fill", brandImage: nil, tint: Color.beansAmber)
+        for pl in favoritePlaylists.playlists {
+            let id = "favorite-\(pl.uniqueKey)"
+            guard !hiddenPlaylists.isHidden(id) else { continue }
+            items.append(
+                LibraryWallItem(
+                    id: id,
+                    name: pl.name,
+                    coverURL: pl.coverURL,
+                    count: pl.trackCount,
+                    subtitle: pl.trackCount > 0 ? beansSongCountText(pl.trackCount) : "收藏歌单",
+                    badge: favBadge,
+                    platformKey: "favorite",
+                    onOpen: { openRoute(LibraryRoute.playlist(pl)) }
                 )
             )
         }

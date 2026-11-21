@@ -33,6 +33,22 @@
 | 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
 | 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
 
+### 0.3.0 最新一轮（2026-11-21，版本 **1.16.0 (86)**）
+
+按用户 7 条反馈继续改（本地已改完，push 后 CI 出包覆盖 beans-latest）：
+
+| # | 反馈 | 处理（改动文件） |
+|---|---|---|
+| 1 | 左上角「全部歌单」大字与小字重复，图标调大 | `LibraryView.swift` 的 `libraryTitleButton`：去掉 24/28pt 大字，图标放大到 36/40，配 13pt 小名称 |
+| 2 | 全部歌单页右上角管理、隐藏/删除；分类加「本地」 | `LibraryWall.swift` `LibraryAllPlaylistsSheet` 右上角「管理」按钮：多选隐藏 + 恢复全部隐藏；`LibraryView.swift` `wallItems` 纳入本地自建歌单，本地角标改「本地」 |
+| 3 | 云歌单导入/复制到本地歌单 | 新增 `CopyToLocalPlaylistSheet.swift`；`PlaylistView.swift` header 加「保存到本地」按钮；基于 `LocalLibraryStore` 追加到现有/新建本地歌单 |
+| 4 | 歌单新增「收藏」分类 | `LibraryView.swift` 引入 `FavoritePlaylistStore`，`wallItems` 追加收藏歌单（platformKey=favorite，红色爱心角标） |
+| 5 | 全部歌曲批量加入播放列表 + 清除重复 | `LibraryWall.swift` `LibraryAllSongsSheet` 加多选：批量 `player.appendToQueue` / 存入本地；`LocalLibraryStore.replaceSongs` + `PlayerManager.appendToQueue`；去重按「歌名+歌手」 |
+| 6 | 歌词仍黑屏 | `LyricStage.swift` 注入 ResizeObserver + 多次 resize + ready 回调；`PlayerView.swift` / `ReferencePlaybackView.swift` 加 `lyricStageReady`，舞台首帧未就绪时保留原生歌词兜底，杜绝纯黑 |
+| 7 | 原生歌词新展示方式 | `Models.swift` 新增 `LyricDisplayMode`（经典/逐字高亮/大字聚焦）；`PlayerView.swift` 的 `LyricsSection` 逐字上色 + 大字渐变；设置-歌词显示加分段选择器，`beans.lyricDisplayMode` 持久化 |
+
+> 注意：本轮无本地 Xcode，未本地编译；正确性靠括号平衡 + 引用核对，最终以 CI 编译为准。若 CI 报 `error:`，看 `ci-failure.log` 回传内容定位。
+
 ### 0.3 当前状态（2026-11-21，版本 **1.13.0 (83)**）
 
 1.12.0 之后按用户新 9 条反馈继续改：

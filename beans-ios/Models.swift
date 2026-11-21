@@ -502,6 +502,15 @@ enum LyricParser {
     }
 }
 
+/// 原生歌词展示方式（不使用动态舞台时生效）
+enum LyricDisplayMode: String, CaseIterable, Identifiable {
+    case classic = "经典滚动"      // 逐行滚动 + 渐隐（原有效果）
+    case karaoke = "逐字高亮"      // 当前行按进度逐字点亮
+    case bigWord = "大字聚焦"      // 当前行超大字、其余极小
+
+    var id: String { rawValue }
+}
+
 enum LyricTiming {
     static let userOffsetKey = "beans.lyricOffset"
 

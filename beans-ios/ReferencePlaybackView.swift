@@ -59,6 +59,8 @@ struct ReferencePlaybackView: View {
     @AppStorage("beans.lyricGlow") private var lyricGlowLevel = 1
     @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
     @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
+    /// 舞台首帧就绪后才顶替原生歌词，避免 WebView 黑屏
+    @State private var lyricStageReady = false
     private let downloadFeatureUnlocked = true
     @State private var lyricCenters: [UUID: CGFloat] = [:]
     @State private var focusedLyricID: UUID?
@@ -77,8 +79,14 @@ struct ReferencePlaybackView: View {
         LyricStage.stage(id: lyricStageID)
     }
 
-    private var lyricStageActive: Bool {
+    /// 舞台是否已配置（决定是否尝试挂载 WebView）
+    private var lyricStageConfigured: Bool {
         lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty && showLyrics
+    }
+
+    /// 舞台就绪后才隐藏原生歌词
+    private var lyricStageActive: Bool {
+        lyricStageConfigured && lyricStageReady
     }
 
     private var stageAccentHex: String? {
@@ -106,7 +114,7 @@ struct ReferencePlaybackView: View {
                     ZStack {
                         if showLyrics {
                             ZStack {
-                                if lyricStageActive, let stage = lyricStage {
+                                if lyricStageConfigured, let stage = lyricStage {
                                     ZStack {
                                         Color.black
                                         LyricStageWebView(
@@ -114,9 +122,13 @@ struct ReferencePlaybackView: View {
                                             lines: lyrics,
                                             progress: clock.progress,
                                             isPlaying: player.isPlaying,
-                                            accentHex: stageAccentHex
+                                            accentHex: stageAccentHex,
+                                            onReady: { ok in
+                                                if ok { lyricStageReady = true }
+                                            }
                                         )
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .opacity(lyricStageActive ? 1 : 0)
                                         VStack {
                                             LinearGradient(
                                                 colors: [.black.opacity(0.62), .clear],
@@ -159,6 +171,9 @@ struct ReferencePlaybackView: View {
                 .allowsHitTesting(false)
         }
         .onDisappear { resumeTask?.cancel() }
+        .onChange(of: lyricStageID) { _ in lyricStageReady = false }
+        .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
+        .onChange(of: showLyrics) { _ in lyricStageReady = false }
     }
 
     @ViewBuilder

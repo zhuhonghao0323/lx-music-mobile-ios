@@ -66,6 +66,8 @@ struct PlayerView: View {
     @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
     @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
     @State private var showLyricStagePicker = false
+    /// 舞台是否已成功首帧绘制；未就绪时回退原生歌词，避免黑屏
+    @State private var lyricStageReady = false
     /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
     /// 进度条单独强调色；空值时跟随播放控件颜色
@@ -77,6 +79,8 @@ struct PlayerView: View {
     @State private var layoutPart: PlayerLayoutPart = .progress
     @ObservedObject private var appleLayout = AppleMusicLayoutStore.shared
     @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
+    /// 原生歌词展示方式：经典滚动 / 逐字高亮 / 大字聚焦
+    @AppStorage("beans.lyricDisplayMode") private var lyricDisplayModeRaw = LyricDisplayMode.classic.rawValue
     /// 歌词布局：对齐样式 / 水平偏移 / 垂直重心（底部更多或顶部更多歌词）
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
@@ -1924,9 +1928,11 @@ struct PlayerView: View {
 
     /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
     private func lyricsPanel(geo: GeometryProxy) -> some View {
-        let stageOn = lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty
+        // 舞台只有在 WebView 成功首帧绘制后才顶替原生歌词，否则保持原生歌词，杜绝黑屏
+        let stageConfigured = lyricStageEnabled && lyricStage != nil && !lyrics.isEmpty
+        let stageOn = stageConfigured && lyricStageReady
         return ZStack {
-            if stageOn, let stage = lyricStage {
+            if stageConfigured, let stage = lyricStage {
                 ZStack {
                     Color.black
                     LyricStageWebView(
@@ -1934,9 +1940,13 @@ struct PlayerView: View {
                         lines: lyrics,
                         progress: clock.progress,
                         isPlaying: player.isPlaying,
-                        accentHex: lyricStageAccentHex
+                        accentHex: lyricStageAccentHex,
+                        onReady: { ok in
+                            if ok { lyricStageReady = true }
+                        }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(stageOn ? 1 : 0)
                     VStack {
                         LinearGradient(
                             colors: [.black.opacity(0.62), .clear],
@@ -2046,7 +2056,8 @@ struct PlayerView: View {
                                 blurAmount: CGFloat(lyricBlurAmount),
                                 tilt: CGFloat(lyricTilt),
                                 tiltY: CGFloat(lyricTiltY),
-                                lyricOffset: CGFloat(lyricOffset)
+                                lyricOffset: CGFloat(lyricOffset),
+                                displayMode: LyricDisplayMode(rawValue: lyricDisplayModeRaw) ?? .classic
                             ) { line in
                                 BeansHaptics.tap()
                                 player.seek(to: LyricTiming.seekTime(for: line, userOffset: lyricOffset))
@@ -2058,7 +2069,10 @@ struct PlayerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .id("lyricsPanel-" + (stageOn ? "stage" : (song?.identityKey ?? "none")))
+        .id("lyricsPanel-" + (song?.identityKey ?? "none") + "-" + lyricStageID)
+        .onChange(of: lyricStageID) { _ in lyricStageReady = false }
+        .onChange(of: song?.identityKey) { _ in lyricStageReady = false }
+        .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
         .sheet(isPresented: $showLyricStagePicker) {
             LyricStagePickerSheet()
         }
@@ -3745,6 +3759,8 @@ struct LyricsSection: View {
     var tiltY: CGFloat = 0
     /// 歌词进度偏移（秒）：正数提前、负数延后
     var lyricOffset: CGFloat = 0
+    /// 展示方式：经典 / 逐字高亮 / 大字聚焦
+    var displayMode: LyricDisplayMode = .classic
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -3903,8 +3919,71 @@ struct LyricsSection: View {
         }
     }
 
+    /// 当前行内的播放进度 0...1（用于逐字高亮）。
+    /// 用当前行与下一行的时间间隔估算，间隔异常时用 4 秒兜底。
+    private func lineProgress(index: Int, line: LyricLine) -> Double {
+        let now = LyricTiming.effectiveProgress(clock.progress, userOffset: Double(lyricOffset))
+        let nextTime = index + 1 < lyrics.count ? lyrics[index + 1].time : line.time + 4
+        let span = max(0.4, nextTime - line.time)
+        return min(1, max(0, (now - line.time) / span))
+    }
+
+    /// 逐字高亮：把一行拆成单字，按行内进度逐字从暗色点亮到高亮色。
+    private func karaokeText(_ text: String, progress: Double, size: CGFloat, isFocused: Bool) -> some View {
+        let chars = Array(text)
+        guard !chars.isEmpty else {
+            return AnyView(Text(" ").font(BeansFont.appFont(size)))
+        }
+        // 用 HStack 逐字渲染，逐字着色；逐字 scale 让点亮瞬间更有律动
+        let lit = Double(chars.count) * progress
+        return AnyView(
+            HStack(spacing: 0) {
+                ForEach(Array(chars.enumerated()), id: \.offset) { ci, ch in
+                    let isLit = Double(ci) < lit
+                    Text(String(ch))
+                        .font(BeansFont.appFont(size, isLit ? .bold : .regular))
+                        .foregroundStyle(isLit ? AnyShapeStyle(accent) : AnyShapeStyle(secondary.opacity(0.55)))
+                        .shadow(color: isLit && isFocused ? accent.opacity(0.7) : .clear, radius: isLit ? 6 : 0)
+                        .scaleEffect(isLit && isFocused ? 1.06 : 1)
+                }
+            }
+            .animation(.easeInOut(duration: 0.12), value: progress)
+        )
+    }
+
     /// Apple Music 风格渐隐：当前行最大最亮，已播放行与未播放行按距离逐层变暗变淡
     private func lyricRow(index: Int, line: LyricLine) -> some View {
+        // 逐字高亮 / 大字聚焦：当前行走专属渲染，其余行走经典渐隐
+        if displayMode != .classic && index == currentIndex {
+            let prog = lineProgress(index: index, line: line)
+            let big = displayMode == .bigWord
+            let focusSize = big ? baseFontSize * 2.15 : baseFontSize + 5
+            return AnyView(
+                VStack(alignment: alignment == .leading ? .leading : .center, spacing: 4) {
+                    if displayMode == .karaoke {
+                        karaokeText(line.text.isEmpty ? " " : line.text, progress: prog, size: focusSize, isFocused: true)
+                    } else {
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .font(BeansFont.appFont(focusSize, .bold))
+                            .foregroundStyle(
+                                LinearGradient(colors: [gradientStart ?? accent, gradientEnd ?? accent], startPoint: .top, endPoint: .bottom)
+                            )
+                            .shadow(color: (glowColorOverride ?? gradientStart ?? accent).opacity(glowRadius > 0 ? 0.85 : 0), radius: glowRadius)
+                            .scaleEffect(1 + CGFloat(prog) * 0.03)
+                    }
+                    if showTranslation, let trans = line.translation, !trans.isEmpty {
+                        Text(trans)
+                            .font(BeansFont.appFont(focusSize * 0.5))
+                            .foregroundStyle(secondary.opacity(0.85))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
+                .padding(.horizontal, alignment == .leading ? 30 : 24)
+                .padding(.vertical, big ? 10 : 2)
+                .animation(.easeInOut(duration: 0.25), value: prog)
+            )
+        }
+
         let playbackIndex = currentIndex ?? 0
         // 手动滚动时，以视口中心行为清晰度焦点；颜色和渐变仍只跟随实际播放行。
         // 这样拖动歌词不会暂停播放，也不会让整页歌词一起变糊。
@@ -3916,7 +3995,9 @@ struct LyricsSection: View {
         let opacity: Double = isFocused
             ? 1.0
             : (isPlayed ? 0.28 : 0.62) - Double(min(distance, 4)) * 0.05
-        let size = isFocused ? baseFontSize + 4 : baseFontSize - CGFloat(min(distance, 2)) * 1.5
+        var size = isFocused ? baseFontSize + 4 : baseFontSize - CGFloat(min(distance, 2)) * 1.5
+        // 大字聚焦模式：非当前行整体缩小，突出当前大字
+        if displayMode == .bigWord { size *= 0.78 }
         // 歌词行模糊：当前行与邻近行保持清晰，距离越远才越柔和（避免只剩一行清晰显得突兀）
         // 模糊起始距离与强度由用户控制（0 强度 = 完全关闭模糊）
         let blurRadius: CGFloat = isFocused ? 0 : min(CGFloat(max(distance - Int(blurStart), 0)) * blurAmount, 7.0)
@@ -3934,7 +4015,7 @@ struct LyricsSection: View {
         // 翻译行只展示在当前视觉焦点行下方。
         let translationText = (isCurrent && showTranslation) ? line.translation : nil
 
-        return VStack(alignment: alignment == .leading ? .leading : .center, spacing: 3) {
+        return AnyView(VStack(alignment: alignment == .leading ? .leading : .center, spacing: 3) {
             Text(line.text.isEmpty ? " " : line.text)
                 .font(lineFont)
                 .foregroundStyle(lineStyle)
@@ -3976,6 +4057,7 @@ struct LyricsSection: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: visualIndex)
+        ))
     }
 
     private func toggleSelect(_ index: Int) {
@@ -4097,6 +4179,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     @AppStorage("beans.playerLayoutMode") private var layoutMode = false
     @AppStorage("beans.playerLayoutSelectedPart") private var layoutPartRaw = PlayerLayoutPart.progress.rawValue
+    @AppStorage("beans.lyricDisplayMode") private var lyricDisplayModeRaw = LyricDisplayMode.classic.rawValue
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
@@ -4776,6 +4859,21 @@ struct PlayerSettingsSheet: View {
 
     private var lyricDisplayCard: some View {
         settingCard("歌词显示", isExpanded: $lyricDisplayExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("展示方式")
+                    .font(BeansFont.appFont(13, .semibold))
+                    .foregroundStyle(Color.beansLabel)
+                Picker("展示方式", selection: $lyricDisplayModeRaw) {
+                    ForEach(LyricDisplayMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text("逐字高亮：当前行按进度逐字点亮；大字聚焦：当前行超大字突出显示。")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+            }
+            Divider().opacity(0.5)
             settingSlider("歌词字号", valueText: "\(fontSize) pt") {
                 Slider(
                     value: Binding(get: { Double(fontSize) }, set: { fontSize = Int($0) }),

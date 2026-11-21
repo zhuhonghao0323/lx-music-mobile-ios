@@ -102,6 +102,8 @@ struct LyricStageWebView: UIViewRepresentable {
     let progress: Double
     let isPlaying: Bool
     let accentHex: String?
+    /// 舞台成功首帧绘制后回调（用于原生歌词兜底切换）
+    var onReady: ((Bool) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -112,7 +114,9 @@ struct LyricStageWebView: UIViewRepresentable {
 
         let controller = WKUserContentController()
         controller.add(context.coordinator, name: "liziStage")
-        // 舞台用 parent.postMessage 上报 ready；这里把它转给原生，收到后再喂歌词
+        // 舞台用 parent.postMessage 上报 ready；这里把它转给原生，收到后再喂歌词。
+        // 同时装一个 ResizeObserver：canvas 首帧尺寸常为 0，尺寸一旦确定就立刻派发 resize，
+        // 让舞台按真实屏幕重建，这是黑屏最常见的根因。
         let hook = """
         (function(){
           function forward(data){
@@ -123,6 +127,23 @@ struct LyricStageWebView: UIViewRepresentable {
             } catch(e) {}
           }
           window.addEventListener('message', function(e){ forward(e.data); }, true);
+
+          function signalReady(){
+            try { window.webkit.messageHandlers.liziStage.postMessage({type:'ready'}); } catch(e) {}
+          }
+          function pingSize(){
+            try { window.dispatchEvent(new Event('resize')); } catch(e) {}
+          }
+          // 首帧 + 多次兜底 resize，覆盖 Auto Layout 布局完成的时机
+          [0, 60, 160, 360, 700, 1200].forEach(function(ms){ setTimeout(pingSize, ms); });
+          if (typeof ResizeObserver !== 'undefined') {
+            try {
+              new ResizeObserver(function(){ pingSize(); }).observe(document.documentElement);
+            } catch(e) {}
+          }
+          window.addEventListener('load', function(){ pingSize(); setTimeout(signalReady, 120); });
+          // 舞台脚本通常在 DOM 末尾同步发 ready；这里再兜一个 load 后的 ready，避免被 CSP/时序吞掉
+          setTimeout(signalReady, 500);
         })();
         """
         controller.addUserScript(WKUserScript(source: hook, injectionTime: .atDocumentStart, forMainFrameOnly: true))
@@ -139,6 +160,7 @@ struct LyricStageWebView: UIViewRepresentable {
         webView.isUserInteractionEnabled = false
         webView.allowsBackForwardNavigationGestures = false
 
+        context.coordinator.onReady = onReady
         context.coordinator.attach(webView: webView, stage: stage)
         return webView
     }
@@ -169,6 +191,8 @@ struct LyricStageWebView: UIViewRepresentable {
         private var latestTime: Double = 0
         private var latestPlaying = false
         private var accentHex: String?
+        var onReady: ((Bool) -> Void)?
+        private var didReportReady = false
 
         func attach(webView: WKWebView, stage: LyricStage) {
             self.webView = webView
@@ -250,8 +274,12 @@ struct LyricStageWebView: UIViewRepresentable {
             // WKWebView 首帧布局完成后派发一次 resize 让它们按真实尺寸重建。
             let js = """
             window.postMessage({__c100:1,type:'init',payload:\(json)},'*');
+            [80, 220, 500, 900].forEach(function(ms){
+              setTimeout(function(){
+                try { window.dispatchEvent(new Event('resize')); } catch(e) {}
+              }, ms);
+            });
             setTimeout(function(){
-              try { window.dispatchEvent(new Event('resize')); } catch(e) {}
               window.postMessage({__c100:1,type:'tick',payload:{time:\(latestTime),playing:\(latestPlaying ? "true" : "false")}},'*');
             }, 120);
             """
@@ -278,6 +306,10 @@ struct LyricStageWebView: UIViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "liziStage" else { return }
             ready = true
+            if !didReportReady {
+                didReportReady = true
+                DispatchQueue.main.async { [weak self] in self?.onReady?(true) }
+            }
             sendInit()
         }
     }

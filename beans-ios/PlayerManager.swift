@@ -223,6 +223,28 @@ final class PlayerManager: NSObject, ObservableObject {
         }
     }
 
+    /// 批量把歌曲追加到当前播放队列末尾（不打断当前播放），用于「全部歌曲」多选加入播放列表。
+    @discardableResult
+    func appendToQueue(_ songs: [Song]) -> Int {
+        guard !songs.isEmpty else { return 0 }
+        if queue.isEmpty {
+            queue = songs
+            buildPlayOrder()
+        } else {
+            var added = 0
+            for song in songs {
+                guard !queue.contains(where: { $0.identityKey == song.identityKey }) else { continue }
+                queue.append(song)
+                added += 1
+            }
+            buildPlayOrder()
+            savePersistedPlaybackState()
+            return added
+        }
+        savePersistedPlaybackState()
+        return songs.count
+    }
+
     /// 可选地恢复上次退出时的歌曲并立即播放，只在每次应用启动时执行一次。
     func resumePersistedPlaybackIfEnabled() {
         guard !didAttemptAutoResume else { return }
