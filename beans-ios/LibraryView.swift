@@ -419,12 +419,8 @@ struct LibraryView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 4) {
-                    libraryTitleButton
-                    Text(librarySubtitle)
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansComment)
-                }
+                // 只保留图标 + 右侧小名称：副标题与名称重复，已去掉
+                libraryTitleButton
                 Spacer()
                 HStack(spacing: 10) {
                 GlassIconButton(systemName: "icloud.and.arrow.down", forceLiquid: isNativeClean) {
@@ -465,10 +461,6 @@ struct LibraryView: View {
                     }
                 }
             }
-            Text(librarySubtitle)
-                .font(BeansFont.appFont(12, .medium))
-                .foregroundStyle(Color.beansComment)
-                .lineLimit(1)
             Rectangle()
                 .fill(Color.beansLabel.opacity(0.10))
                 .frame(height: 1)
@@ -573,6 +565,7 @@ struct LibraryView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(libraryTitleText + "，" + librarySubtitle))
     }
 
 

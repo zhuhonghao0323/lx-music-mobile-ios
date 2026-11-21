@@ -33,7 +33,20 @@
 | 只推 ios-adaptation | 默认分支 main 是上游 LX 的，**不要推 main** |
 | 任务归属 | 手机发起的云端任务只在网页版/移动端的云端列表里，PC 桌面端看不到 |
 
-### 0.3.0 最新一轮（2026-11-21，版本 **1.16.0 (86)**）
+### 0.3.1 最新一轮（2026-11-21，版本 **1.17.0 (87)**）
+
+按用户 4 条反馈继续改：
+
+| # | 反馈 | 处理（改动文件） |
+|---|---|---|
+| 1 | 左上角图标旁边的「全部平台 / 网易云…」标签删掉，只留右侧名称 | `LibraryView.swift`：`header` / `appleHeader` 删除 `Text(librarySubtitle)`，副标题只用于无障碍标签 |
+| 2 | 歌单管理太简单，要能隐藏、过滤、删除 | `LibraryWall.swift` 重写 `LibraryAllPlaylistsSheet`：搜索框 + 平台 chips + 排序（默认/名称/歌曲数）+ 管理态多选批量隐藏 + 单个删除（走原平台删除确认）+ 右上角「已隐藏歌单」页（逐个恢复 / 滑动移除 / 全部恢复）；`HiddenPlaylistStore` 增加 id→名称存储 |
+| 3 | 导入歌单不支持酷狗概念版 | `PlaylistImportService.swift`：识别 `global_specialid=collection_…`、`gcid` 参数、`t*.kugou.com` 短链，短链用 URLSession 跟随 302 取落地页参数；`KugouMusicAPI.swift` 新增 `collectionPage` / `collectionDetail`（`pubsongs/v2/get_other_list_file_nofilt` 公开接口，实测可取 1619 首与歌单名），`mapTrack` 补「歌手 - 歌名」拆分 |
+| 4 | 歌词特效与集成舞台都没生效 | `LyricStage.swift`：ready 兜底改为调用 `reportReady()`（此前只置内部 ready、不回调 SwiftUI，舞台被 `lyricStageReady` 永久挡住）；`PlayerView.swift` / `ReferencePlaybackView.swift`：加 2.4s 超时强制显示舞台、舞台透明度 0→0.001 避免 WebKit 暂停出帧；`ReferencePlaybackView.swift` 新增 `focusedLyricContent`，逐字/大字同步到 Apple Music 方案；`karaokeText` 改富文本拼接避免长句溢出 |
+
+> 舞台 HTML 已用 Chromium 实测（001 粒子歌词）：init/tick 协议正常、canvas 正常出帧，问题在原生侧的 ready 门控。
+
+### 0.3.0 上一轮（2026-11-21，版本 **1.16.0 (86)**）
 
 按用户 7 条反馈继续改（本地已改完，push 后 CI 出包覆盖 beans-latest）：
 

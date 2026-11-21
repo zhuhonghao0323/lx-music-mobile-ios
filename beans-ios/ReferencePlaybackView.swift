@@ -57,6 +57,8 @@ struct ReferencePlaybackView: View {
     @AppStorage("beans.lyricSpacing") private var lyricSpacing = 24
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     @AppStorage("beans.lyricGlow") private var lyricGlowLevel = 1
+    /// 歌词展示方式（与经典方案共用）：逐字高亮 / 大字聚焦
+    @AppStorage("beans.lyricDisplayMode") private var lyricDisplayModeRaw = LyricDisplayMode.classic.rawValue
     @AppStorage(LyricStageSettings.enabledKey) private var lyricStageEnabled = LyricStageSettings.defaultEnabled
     @AppStorage(LyricStageSettings.idKey) private var lyricStageID = LyricStageSettings.defaultID
     /// 舞台首帧就绪后才顶替原生歌词，避免 WebView 黑屏
@@ -116,7 +118,8 @@ struct ReferencePlaybackView: View {
                             ZStack {
                                 if lyricStageConfigured, let stage = lyricStage {
                                     ZStack {
-                                        Color.black
+                                        // 舞台异常时透出播放器背景，避免一块纯黑
+                                        Color.clear
                                         LyricStageWebView(
                                             stage: stage,
                                             lines: lyrics,
@@ -124,11 +127,17 @@ struct ReferencePlaybackView: View {
                                             isPlaying: player.isPlaying,
                                             accentHex: stageAccentHex,
                                             onReady: { ok in
-                                                if ok { lyricStageReady = true }
+                                                if ok {
+                                                    lyricStageReady = true
+                                                } else {
+                                                    lyricStageReady = false
+                                                    lyricStageEnabled = false
+                                                }
                                             }
                                         )
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .opacity(lyricStageActive ? 1 : 0)
+                                        // 0.001 而不是 0：避免 WebKit 被判定为不可见后暂停出帧
+                                        .opacity(lyricStageActive ? 1 : 0.001)
                                         VStack {
                                             LinearGradient(
                                                 colors: [.black.opacity(0.62), .clear],
@@ -174,6 +183,13 @@ struct ReferencePlaybackView: View {
         .onChange(of: lyricStageID) { _ in lyricStageReady = false }
         .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
         .onChange(of: showLyrics) { _ in lyricStageReady = false }
+        // 兜底：2.4s 仍未 ready 就直接放行，避免舞台被 ready 门控永久挡住
+        .task(id: "stage-" + lyricStageID + "-" + (song?.identityKey ?? "") + "-" + (lyricStageEnabled ? "1" : "0") + "-" + (showLyrics ? "1" : "0")) {
+            guard lyricStageEnabled, showLyrics else { return }
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard !Task.isCancelled else { return }
+            if !lyricStageReady { lyricStageReady = true }
+        }
     }
 
     @ViewBuilder
@@ -611,6 +627,48 @@ struct ReferencePlaybackView: View {
         return parts.isEmpty ? "未知歌曲" : parts.joined(separator: " · ")
     }
 
+    private var lyricDisplayMode: LyricDisplayMode {
+        LyricDisplayMode(rawValue: lyricDisplayModeRaw) ?? .classic
+    }
+
+    /// 当前行在整行时长里的进度（0–1），逐字高亮用
+    private func lyricLineProgress(for line: LyricLine) -> Double {
+        guard let index = lyrics.firstIndex(where: { $0.id == line.id }) else { return 0 }
+        let nextTime = index + 1 < lyrics.count ? lyrics[index + 1].time : line.time + 4
+        let span = max(0.4, nextTime - line.time)
+        let now = LyricTiming.effectiveProgress(clock.progress, userOffset: lyricOffset)
+        return min(1, max(0, (now - line.time) / span))
+    }
+
+    /// 逐字高亮：按进度把每个字着色，用 Text 拼接保证长句自动换行
+    private func composedKaraokeText(_ text: String, progress: Double) -> Text {
+        let chars = Array(text)
+        let lit = Int((Double(chars.count) * progress).rounded())
+        var composed = Text("")
+        for (index, ch) in chars.enumerated() {
+            composed = composed + Text(String(ch))
+                .foregroundColor(index < lit ? primaryColor : primaryColor.opacity(0.28))
+        }
+        return composed
+    }
+
+    /// 当前行的大字 / 逐字高亮渲染（与经典播放页同一套观感）
+    @ViewBuilder
+    private func focusedLyricContent(_ line: LyricLine) -> some View {
+        if lyricDisplayMode == .bigWord {
+            Text(line.text.isEmpty ? " " : line.text)
+                .font(BeansFont.appFont(36 * lyricScale, .bold))
+                .foregroundStyle(primaryColor)
+                .shadow(color: primaryColor.opacity(0.45), radius: 12)
+                .lineSpacing(2)
+        } else {
+            composedKaraokeText(line.text.isEmpty ? " " : line.text, progress: lyricLineProgress(for: line))
+                .font(BeansFont.appFont(32 * lyricScale, .bold))
+                .shadow(color: primaryColor.opacity(0.35), radius: 8)
+                .lineSpacing(2)
+        }
+    }
+
     private func lyricLine(_ line: LyricLine, isFocused: Bool) -> some View {
         Button {
             BeansHaptics.tap()
@@ -618,12 +676,17 @@ struct ReferencePlaybackView: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(line.text.isEmpty ? " " : line.text)
-                        .font(BeansFont.appFont((isFocused ? 27 : 23) * lyricScale, isFocused ? .bold : .semibold))
-                        .foregroundStyle(primaryColor.opacity(isFocused ? 1 : 0.36))
-                        .shadow(color: isFocused ? primaryColor.opacity(lyricGlowLevel > 0 ? 0.30 : 0) : .clear,
-                                radius: isFocused ? CGFloat(lyricGlowLevel) * 5 : 0)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if isFocused, lyricDisplayMode != .classic {
+                        focusedLyricContent(line)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .font(BeansFont.appFont((isFocused ? 27 : 23) * lyricScale, isFocused ? .bold : .semibold))
+                            .foregroundStyle(primaryColor.opacity(isFocused ? 1 : 0.36))
+                            .shadow(color: isFocused ? primaryColor.opacity(lyricGlowLevel > 0 ? 0.30 : 0) : .clear,
+                                    radius: isFocused ? CGFloat(lyricGlowLevel) * 5 : 0)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if isFocused && isDraggingLyrics {
                         Spacer(minLength: 8)
                         Text(beansTimeString(line.time))

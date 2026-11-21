@@ -193,6 +193,9 @@ struct LyricStageWebView: UIViewRepresentable {
         private var accentHex: String?
         var onReady: ((Bool) -> Void)?
         private var didReportReady = false
+        /// 是否真的找到了 HTML 并开始加载。没找到时绝不能上报 ready，
+        /// 否则会把一个空白 WebView 顶到最上层，看起来就是「歌词黑屏」。
+        private var loadStarted = false
 
         func attach(webView: WKWebView, stage: LyricStage) {
             self.webView = webView
@@ -206,12 +209,21 @@ struct LyricStageWebView: UIViewRepresentable {
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
 
-            // 兜底：个别舞台的 ready 可能被 CSP / 时序吞掉，1 秒后直接喂数据
+            // 兜底：个别舞台的 ready 可能被 CSP / 时序吞掉，1 秒后直接喂数据**并通知 SwiftUI**
+            // （之前这里只置内部 ready、没有回调 onReady，于是外层门控永远不放行 → 舞台看起来「没生效」）
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                guard let self, !self.ready else { return }
+                guard let self, self.loadStarted else { return }
                 self.ready = true
                 self.sendInit()
+                self.reportReady()
             }
+        }
+
+        /// 只回调一次，避免重复刷新 SwiftUI
+        private func reportReady() {
+            guard !didReportReady else { return }
+            didReportReady = true
+            DispatchQueue.main.async { [weak self] in self?.onReady?(true) }
         }
 
         func stop() {
@@ -225,8 +237,11 @@ struct LyricStageWebView: UIViewRepresentable {
                 ?? Bundle.main.url(forResource: stage.id, withExtension: "html")
             guard let url else {
                 BeansLogger.shared.log("歌词舞台：找不到资源 \(stage.id).html", level: .warn)
+                // 资源缺失：通知外层关掉舞台，回到原生歌词，绝不留下空白黑屏
+                DispatchQueue.main.async { [weak self] in self?.onReady?(false) }
                 return
             }
+            loadStarted = true
             webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
         }
 
@@ -306,10 +321,7 @@ struct LyricStageWebView: UIViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "liziStage" else { return }
             ready = true
-            if !didReportReady {
-                didReportReady = true
-                DispatchQueue.main.async { [weak self] in self?.onReady?(true) }
-            }
+            reportReady()
             sendInit()
         }
     }

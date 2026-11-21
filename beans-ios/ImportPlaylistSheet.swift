@@ -62,7 +62,7 @@ struct ImportPlaylistSheet: View {
             Text("导入到「我的歌单 · 导入歌单」")
                 .font(BeansFont.appFont(15, .semibold))
                 .foregroundStyle(Color.beansLabel)
-            Text("支持网易云、QQ音乐、酷狗、波点的歌单链接或歌单 id。导入后歌曲会保存在本机，可随时手动更新，不依赖账号同步。")
+            Text("支持网易云、QQ音乐、酷狗（含概念版分享短链，如 t1.kugou.com/…）、波点的歌单链接或歌单 id。导入后歌曲会保存在本机，可随时手动更新，不依赖账号同步。")
                 .font(BeansFont.appFont(12.5))
                 .foregroundStyle(Color.beansComment)
                 .fixedSize(horizontal: false, vertical: true)

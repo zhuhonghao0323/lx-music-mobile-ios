@@ -78,32 +78,42 @@ final class HiddenPlaylistStore: ObservableObject {
     static let shared = HiddenPlaylistStore()
 
     @Published private(set) var keys: Set<String> = []
+    /// id → 歌单名：管理页的「已隐藏」列表要靠它显示名字，才能逐个恢复
+    @Published private(set) var names: [String: String] = [:]
 
     private let storageKey = "beans.library.hiddenPlaylists"
+    private let namesKey = "beans.library.hiddenPlaylistNames"
 
     private init() {
         keys = Set(UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
+        names = UserDefaults.standard.dictionary(forKey: namesKey) as? [String: String] ?? [:]
     }
 
     func isHidden(_ id: String) -> Bool { keys.contains(id) }
 
-    func hide(_ id: String) {
+    func name(for id: String) -> String { names[id] ?? "已隐藏歌单" }
+
+    func hide(_ id: String, name: String? = nil) {
         keys.insert(id)
+        if let name, !name.isEmpty { names[id] = name }
         persist()
     }
 
     func unhide(_ id: String) {
         keys.remove(id)
+        names.removeValue(forKey: id)
         persist()
     }
 
     func unhideAll() {
         keys.removeAll()
+        names.removeAll()
         persist()
     }
 
     private func persist() {
         UserDefaults.standard.set(Array(keys), forKey: storageKey)
+        UserDefaults.standard.set(names, forKey: namesKey)
     }
 }
 
@@ -211,7 +221,8 @@ struct PlaylistWallView: View {
     }
 }
 
-/// 「全部歌单」：3 列网格展示所有歌单，可逐个隐藏。
+/// 「全部歌单」：3 列网格展示所有歌单。
+/// 支持搜索 / 平台筛选 / 排序 / 批量隐藏 / 单个删除 / 已隐藏歌单恢复。
 struct LibraryAllPlaylistsSheet: View {
     let items: [LibraryWallItem]
     @Environment(\.dismiss) private var dismiss
@@ -219,10 +230,30 @@ struct LibraryAllPlaylistsSheet: View {
 
     /// nil = 全部平台
     @State private var platformFilter: String? = nil
-    /// 管理模式：批量隐藏 / 恢复隐藏
+    @State private var searchText = ""
+    @State private var sortMode: AllPlaylistSort = .standard
+    /// 管理模式：批量隐藏 / 删除
     @State private var manageMode = false
-    @State private var managedHidden: Set<String> = []
-    @State private var showHiddenOnly = false
+    @State private var selection: Set<String> = []
+    @State private var showHiddenList = false
+    @State private var pendingDelete: LibraryWallItem?
+    @State private var showDeleteConfirm = false
+
+    private enum AllPlaylistSort: String, CaseIterable, Identifiable {
+        case standard = "默认顺序"
+        case name = "按名称"
+        case count = "按歌曲数"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .standard: return "arrow.up.arrow.down"
+            case .name: return "textformat.abc"
+            case .count: return "music.note.list"
+            }
+        }
+    }
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -244,112 +275,36 @@ struct LibraryAllPlaylistsSheet: View {
     }
 
     private var filteredItems: [LibraryWallItem] {
-        guard let platformFilter else { return items }
-        return items.filter { $0.platformKey == platformFilter }
+        var list = items
+        if let platformFilter {
+            list = list.filter { $0.platformKey == platformFilter }
+        }
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !keyword.isEmpty {
+            list = list.filter { $0.name.localizedCaseInsensitiveContains(keyword) }
+        }
+        switch sortMode {
+        case .standard:
+            break
+        case .name:
+            list.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .count:
+            list.sort { $0.count > $1.count }
+        }
+        return list
     }
 
     var body: some View {
         BeansNavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if platforms.count > 1 {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                filterChip(title: "全部", tint: Color.beansAmber, active: platformFilter == nil) {
-                                    platformFilter = nil
-                                }
-                                ForEach(Array(platforms.enumerated()), id: \.offset) { _, entry in
-                                    filterChip(title: entry.badge.title, tint: entry.badge.tint, active: platformFilter == entry.key) {
-                                        platformFilter = (platformFilter == entry.key) ? nil : entry.key
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
+                    searchField
+                    if platforms.count > 1 { platformChips }
+                    if filteredItems.isEmpty {
+                        emptyState
+                    } else {
+                        grid
                     }
-
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
-                        ForEach(filteredItems) { item in
-                            ZStack(alignment: .topLeading) {
-                                Button {
-                                    if manageMode {
-                                        BeansHaptics.tap()
-                                        if managedHidden.contains(item.id) {
-                                            managedHidden.remove(item.id)
-                                        } else {
-                                            managedHidden.insert(item.id)
-                                        }
-                                    } else {
-                                        dismiss()
-                                        item.onOpen()
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        ZStack(alignment: .bottomTrailing) {
-                                            CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
-                                            if let badge = item.badge {
-                                                LibraryPlatformBadgeView(badge: badge, compact: true)
-                                                    .padding(5)
-                                            }
-                                        }
-                                        Text(item.name)
-                                            .font(BeansFont.appFont(12, .semibold))
-                                            .foregroundStyle(Color.beansLabel)
-                                            .lineLimit(2)
-                                            .multilineTextAlignment(.leading)
-                                        Text(item.subtitle)
-                                            .font(BeansFont.appFont(10))
-                                            .foregroundStyle(Color.beansComment)
-                                            .lineLimit(1)
-                                    }
-                                    .opacity(manageMode && !managedHidden.contains(item.id) ? 0.55 : 1)
-                                }
-                                .buttonStyle(.plain)
-                                if manageMode {
-                                    Image(systemName: managedHidden.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: 22))
-                                        .foregroundStyle(managedHidden.contains(item.id) ? Color.beansAmber : Color.beansComment.opacity(0.6))
-                                        .shadow(radius: 2)
-                                        .padding(4)
-                                }
-                            }
-                            .contextMenu {
-                                if !manageMode {
-                                    if let onUpdate = item.onUpdate {
-                                        Button {
-                                            dismiss()
-                                            onUpdate()
-                                        } label: {
-                                            Label("更新歌单", systemImage: "arrow.clockwise")
-                                        }
-                                    }
-                                    if let onRename = item.onRename {
-                                        Button {
-                                            dismiss()
-                                            onRename()
-                                        } label: {
-                                            Label("重命名", systemImage: "pencil")
-                                        }
-                                    }
-                                    Button {
-                                        hidden.hide(item.id)
-                                        ToastCenter.shared.show("已隐藏「\(item.name)」")
-                                    } label: {
-                                        Label("隐藏", systemImage: "eye.slash")
-                                    }
-                                    if let onDelete = item.onDelete {
-                                        Button(role: .destructive) {
-                                            dismiss()
-                                            onDelete()
-                                        } label: {
-                                            Label("删除", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
                 }
                 .padding(.top, 10)
                 .padding(.bottom, 40)
@@ -360,12 +315,42 @@ struct LibraryAllPlaylistsSheet: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     LibraryBackButton { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Menu {
+                        ForEach(AllPlaylistSort.allCases) { mode in
+                            Button {
+                                BeansHaptics.tap()
+                                sortMode = mode
+                            } label: {
+                                Label {
+                                    Text(verbatim: mode.rawValue)
+                                } icon: {
+                                    Image(systemName: sortMode == mode ? "checkmark" : mode.icon)
+                                }
+                            }
+                        }
+                        Divider()
+                        Button {
+                            BeansHaptics.tap()
+                            manageMode = false
+                            showHiddenList = true
+                        } label: {
+                            Label {
+                                Text(verbatim: hidden.keys.isEmpty ? "已隐藏歌单" : "已隐藏歌单（\(hidden.keys.count)）")
+                            } icon: {
+                                Image(systemName: "eye.slash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                    }
                     Button(manageMode ? "完成" : "管理") {
                         BeansHaptics.tap()
                         withAnimation {
                             manageMode.toggle()
-                            managedHidden.removeAll()
+                            selection.removeAll()
                         }
                     }
                     .font(BeansFont.appFont(14, .semibold))
@@ -373,46 +358,330 @@ struct LibraryAllPlaylistsSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if manageMode {
-                    VStack(spacing: 8) {
-                        HStack(spacing: 10) {
-                            Button {
-                                BeansHaptics.tap()
-                                for id in managedHidden { hidden.hide(id) }
-                                let n = managedHidden.count
-                                managedHidden.removeAll()
-                                ToastCenter.shared.show(n > 0 ? "已隐藏 \(n) 个歌单" : "请先选择歌单")
-                            } label: {
-                                Label("隐藏所选", systemImage: "eye.slash")
-                                    .font(BeansFont.appFont(13, .semibold))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color.beansAmber)
-
-                            Button {
-                                BeansHaptics.tap()
-                                hidden.unhideAll()
-                                ToastCenter.shared.show("已恢复显示全部隐藏歌单")
-                            } label: {
-                                Label("恢复全部隐藏", systemImage: "eye")
-                                    .font(BeansFont.appFont(13, .semibold))
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(Color.beansAmber)
-                        }
-                        if !hidden.keys.isEmpty {
-                            Text("当前有 \(hidden.keys.count) 个歌单被隐藏")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.regularMaterial)
+                if manageMode { manageBar }
+            }
+            .sheet(isPresented: $showHiddenList) {
+                hiddenListSheet
+            }
+            .confirmationDialog(
+                "删除这个歌单？",
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("删除「\(pendingDelete?.name ?? "歌单")」", role: .destructive) {
+                    guard let item = pendingDelete else { return }
+                    pendingDelete = nil
+                    dismiss()
+                    item.onDelete?()
                 }
+                Button("取消", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("会同时删除平台上的这个歌单，无法撤销。只想在音乐库里不显示，请用「隐藏」。")
             }
         }
         .librarySwipeBack { dismiss() }
+    }
+
+    // MARK: - 搜索 / 分类
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.beansComment)
+            TextField("搜索歌单名称", text: $searchText)
+                .font(BeansFont.appFont(13))
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .submitLabel(.search)
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.beansComment.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .padding(.horizontal, 16)
+    }
+
+    private var platformChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip(title: "全部", tint: Color.beansAmber, active: platformFilter == nil) {
+                    platformFilter = nil
+                }
+                ForEach(Array(platforms.enumerated()), id: \.offset) { _, entry in
+                    filterChip(title: entry.badge.title, tint: entry.badge.tint, active: platformFilter == entry.key) {
+                        platformFilter = (platformFilter == entry.key) ? nil : entry.key
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: searchText.isEmpty ? "square.stack.3d.up" : "magnifyingglass")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(Color.beansComment.opacity(0.55))
+            Text(searchText.isEmpty ? "这个分类下还没有歌单" : "没有匹配「\(searchText)」的歌单")
+                .font(BeansFont.appFont(13))
+                .foregroundStyle(Color.beansComment)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+    }
+
+    // MARK: - 网格
+
+    private var grid: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+            ForEach(filteredItems) { item in
+                ZStack(alignment: .topLeading) {
+                    Button {
+                        if manageMode {
+                            BeansHaptics.tap()
+                            if selection.contains(item.id) {
+                                selection.remove(item.id)
+                            } else {
+                                selection.insert(item.id)
+                            }
+                        } else {
+                            dismiss()
+                            item.onOpen()
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ZStack(alignment: .bottomTrailing) {
+                                CoverImage(url: item.coverURL, size: gridCellWidth, cornerRadius: 14)
+                                if let badge = item.badge {
+                                    LibraryPlatformBadgeView(badge: badge, compact: true)
+                                        .padding(5)
+                                }
+                            }
+                            Text(item.name)
+                                .font(BeansFont.appFont(12, .semibold))
+                                .foregroundStyle(Color.beansLabel)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(item.subtitle)
+                                .font(BeansFont.appFont(10))
+                                .foregroundStyle(Color.beansComment)
+                                .lineLimit(1)
+                        }
+                        .opacity(manageMode && !selection.contains(item.id) ? 0.55 : 1)
+                    }
+                    .buttonStyle(.plain)
+                    if manageMode {
+                        Image(systemName: selection.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 22))
+                            .foregroundStyle(selection.contains(item.id) ? Color.beansAmber : Color.beansComment.opacity(0.6))
+                            .shadow(radius: 2)
+                            .padding(4)
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if manageMode {
+                        Button {
+                            BeansHaptics.tap()
+                            pendingDelete = item
+                            showDeleteConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(6)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(4)
+                    }
+                }
+                .contextMenu {
+                    if !manageMode {
+                        if let onUpdate = item.onUpdate {
+                            Button {
+                                dismiss()
+                                onUpdate()
+                            } label: {
+                                Label("更新歌单", systemImage: "arrow.clockwise")
+                            }
+                        }
+                        if let onRename = item.onRename {
+                            Button {
+                                dismiss()
+                                onRename()
+                            } label: {
+                                Label("重命名", systemImage: "pencil")
+                            }
+                        }
+                        Button {
+                            hidden.hide(item.id, name: item.name)
+                            ToastCenter.shared.show("已隐藏「\(item.name)」，可在右上角恢复")
+                        } label: {
+                            Label("隐藏", systemImage: "eye.slash")
+                        }
+                        if item.onDelete != nil {
+                            Button(role: .destructive) {
+                                pendingDelete = item
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - 管理栏
+
+    private var manageBar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    BeansHaptics.tap()
+                    if !filteredItems.isEmpty, selection.count == filteredItems.count {
+                        selection.removeAll()
+                    } else {
+                        selection = Set(filteredItems.map { $0.id })
+                    }
+                } label: {
+                    Label(
+                        (!filteredItems.isEmpty && selection.count == filteredItems.count) ? "取消全选" : "全选",
+                        systemImage: "checklist"
+                    )
+                    .font(BeansFont.appFont(13, .semibold))
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.beansAmber)
+
+                Spacer(minLength: 0)
+
+                Text("已选 \(selection.count)")
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansComment)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    BeansHaptics.tap()
+                    guard !selection.isEmpty else {
+                        ToastCenter.shared.show("请先选择歌单")
+                        return
+                    }
+                    var count = 0
+                    for item in filteredItems where selection.contains(item.id) {
+                        hidden.hide(item.id, name: item.name)
+                        count += 1
+                    }
+                    selection.removeAll()
+                    ToastCenter.shared.show("已隐藏 \(count) 个歌单，可在右上角「已隐藏歌单」恢复")
+                } label: {
+                    Label("隐藏所选", systemImage: "eye.slash")
+                        .font(BeansFont.appFont(13, .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.beansAmber)
+
+                Button {
+                    BeansHaptics.tap()
+                    guard let item = filteredItems.first(where: { selection.contains($0.id) }) else {
+                        ToastCenter.shared.show("请先选择一个歌单")
+                        return
+                    }
+                    if selection.count > 1 {
+                        ToastCenter.shared.show("平台删除一次只能处理一个歌单，已选中第一个")
+                    }
+                    pendingDelete = item
+                    showDeleteConfirm = true
+                } label: {
+                    Label("删除", systemImage: "trash")
+                        .font(BeansFont.appFont(13, .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+            }
+
+            if !hidden.keys.isEmpty {
+                Text("已隐藏 \(hidden.keys.count) 个歌单")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+    }
+
+    // MARK: - 已隐藏歌单
+
+    private var hiddenListSheet: some View {
+        BeansNavigationStack {
+            List {
+                if hidden.keys.isEmpty {
+                    Text("没有被隐藏的歌单")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                } else {
+                    ForEach(hidden.keys.sorted { hidden.name(for: $0) < hidden.name(for: $1) }, id: \.self) { id in
+                        HStack(spacing: 10) {
+                            Image(systemName: "eye.slash")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.beansComment)
+                            Text(verbatim: hidden.name(for: id))
+                                .font(BeansFont.appFont(14))
+                                .foregroundStyle(Color.beansLabel)
+                            Spacer(minLength: 8)
+                            Button("恢复") {
+                                BeansHaptics.tap()
+                                hidden.unhide(id)
+                                ToastCenter.shared.show("已恢复显示")
+                            }
+                            .font(BeansFont.appFont(13, .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .onDelete { offsets in
+                        let ids = hidden.keys.sorted { hidden.name(for: $0) < hidden.name(for: $1) }
+                        for index in offsets {
+                            guard ids.indices.contains(index) else { continue }
+                            hidden.unhide(ids[index])
+                        }
+                    }
+                }
+            }
+            .navigationTitle("已隐藏歌单")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("全部恢复") {
+                        BeansHaptics.tap()
+                        hidden.unhideAll()
+                        ToastCenter.shared.show("已恢复显示全部歌单")
+                    }
+                    .font(BeansFont.appFont(13, .semibold))
+                    .disabled(hidden.keys.isEmpty)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { showHiddenList = false }
+                        .font(BeansFont.appFont(14, .semibold))
+                }
+            }
+        }
     }
 
     private func filterChip(title: String, tint: Color, active: Bool, action: @escaping () -> Void) -> some View {

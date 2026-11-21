@@ -1059,6 +1059,11 @@ final class KugouMusicAPI {
 
     /// 取酷狗歌单元信息。`sourceID` 可以是 gcid、specialid 或歌单分享链接里的数字 id。
     func playlistDetail(sourceID: String) async throws -> Playlist? {
+        let sourceID = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 云歌单（含概念版分享链接解析出的 collection_…）：公开接口一次给出歌单名 / 封面 / 曲目数
+        if sourceID.hasPrefix("gcid_") || sourceID.contains("collection_") {
+            if let playlist = try? await collectionDetail(collectionID: sourceID) { return playlist }
+        }
         var specialID = Int(sourceID) ?? 0
         var gcid: String?
         if sourceID.hasPrefix("gcid_") || sourceID.contains("collection_") {
@@ -1090,6 +1095,16 @@ final class KugouMusicAPI {
         page: Int,
         pageSize: Int
     ) async throws -> (rows: [[String: Any]], total: Int) {
+        let result = try await collectionPage(collectionID: collectionID, page: page, pageSize: pageSize)
+        return (result.rows, result.total)
+    }
+
+    /// 云歌单单页：除歌曲外还把 `list_info` 带回来，用于「概念版分享链接」导入时补歌单名 / 封面 / 曲目数。
+    private func collectionPage(
+        collectionID: String,
+        page: Int,
+        pageSize: Int
+    ) async throws -> (rows: [[String: Any]], total: Int, info: [String: Any]) {
         let auth = KugouMusicAuth.shared
         var params = baseParams()
         params["area_code"] = "1"
@@ -1121,7 +1136,34 @@ final class KugouMusicAPI {
             ?? (payload["list"] as? [[String: Any]])
             ?? []
         let total = Self.int(payload["count"] ?? payload["total"] ?? response.json["total"])
-        return (rows, total)
+        let info = payload["list_info"] as? [String: Any] ?? [:]
+        return (rows, total, info)
+    }
+
+    /// 云歌单元信息：`collection_…` / `gcid_…` 都能用，公开接口不需要登录。
+    /// 概念版分享链接解析出来的就是这种 global_collection_id。
+    private func collectionDetail(collectionID: String) async throws -> Playlist? {
+        let result = try await collectionPage(collectionID: collectionID, page: 1, pageSize: 1)
+        let info = result.info
+        guard !info.isEmpty else { return nil }
+        let name = Self.string(info["name"] ?? info["list_name"] ?? info["specialname"])
+        guard !name.isEmpty else { return nil }
+        let cover = Self.normalizeURL(
+            Self.string(info["pic"] ?? info["cover"] ?? info["img"]).replacingOccurrences(of: "{size}", with: "300")
+        )
+        let count = Self.int(info["count"] ?? info["songcount"] ?? info["total"])
+        BeansLogger.shared.log(
+            "酷狗云歌单元信息：gcid=\(collectionID) name=\(name) count=\(count)",
+            level: .debug
+        )
+        return Playlist(
+            id: abs(collectionID.hashValue),
+            name: name,
+            coverURL: URL(string: cover),
+            trackCount: count > 0 ? count : result.total,
+            source: .kugou,
+            externalID: collectionID
+        )
     }
 
     func playlistSongs(listID: Int, externalID: String? = nil) async throws -> [Song] {
@@ -2081,6 +2123,19 @@ final class KugouMusicAPI {
                 if title.isEmpty || title == filename { title = clean(parts.dropFirst().joined(separator: " - ")) }
             } else if title.isEmpty {
                 title = filename
+            }
+        }
+        // 概念版云歌单的条目常常只有 name = "歌手 - 歌名"（没有 filename / singername），
+        // 这里补一次拆分，避免整串当成歌名、歌手空着。
+        if artist.isEmpty, title.contains(" - ") {
+            let parts = title.components(separatedBy: " - ")
+            if parts.count >= 2 {
+                let maybeArtist = clean(parts[0])
+                let maybeTitle = clean(parts.dropFirst().joined(separator: " - "))
+                if !maybeArtist.isEmpty, !maybeTitle.isEmpty {
+                    artist = maybeArtist
+                    title = maybeTitle
+                }
             }
         }
         guard !title.isEmpty, !hash.isEmpty || !albumAudioId.isEmpty else { return nil }

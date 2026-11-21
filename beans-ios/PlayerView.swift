@@ -1934,7 +1934,8 @@ struct PlayerView: View {
         return ZStack {
             if stageConfigured, let stage = lyricStage {
                 ZStack {
-                    Color.black
+                    // 舞台异常（资源缺失/渲染失败）时透出播放器背景，避免一块纯黑
+                    Color.clear
                     LyricStageWebView(
                         stage: stage,
                         lines: lyrics,
@@ -1942,11 +1943,19 @@ struct PlayerView: View {
                         isPlaying: player.isPlaying,
                         accentHex: lyricStageAccentHex,
                         onReady: { ok in
-                            if ok { lyricStageReady = true }
+                            if ok {
+                                lyricStageReady = true
+                            } else {
+                                // 舞台资源缺失：自动关闭舞台，回到原生歌词
+                                lyricStageReady = false
+                                lyricStageEnabled = false
+                            }
                         }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .opacity(stageOn ? 1 : 0)
+                    // 用极小透明度而不是 0：opacity 0 会被 CoreAnimation 判定为不可见并暂停 WebKit 渲染，
+                    // 导致「切到舞台时首帧是黑的」。留 0.001 让 WebView 一直正常出帧。
+                    .opacity(stageOn ? 1 : 0.001)
                     VStack {
                         LinearGradient(
                             colors: [.black.opacity(0.62), .clear],
@@ -2073,6 +2082,14 @@ struct PlayerView: View {
         .onChange(of: lyricStageID) { _ in lyricStageReady = false }
         .onChange(of: song?.identityKey) { _ in lyricStageReady = false }
         .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
+        // 兜底：舞台首帧正常在 800ms 内完成；2.4s 还没 ready 就直接放行，
+        // 避免个别机型/舞台的 ready 消息被吞时永远只显示原生歌词（看起来像「舞台没生效」）
+        .task(id: "stage-" + lyricStageID + "-" + (song?.identityKey ?? "") + "-" + (lyricStageEnabled ? "1" : "0")) {
+            guard lyricStageEnabled else { return }
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard !Task.isCancelled else { return }
+            if !lyricStageReady { lyricStageReady = true }
+        }
         .sheet(isPresented: $showLyricStagePicker) {
             LyricStagePickerSheet()
         }
@@ -3929,25 +3946,26 @@ struct LyricsSection: View {
     }
 
     /// 逐字高亮：把一行拆成单字，按行内进度逐字从暗色点亮到高亮色。
+    /// 用 `Text + Text` 拼一段富文本而不是 HStack，长句会自动换行，不会横向溢出屏幕。
     private func karaokeText(_ text: String, progress: Double, size: CGFloat, isFocused: Bool) -> some View {
         let chars = Array(text)
         guard !chars.isEmpty else {
             return AnyView(Text(" ").font(BeansFont.appFont(size)))
         }
-        // 用 HStack 逐字渲染，逐字着色；逐字 scale 让点亮瞬间更有律动
-        let lit = Double(chars.count) * progress
+        let lit = Int((Double(chars.count) * progress).rounded())
+        var composed = Text("")
+        for (index, ch) in chars.enumerated() {
+            let piece = Text(String(ch))
+                .foregroundColor(index < lit ? accent : secondary.opacity(0.40))
+            composed = composed + piece
+        }
         return AnyView(
-            HStack(spacing: 0) {
-                ForEach(Array(chars.enumerated()), id: \.offset) { ci, ch in
-                    let isLit = Double(ci) < lit
-                    Text(String(ch))
-                        .font(BeansFont.appFont(size, isLit ? .bold : .regular))
-                        .foregroundStyle(isLit ? AnyShapeStyle(accent) : AnyShapeStyle(secondary.opacity(0.55)))
-                        .shadow(color: isLit && isFocused ? accent.opacity(0.7) : .clear, radius: isLit ? 6 : 0)
-                        .scaleEffect(isLit && isFocused ? 1.06 : 1)
-                }
-            }
-            .animation(.easeInOut(duration: 0.12), value: progress)
+            composed
+                .font(BeansFont.appFont(size, .bold))
+                .shadow(color: isFocused ? accent.opacity(0.55) : .clear, radius: 6)
+                .multilineTextAlignment(alignment == .leading ? .leading : .center)
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeInOut(duration: 0.16), value: progress)
         )
     }
 
@@ -3957,7 +3975,7 @@ struct LyricsSection: View {
         if displayMode != .classic && index == currentIndex {
             let prog = lineProgress(index: index, line: line)
             let big = displayMode == .bigWord
-            let focusSize = big ? baseFontSize * 2.15 : baseFontSize + 5
+            let focusSize = big ? baseFontSize * 2.15 : baseFontSize * 1.42
             return AnyView(
                 VStack(alignment: alignment == .leading ? .leading : .center, spacing: 4) {
                     if displayMode == .karaoke {

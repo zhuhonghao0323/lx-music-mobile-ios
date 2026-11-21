@@ -46,14 +46,32 @@ enum PlaylistImportService {
         guard !text.isEmpty else { return nil }
         let lower = text.lowercased()
 
-        // 酷狗：优先 gcid，其次 specialid / listid
+        // 酷狗：优先概念版分享参数 / gcid，其次 specialid / listid
         if lower.contains("kugou.com") {
+            // 概念版分享页参数：global_specialid=collection_3_xxxx_2_0（用户自建 / 收藏的云歌单）
+            if let collect = firstMatch(#"global_specialid=([^&\s]+)"#, in: text, group: 1),
+               !collect.isEmpty, collect != "0" {
+                return (.kugou, collect)
+            }
             if let gcid = firstMatch(#"gcid_[0-9a-zA-Z]+"#, in: text) {
+                return (.kugou, gcid)
+            }
+            if let gcid = firstMatch(#"[?&]gcid=([^&\s]+)"#, in: text, group: 1), !gcid.isEmpty {
                 return (.kugou, gcid)
             }
             if let id = firstMatch(#"(?:special/single/|specialid=|listid=|listid/|plist/list/|/list/)(\d+)"#, in: text, group: 1) {
                 return (.kugou, id)
             }
+            // 概念版短链（t1.kugou.com/xxxx / t.kugou.com/xxxx）：真实 id 需要跟随 302 才能拿到，
+            // 这里先打标记，交给 fetch 阶段异步解析。
+            if let short = firstMatch(#"https?://t\d*\.kugou\.com/[A-Za-z0-9]+"#, in: text) {
+                return (.kugou, "short#" + short)
+            }
+        }
+        // 直接粘贴 global_specialid 的值（不带域名）
+        if lower.contains("collection_") || lower.contains("gcid_"),
+           let token = firstMatch(#"(?:collection_|gcid_)[0-9a-zA-Z_]+"#, in: text) {
+            return (.kugou, token)
         }
         // 网易云
         if lower.contains("163.com") || lower.contains("music.163") {
@@ -86,7 +104,59 @@ enum PlaylistImportService {
 
     static func fetch(text: String, preferred: SongSource) async throws -> PlaylistImportPayload {
         guard let parsed = parse(text, preferred: preferred) else { throw PlaylistImportError.invalidLink }
+        // 酷狗概念版短链：跟随 302 拿到真正的歌单标识（多为 collection_… 云歌单）
+        if parsed.sourceID.hasPrefix("short#") {
+            let url = String(parsed.sourceID.dropFirst("short#".count))
+            guard let resolved = await resolveKugouShortLink(url) else { throw PlaylistImportError.invalidLink }
+            BeansLogger.shared.log("酷狗短链解析：\(url) → \(resolved)", level: .info)
+            return try await fetch(source: .kugou, sourceID: resolved)
+        }
         return try await fetch(source: parsed.source, sourceID: parsed.sourceID)
+    }
+
+    /// 跟随酷狗短链重定向，从最终地址里取出歌单标识。
+    /// 概念版分享链接形如 `https://t1.kugou.com/xxxx`，
+    /// 会跳到 `activity.kugou.com/share/...?specialid=0&global_specialid=collection_3_xxx_2_0`。
+    private static func resolveKugouShortLink(_ raw: String) async -> String? {
+        guard let url = URL(string: raw) else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+        guard let (_, response) = try? await URLSession.shared.data(for: request) else { return nil }
+        // URLSession 默认自动跟随 302，response.url 就是落地页
+        let finalURL = response.url?.absoluteString ?? raw
+        if let id = extractKugouID(from: finalURL) { return id }
+        // 少数情况会落到一个中转页，需要读页面里的跳转参数
+        if let (data, _) = try? await URLSession.shared.data(for: request),
+           let html = String(data: data, encoding: .utf8),
+           let id = extractKugouID(from: html) {
+            return id
+        }
+        return nil
+    }
+
+    /// 从 URL / 页面文本里提取酷狗歌单标识，优先级：云歌单 > gcid > specialid > listid
+    private static func extractKugouID(from text: String) -> String? {
+        if let value = firstMatch(#"global_specialid=([^&\s"'<>]+)"#, in: text, group: 1),
+           !value.isEmpty, value != "0" {
+            return value
+        }
+        if let value = firstMatch(#"gcid_[0-9a-zA-Z]+"#, in: text) {
+            return value
+        }
+        if let value = firstMatch(#"[?&]gcid=([^&\s"'<>]+)"#, in: text, group: 1), !value.isEmpty {
+            return value
+        }
+        if let value = firstMatch(#"specialid=(\d+)"#, in: text, group: 1), value != "0" {
+            return value
+        }
+        if let value = firstMatch(#"(?:listid|list_id)[=/](\d+)"#, in: text, group: 1) {
+            return value
+        }
+        return nil
     }
 
     /// 从已知的歌单（歌单广场 / 排行榜 / 搜索结果）导入
