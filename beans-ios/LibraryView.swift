@@ -1027,10 +1027,8 @@ struct LibraryView: View {
     }
 
     private func presentImport(preset: Playlist? = nil) {
-        guard source.songSource != .migu else {
-            ToastCenter.shared.show("咪咕暂不支持导入歌单")
-            return
-        }
+        // 手动导入与当前停留的平台无关（「全部歌单」/「手动导入」下也能导），
+        // 不再按 source 拦截；具体平台在导入页里自己选。
         importPreset = preset
         showImportSheet = true
     }
