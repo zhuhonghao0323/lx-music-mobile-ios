@@ -59,6 +59,30 @@
 
 > 平台级接入的真实成本：`SongSource` 只有 5 个硬编码 case（`netease/qq/kugou/migu/bodian`），全仓 `.bodian` 相关分支 111 处；`Song` 还要为每家加专属字段（酷我 rid、B 站 bvid/cid），并各自实现「搜索 / 歌单 / 播放地址 / 歌词 / 登录态」五条链路（参考 `KugouMusicAPI.swift` 2479 行、`BodianMusicAPI.swift` 556 行）。两个平台约等于 2500~3000 行新代码 + 贯穿 20+ 文件的 switch 扩展，需要单独一轮专项做，否则极易把已稳定的播放链路改崩。另：B 站还需要 SESSDATA Cookie 与 wbi 签名，版权音轨大量不可播，体验会明显弱于现有平台。
 
+### 0.5.0 本轮（2026-11-21，版本 **1.19.0 (90)**，提交 `c9dd4ab`）
+
+用户 5 条反馈 + 1 图。**关键发现：舞台 HTML 虽然早在 1.18.0 就进了包，但一直被 XcodeGen 平铺到 `Beans.app/` 根目录，`assets/` 整层丢失** —— `508-future-is-here` 引 `assets/508-three.min.js`、`304-kidcore` 引 `assets/fonts/ZCOOLKuaiLe-Regular.woff2`，平铺后全部 404，这类舞台只能显示空白或退化字体。已在 `beans-project.yml` 里删掉 `type: folderReference` 的 sources 条目与 `resources:` 里的 LyricStages，改用 `postBuildScripts` 整目录 `cp -R` 到 `Beans.app/LyricStages/`（`ENABLE_USER_SCRIPT_SANDBOXING: NO`），CI 日志与 IPA 实测：`Payload/Beans.app/LyricStages/` 下 68 个 HTML + 14 个 assets 全部就位。
+
+| # | 反馈 | 处理（改动文件） |
+|---|---|---|
+| 1 | 舞台模式要真全屏：底部进度/前进后退、上下两块毛玻璃全部藏掉 | `ReferencePlaybackView.swift`：舞台 WebView 常驻 + 就绪后 `zIndex(2)` 铺满，`if !lyricStageActive` 整块移除 header 与 `playbackControls`；新增 `stageCanvas(insets:)`（透明点击层 + `immersiveChrome(insets:)` 呼出式极简控制层，按安全区留白）、`stageChromeVisible` 状态。`PlayerView.swift`（经典/黑胶/沉浸三套方案）：`stageImmersive` 为真时藏 `headerBar` 与 `controlDeck`，只留 `stageExitChrome`（左上角 chevron.down，点击退回封面页），避免进了舞台出不来 |
+| 2 | lizi 号称 60 多种，要完整方案 | `LyricStages/` 从 30 → **68** 个舞台（新增 305/339/361/383/406/504–510/517–525/540/552/557/559/561/563/571/572/580/582/590/603/604/614/617/621/627/628/629/631 共 38 个）+ 依赖字体/three.js/gsap；`LyricStage.swift` 的 `LyricStage.all` 重写为 68 条（经典/图形/影像/实验四组），`tint` 默认值改为按编号黄金分割取色；`LyricStagePickerSheet` 加搜索框 |
+| 3 | 集成酷我登录与歌单 | 新增 `KuwoMusicAPI.swift`（约 830 行）：`KuwoMusicAuth` 存 Cookie/uid/歌单；搜索走 `www.kuwo.cn/search/searchMusicBykeyWord`，歌单详情走公开 `nplserver.kuwo.cn/pl.svc`，播放地址走 `antiserver.kuwo.cn/anti.s`，歌词复用同曲库的 `BodianMusicAPI.lyric`（酷我歌词接口已加密）；`KuwoLoginSheet` 用 `WKWebView` 轮询 Cookie，拿到 `userid` 后进 `/my/playlist` 用 `evaluateJavaScript` 抓歌单卡片，另提供「粘贴歌单链接」「粘贴 Cookie」两条兜底。`www.kuwo.cn/api/www/*` 即使带上还原的 `Secret` 签名仍返回 `The request is illegal`（实测），所以官方接口只作可选路径。全仓 `SongSource/.kuwo` 分支约 30 处：`Models`、`SearchView`、`LibraryView`、`PlayerManager`、`FavoritesStore`、`DownloadManager`、`PlaylistImportService`、`CommentsSheet`、`ArtistHomeSheet`、`UnblockService`（"kw"）、`LXScriptSourceRunner` 等 |
+| 4 | 点云朵按钮卡半天不弹同步页 | 根因：`prepareAndShowCloudSync()` 必须等所有平台 `loadLibrary` 跑完才置 `showCloudSyncSheet = true`，任一平台超时就是「点了没反应」；且上千歌单一次性 `ForEach`。改为**先弹面板再后台补齐**（`Task { await refreshCloudSyncSources() }`，面板 `.task` 里再补一次并在头部显示「正在补齐各平台歌单…」），歌单列表改 `LazyVStack` + 每平台先渲染 60 个、点「显示更多」每次 +200；`mergeNewPlaylists()` 只自动勾选新增歌单，不复活用户手动取消的 |
+| 5 | 歌单可排序、可置顶（最多 6 个） | 新增 `LibraryPlaylistPins.swift`：`LibraryPlaylistPrefs`（`maxPinned = 6`，`pinned`/`order` 持久化，`sorted()` 未排过的保持原相对顺序）、`LibraryPinnedPlaylistCard`、`LibraryPlaylistOrderSheet`（`List` + `EditMode.active` + `onMove` 拖拽，右侧图钉置顶并显示 `n/6`）。`LibraryView.swift` 歌单墙顶部新增横向「置顶歌单」区 + 「排序」入口；`LibraryWall.swift` 全部歌单页菜单也加「调整歌单顺序」 |
+
+CI 第一轮（`c5e8409`）报 3 个编译错误，均已修（`ac27759`）：`ArtistHomeSheet` 的 `Artist(id:name:avatarURL:albumCount:songCount:)` 实际签名只有 `(id:name:coverURL:source:)`；`PlaylistImportService` 把 `text` 写成了 `raw`；`KuwoLoginWebView.Coordinator` 未声明 `WKScriptMessageHandler`（直接删掉未使用的 `userContentController` 注册）。
+
+新增文件：`KuwoMusicAPI.swift`、`LibraryPlaylistPins.swift`、`LyricStages/*.html`（+38）、`LyricStages/assets/*`（+13）。
+
+需要真机重点验证：
+1. 舞台全屏后轻点呼出控制层的位置是否避开灵动岛，左滑能否回封面
+2. `508-future-is-here`（three.js）、`505-metalheart-prism`、`627-ink-line-rush`、`304-kidcore` 这四个依赖 `assets/` 的舞台现在是否正常出画（本轮修的就是这个）
+3. 酷我网页登录：能否拿到 Cookie、能否抓到「我的歌单」；抓不到时手动粘贴歌单链接是否可用
+4. 云朵按钮是否「点了立刻弹」；上千歌单展开是否还卡
+5. 置顶 6 个后第 7 个是否弹「最多置顶 6 个」提示
+
+
 ### 0.3.0 上一轮（2026-11-21，版本 **1.16.0 (86)**）
 
 按用户 7 条反馈继续改（本地已改完，push 后 CI 出包覆盖 beans-latest）：
