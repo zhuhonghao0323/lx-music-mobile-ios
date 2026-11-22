@@ -350,7 +350,8 @@ struct RootView: View {
     private var playerPresentation: some View {
         BeansNowPlayingPresentation(
             isPresented: $showPlayer,
-            usesSystemInteractiveDismissal: usesSystemPlayerDismissal
+            usesSystemInteractiveDismissal: usesSystemPlayerDismissal,
+            lyricsOpen: player.lyricsPanelOpen
         ) {
             PlayerView(isPresented: $showPlayer)
                 .environmentObject(favorites)
@@ -380,7 +381,8 @@ struct BeansNowPlayingPresentation<Content: View>: View {
     let usesSystemInteractiveDismissal: Bool
     let content: Content
     @ObservedObject private var appleLayout = AppleMusicLayoutStore.shared
-    @ObservedObject private var playback = PlayerManager.shared
+    /// 播放页当前是否停在歌词页（由 PlayerView 同步），用来决定左边缘右滑先回封面还是退出
+    let lyricsOpen: Bool
     @State private var dragOffset: CGFloat = 0
     /// 左边缘右滑返回的横向位移
     @State private var backDragOffset: CGFloat = 0
@@ -388,10 +390,12 @@ struct BeansNowPlayingPresentation<Content: View>: View {
     init(
         isPresented: Binding<Bool>,
         usesSystemInteractiveDismissal: Bool,
+        lyricsOpen: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         _isPresented = isPresented
         self.usesSystemInteractiveDismissal = usesSystemInteractiveDismissal
+        self.lyricsOpen = lyricsOpen
         self.content = content()
     }
 
@@ -428,7 +432,7 @@ struct BeansNowPlayingPresentation<Content: View>: View {
             .contentShape(Rectangle())
             .highPriorityGesture(backSwipeGesture)
             // 停在歌词页时让出这条边缘：第一次右滑只回封面，第二次右滑才退出播放页
-            .allowsHitTesting(!playback.lyricsPanelOpen)
+            .allowsHitTesting(!lyricsOpen)
             .accessibilityHidden(true)
     }
 
