@@ -59,6 +59,30 @@
 
 > 平台级接入的真实成本：`SongSource` 只有 5 个硬编码 case（`netease/qq/kugou/migu/bodian`），全仓 `.bodian` 相关分支 111 处；`Song` 还要为每家加专属字段（酷我 rid、B 站 bvid/cid），并各自实现「搜索 / 歌单 / 播放地址 / 歌词 / 登录态」五条链路（参考 `KugouMusicAPI.swift` 2479 行、`BodianMusicAPI.swift` 556 行）。两个平台约等于 2500~3000 行新代码 + 贯穿 20+ 文件的 switch 扩展，需要单独一轮专项做，否则极易把已稳定的播放链路改崩。另：B 站还需要 SESSDATA Cookie 与 wbi 签名，版权音轨大量不可播，体验会明显弱于现有平台。
 
+### 0.6.0 本轮（2026-11-22，版本 **1.19.2 (92)**，提交 `e5a15f9d`）
+
+用户 6 条反馈 + 5 图（1.19.1 真机验证后的补充）。核心是把酷我从「只能搜索/播放」补成**有首页内容**的平台，并解决登录后 0 歌单、歌词右滑直接退出、VIP 标签误导三个体验问题。
+
+| # | 反馈 | 处理（改动文件） |
+|---|---|---|
+| 1 | 首页缺酷我的歌单和排行榜（LX Music 已实现） | 照 LX Music 的 kw 源补三条公开接口：榜单 `kbangserver.kuwo.cn/ksong.s`（bangId 16/17/93/145/158/151/152/155）、推荐歌单 `wapi.kuwo.cn/api/pc/classify/playlist/getRcmPlayList`；`KuwoMusicAPI` 新增 `charts(limit:)`/`chartSongs(bangID:)`/`recommendPlaylists(limit:)`，`Models` 加 `KuwoTopInfo`，`DiscoverCache.Snapshot` 加 `kuwoTopLists`，`DiscoverRoute` 加 `.kuwoTopList` + 新页面 `KuwoTopListDetailView`，`DiscoverView` 的 `visibleRankCount/hasRankData/allRankEntries/rankRowsContent/nativeCleanTopListsSection/fetchSnapshot(.kuwo/.all)` 全部补齐；`SearchProvider.supportsHomeFeed/supportsCharts/supportsPlaylistSquare` 对 `.kuwo` 打开；`DiscoverAllViews`（全部榜单 / 歌单广场）同步支持酷我 |
+| 2 | 音乐库左上角去掉平台名、方形圆角图标不要；「全部歌单」标题跟随平台 | `LibraryView.swift`：标题行改为单个图标（品牌图 `scaledToFill` + `clipShape(Circle())`，不再显示文字与方形圆角）；新增 `playlistWallTitle`，`全部歌单` → `网易云歌单 / 酷我歌单 / 咪咕歌单…`，手动导入页为「导入歌单」 |
+| 3 | 酷我登录后仍是 0 个歌单，报 `The request is illegal!` | 两个根因：① `KuwoMusicAPI.secret()` 少了 JS 末尾的 8 位随机十六进制（`for(d=d.toString(16);d.length<8;)d="0"+d; return h+=d`），已补；② 登录回调里先 `saveLogin` 再抓歌单，SwiftUI 立刻把 webCard 换成 loggedInCard，WebView 销毁导致抓取中断 —— 改为**先抓后写登录态**。抓取路径改为在 `/my/playlist` 页面内 `fetch('/api/www/user/playlist?...')`（浏览器的 Cookie/Referer/设备指纹都是真的，签名在页面里用同一套 `f(cookieValue,cookieName)` 算），结果写 `window.__kuwoPlaylistPayload` 后轮询读取，失败再退回 DOM 抓取；原生 `fetchMyPlaylists` 补 `csrf: kw_token` 头，错误文案改成可操作提示 |
+| 4 | 尝试增加咪咕登录 | 新增 `MiguMusicLogin.swift`：`MiguMusicAuth`（Cookie/昵称/歌单持久化 + `.beansMiguLoginDidUpdate`）、`MiguLoginSheet`、`MiguLoginWebView`（加载 `music.migu.cn/v5/`，自动点 `div.login` 唤起 `passport.migu.cn` iframe 登录，轮询 `div.login` 消失 + Cookie 抓取），登录后进 `#/my` DOM 抓歌单；`MiguWebPlaylistLoader` 是无界面 WKWebView，用于冷启动时用已存 Cookie 刷新；`ProfileView` 加咪咕卡片与退出确认，`LibraryView` 加咪咕登录引导 + `loadMiguPlaylists` + 歌单墙 + 云同步源，`PlayerManager.hasMembership(.migu)` 改为读登录态，`WebLoginDataCleaner.clearMigu()` |
+| 5 | 歌词页从左往右滑直接退出播放器，应先回封面页 | 根因不在歌词手势，而在 `BeansNowPlayingPresentation` 的左边缘 26pt `highPriorityGesture`（右滑退出），它抢在歌词页手势之前。`PlayerManager` 加 `lyricsPanelOpen`，`PlayerView` 在 `showLyrics` 的 onAppear/onChange 里同步；容器新增 `lyricsOpen` 入参，歌词页打开时 `.allowsHitTesting(false)` 让出边缘 → 第一次右滑回封面（`lyricsSwipeBackGesture`），第二次右滑才退出 |
+| 6 | 不要每次播放都弹「未识别到对应会员」；红底白字 VIP 改成「会员=VIP / 音源=简称」 | `PlayerManager.thirdPartyVIPNotice` 直接返回 nil（不再弹 toast）；新增 `activeThirdPartySourceName`（`setupPlayer` 记录 `resolved.sourceTitle`）与 `playbackSourceBadge` / `playbackBadgeIsSource`；新增 `Components.PlaybackSourceBadge`（金色描边「VIP」/ 青色描边音源简称，如「聆澜」），替换 `MiniPlayerView`、`PlayerView`（5 处）、`ReferencePlaybackView` 的红底白字 VIP |
+
+CI 第一轮（`3b00aaab`）报 1 个编译错误：`PlayerManager` 不是单例，`RootView` 里不能写 `PlayerManager.shared` —— 改为 `BeansNowPlayingPresentation(lyricsOpen:)` 由 `RootView` 传 `player.lyricsPanelOpen`。第二轮 `e5a15f9d` 构建通过，release `beans-latest` 已覆盖为 1.19.2 (92)，CI 日志确认「LyricStages 打包完成：68 个 HTML，14 个资源文件」。
+
+新增文件：`MiguMusicLogin.swift`。
+
+需要真机重点验证：
+1. 首页切「酷我音乐」：排行榜 8 个榜、歌单 18 个是否都出；点「酷我热歌榜」能否播放全部
+2. 音乐库左上角只剩圆形图标，切平台后标题变「网易云歌单 / 酷我歌单」
+3. 酷我重新登录：能否读到真实歌单（若仍被风控，粘贴链接兜底是否可用）
+4. 咪咕登录：passport iframe 能否收到验证码、登录后歌单是否同步
+5. 歌词页第一次右滑回封面、第二次退出；播放页/迷你条标签是否显示「聆澜」而不是 VIP
+
 ### 0.5.0 本轮（2026-11-21，版本 **1.19.0 (90)**，提交 `c9dd4ab`）
 
 用户 5 条反馈 + 1 图。**关键发现：舞台 HTML 虽然早在 1.18.0 就进了包，但一直被 XcodeGen 平铺到 `Beans.app/` 根目录，`assets/` 整层丢失** —— `508-future-is-here` 引 `assets/508-three.min.js`、`304-kidcore` 引 `assets/fonts/ZCOOLKuaiLe-Regular.woff2`，平铺后全部 404，这类舞台只能显示空白或退化字体。已在 `beans-project.yml` 里删掉 `type: folderReference` 的 sources 条目与 `resources:` 里的 LyricStages，改用 `postBuildScripts` 整目录 `cp -R` 到 `Beans.app/LyricStages/`（`ENABLE_USER_SCRIPT_SANDBOXING: NO`），CI 日志与 IPA 实测：`Payload/Beans.app/LyricStages/` 下 68 个 HTML + 14 个 assets 全部就位。
