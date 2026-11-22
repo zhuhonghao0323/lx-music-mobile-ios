@@ -472,10 +472,21 @@ struct DiscoverView: View {
                     BeansHaptics.select()
                     homeSourceRaw = provider.rawValue
                 } label: {
-                    if provider == source {
-                        Label(LocalizedStringKey(provider.rawValue), systemImage: "checkmark")
-                    } else {
-                        Label(LocalizedStringKey(provider.rawValue), systemImage: provider.icon)
+                    // 菜单里的图标用真实品牌图（与主页顶部、各平台列表保持一致），
+                    // 不再用系统符号；选中项用字体加粗区分。
+                    Label {
+                        Text(LocalizedStringKey(provider.rawValue))
+                            .fontWeight(provider == source ? .semibold : .regular)
+                    } icon: {
+                        if let brand = provider.brandImageName {
+                            Image(brand)
+                                .resizable()
+                                .renderingMode(.original)
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        } else {
+                            Image(systemName: provider.icon)
+                        }
                     }
                 }
             }

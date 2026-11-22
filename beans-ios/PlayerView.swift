@@ -2490,6 +2490,20 @@ struct PlayerView: View {
                 }
                 .buttonStyle(GlassPressButtonStyle())
                 Spacer(minLength: 0)
+                // 全屏舞台时原生上下栏都被移除，设置入口放在右上角，
+                // 不挡歌词也不打断沉浸。
+                Button {
+                    BeansHaptics.tap()
+                    openPlayerSettings()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(.black.opacity(0.34)))
+                }
+                .buttonStyle(GlassPressButtonStyle())
+                .accessibilityLabel("播放设置")
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)

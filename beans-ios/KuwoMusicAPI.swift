@@ -417,10 +417,12 @@ struct KuwoLoginSheet: View {
 
     @State private var status = "登录完成后会自动读取「我的歌单」"
     @State private var busy = false
+    @State private var validating = false
     @State private var manualLink = ""
     @State private var manualCookie = ""
     @State private var showManualCookie = false
     @State private var imported: [Playlist] = []
+    @State private var loginPromptToken = 0
 
     var body: some View {
         BeansNavigationStack {
@@ -515,8 +517,9 @@ struct KuwoLoginSheet: View {
             Text(status)
                 .font(BeansFont.appFont(11))
                 .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
 
-            KuwoLoginWebView { cookie, uid, playlists in
+            KuwoLoginWebView(loginPromptToken: loginPromptToken) { cookie, uid, playlists in
                 guard !uid.isEmpty else { return }
                 auth.saveLogin(cookie: cookie, uid: uid, nickname: auth.nickname.isEmpty ? "酷我用户" : auth.nickname)
                 if !playlists.isEmpty {
@@ -527,8 +530,22 @@ struct KuwoLoginSheet: View {
                 }
                 Task { await refreshPlaylists() }
             }
-            .frame(height: 420)
+            .frame(height: 460)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Text("已自动打开登录框：支持手机号快捷登录、账号密码、微信 / QQ。登录成功后这里会变成你的账号信息。")
+                .font(BeansFont.appFont(10.5))
+                .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                loginPromptToken += 1
+            } label: {
+                Text("没看到登录框？点这里重新打开")
+                    .font(BeansFont.appFont(11.5, .semibold))
+                    .foregroundStyle(Color.beansAmber)
+            }
+            .buttonStyle(.plain)
 
             Button {
                 showManualCookie.toggle()
@@ -546,18 +563,32 @@ struct KuwoLoginSheet: View {
                         .frame(height: 86)
                         .padding(8)
                         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                    Button("保存 Cookie") {
-                        let parsedUID = Self.uid(from: manualCookie)
+                    Button(validating ? "正在验证…" : "保存 Cookie") {
+                        let raw = manualCookie.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let parsedUID = Self.uid(from: raw)
                         guard !parsedUID.isEmpty else {
                             status = "Cookie 里没有 userid，请确认复制完整"
                             return
                         }
-                        auth.saveLogin(cookie: manualCookie, uid: parsedUID, nickname: "酷我用户")
-                        status = "Cookie 已保存，正在读取歌单…"
-                        Task { await refreshPlaylists() }
+                        guard !validating else { return }
+                        validating = true
+                        status = "正在验证 Cookie（会打开酷我网页确认登录态）…"
+                        // 真实验证：用这份 Cookie 打开酷我首页，只有页面不再显示「登录 / 注册」
+                        // 且 cookie 里带 userid 才保存，避免粘错 Cookie 后各处显示「未登录」。
+                        KuwoCookieValidator.shared.validate(cookieHeader: raw) { ok in
+                            validating = false
+                            guard ok else {
+                                status = "Cookie 验证失败：网页仍是未登录状态，可能已过期或不完整"
+                                return
+                            }
+                            auth.saveLogin(cookie: raw, uid: parsedUID, nickname: "酷我用户")
+                            status = "Cookie 已验证，正在读取歌单…"
+                            Task { await refreshPlaylists() }
+                        }
                     }
                     .font(BeansFont.appFont(12, .semibold))
                     .foregroundStyle(Color.beansAmber)
+                    .disabled(validating)
                 }
             }
         }
@@ -687,6 +718,8 @@ struct KuwoLoginSheet: View {
 
 /// 打开酷我网页版，轮询 Cookie；拿到 userid 后回传完整 Cookie。
 private struct KuwoLoginWebView: UIViewRepresentable {
+    /// 点一次「重新打开登录框」就 +1，用来手动唤出登录弹窗（自动点击失败时兜底）
+    var loginPromptToken: Int = 0
     let onLogin: (String, String, [Playlist]) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onLogin: onLogin) }
@@ -697,13 +730,22 @@ private struct KuwoLoginWebView: UIViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        // 必须用桌面版 UA：移动版 m.kuwo.cn 只有排行榜和「下载 APP」，根本没有登录入口
+        // （用户截图里那一页就是移动版）。桌面版 www.kuwo.cn 顶部有「登录 / 注册」，
+        // 点开就是手机号快捷登录 / 账号密码 / 微信 / QQ。
+        webView.customUserAgent = KuwoWebUserAgent.desktop
         webView.load(URLRequest(url: URL(string: "https://www.kuwo.cn/")!))
         context.coordinator.start(webView: webView)
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard context.coordinator.lastPromptToken != loginPromptToken else { return }
+        context.coordinator.lastPromptToken = loginPromptToken
+        if loginPromptToken > 0 {
+            webView.evaluateJavaScript(Coordinator.openLoginPanelJS)
+        }
+    }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         coordinator.stop()
@@ -714,7 +756,8 @@ private struct KuwoLoginWebView: UIViewRepresentable {
         private weak var webView: WKWebView?
         private var timer: Timer?
         private var reported = false
-        private var delivered = false
+        private var openedLoginPanel = false
+        var lastPromptToken = 0
 
         init(onLogin: @escaping (String, String, [Playlist]) -> Void) {
             self.onLogin = onLogin
@@ -735,6 +778,15 @@ private struct KuwoLoginWebView: UIViewRepresentable {
             timer = nil
         }
 
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard !openedLoginPanel, !reported else { return }
+            openedLoginPanel = true
+            // 桌面版首页是 Vue 渲染的，等按钮挂载完再点，否则 querySelector 拿到 nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak webView] in
+                webView?.evaluateJavaScript(Self.openLoginPanelJS)
+            }
+        }
+
         private func probeCookies() {
             guard !reported, let webView else { return }
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
@@ -744,82 +796,155 @@ private struct KuwoLoginWebView: UIViewRepresentable {
                 let header = kuwo.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
                 let uid = kuwo.first { $0.name == "userid" || $0.name == "uid" }?.value ?? ""
                 guard !uid.isEmpty else { return }
-                self.reported = true
-                // 登录成功后进入「我的歌单」页，直接从页面抓歌单卡片：
-                // 网页接口有风控与签名，DOM 是最稳的兜底；抓不到再让用户手动粘贴链接。
-                DispatchQueue.main.async {
-                    self.loadMyPlaylists(cookie: header, uid: uid)
+                // cookie 上已经有 userid；再等一拍让页面把「登录 / 注册」换成昵称，
+                // 避免把浏览态 cookie 误判成登录成功。
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    guard !self.reported else { return }
+                    self.reported = true
+                    self.onLogin(header, uid, [])
                 }
             }
         }
 
-        private func loadMyPlaylists(cookie: String, uid: String) {
-            guard let webView else {
-                deliver(cookie: cookie, uid: uid, list: [])
-                return
-            }
-            guard let url = URL(string: "https://www.kuwo.cn/my/playlist") else {
-                deliver(cookie: cookie, uid: uid, list: [])
-                return
-            }
-            webView.load(URLRequest(url: url))
-            let delays: [Double] = [2.5, 4.5, 7.0]
-            for delay in delays {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak webView] in
-                    guard let self, let webView else { return }
-                    webView.evaluateJavaScript(Self.scrapeJS) { result, _ in
-                        let list = Self.playlists(from: result)
-                        guard !list.isEmpty else { return }
-                        self.deliver(cookie: cookie, uid: uid, list: list)
-                    }
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 7.5) {
-                self.deliver(cookie: cookie, uid: uid, list: [], final: true)
-            }
-        }
-
-        /// 第一次拿到非空歌单就交付；空列表只在最后兜底交付，避免重复发通知
-        private func deliver(cookie: String, uid: String, list: [Playlist], final: Bool = false) {
-            guard !delivered else { return }
-            if list.isEmpty && !final { return }
-            delivered = true
-            onLogin(cookie, uid, list)
-        }
-
-        private static let scrapeJS = #"""
+        /// 桌面版首页的「登录 / 注册」入口（div.reg_text），点开后是手机号快捷登录 /
+        /// 账号密码 / 微信 / QQ。登录成功后该节点会被昵称替换，可据此判断状态。
+        static let openLoginPanelJS = """
         (function(){
-          var out=[],seen={};
-          document.querySelectorAll('a[href*="playlist_detail"]').forEach(function(a){
-            var m=(a.href||'').match(/playlist_detail\/(\d+)/);
-            if(!m) return;
-            var id=m[1];
-            if(seen[id]) return;
-            seen[id]=1;
-            var img=a.querySelector('img');
-            var name=(a.innerText||a.textContent||'').replace(/\s+/g,' ').trim();
-            if(!name) name=(a.getAttribute('title')||'').trim();
-            out.push({id:id,name:name.slice(0,60),cover:img?img.src:''});
-          });
-          return JSON.stringify(out);
-        })()
-        """#
-
-        private static func playlists(from result: Any?) -> [Playlist] {
-            guard let text = result as? String,
-                  let data = text.data(using: .utf8),
-                  let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return []
+          var n = 0;
+          var t = setInterval(function(){
+            var el = document.querySelector('div.reg_text');
+            if (el && el.innerText && el.innerText.indexOf('登录') >= 0) {
+              el.click();
+              clearInterval(t);
             }
-            return raw.compactMap { item in
-                guard let id = Int(String(describing: item["id"] ?? "")), id > 0 else { return nil }
-                let name = item["name"] as? String ?? ""
-                guard !name.isEmpty else { return nil }
-                let cover = item["cover"] as? String ?? ""
-                return Playlist(id: id, name: name,
-                                coverURL: cover.hasPrefix("http") ? URL(string: cover) : nil,
-                                trackCount: 0, source: .kuwo, externalID: "\(id)")
+            if (++n > 80) { clearInterval(t); }
+          }, 250);
+          return 'ok';
+        })()
+        """
+    }
+}
+
+// MARK: - Cookie 验证
+
+/// 酷我网页版 UA：登录页必须用桌面版，移动版站点没有登录入口。
+enum KuwoWebUserAgent {
+    static let desktop = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
+/// 用一份 Cookie 实际打开酷我首页，确认页面不再是「登录 / 注册」。
+/// 用 nonPersistent 数据仓，验证失败不会污染 App 里已经登录的 Cookie。
+final class KuwoCookieValidator: NSObject, WKNavigationDelegate {
+    static let shared = KuwoCookieValidator()
+
+    private var webView: WKWebView?
+    private var completion: ((Bool) -> Void)?
+    private var timeout: DispatchWorkItem?
+
+    func validate(cookieHeader: String, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async {
+            self.cancelCurrent()
+            let pairs = Self.parse(cookieHeader)
+            guard !pairs.isEmpty else {
+                completion(false)
+                return
+            }
+            let store = WKWebsiteDataStore.nonPersistent()
+            let group = DispatchGroup()
+            for (name, value) in pairs {
+                let properties: [HTTPCookiePropertyKey: Any] = [
+                    .name: name,
+                    .value: value,
+                    .domain: ".kuwo.cn",
+                    .path: "/",
+                    .secure: "TRUE",
+                    .expires: Date().addingTimeInterval(60 * 60 * 24 * 30)
+                ]
+                guard let cookie = HTTPCookie(properties: properties) else { continue }
+                group.enter()
+                store.httpCookieStore.setCookie(cookie) { group.leave() }
+            }
+            group.notify(queue: .main) {
+                let config = WKWebViewConfiguration()
+                config.websiteDataStore = store
+                let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 780), configuration: config)
+                webView.customUserAgent = KuwoWebUserAgent.desktop
+                webView.navigationDelegate = self
+                self.webView = webView
+                self.completion = completion
+                let work = DispatchWorkItem { [weak self] in self?.finish(false) }
+                self.timeout = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 18, execute: work)
+                webView.load(URLRequest(url: URL(string: "https://www.kuwo.cn/")!))
             }
         }
     }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard completion != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self, weak webView] in
+            guard let self, let webView, self.completion != nil else { return }
+            webView.evaluateJavaScript(Self.checkJS) { result, _ in
+                let noLoginEntry = (result as? String) == "1"
+                webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                    let hasUserID = cookies.contains {
+                        $0.domain.contains("kuwo.cn")
+                            && ($0.name == "userid" || $0.name == "uid")
+                            && !$0.value.isEmpty
+                    }
+                    DispatchQueue.main.async {
+                        self.finish(noLoginEntry && hasUserID)
+                    }
+                }
+            }
+        }
+    }
+
+    private func finish(_ ok: Bool) {
+        timeout?.cancel()
+        timeout = nil
+        let callback = completion
+        completion = nil
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        webView = nil
+        DispatchQueue.main.async {
+            callback?(ok)
+        }
+    }
+
+    private func cancelCurrent() {
+        timeout?.cancel()
+        timeout = nil
+        let callback = completion
+        completion = nil
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        webView = nil
+        // 上一次验证还没回调就结束的话，通知调用方失败，避免界面卡在「正在验证…」
+        if let callback {
+            DispatchQueue.main.async { callback(false) }
+        }
+    }
+
+    private static func parse(_ header: String) -> [(String, String)] {
+        header.split(separator: ";").compactMap { part in
+            let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let eq = trimmed.firstIndex(of: "=") else { return nil }
+            let name = String(trimmed[trimmed.startIndex..<eq]).trimmingCharacters(in: .whitespaces)
+            let value = String(trimmed[trimmed.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, !value.isEmpty else { return nil }
+            return (name, value)
+        }
+    }
+
+    /// 1 = 页面上没有「登录 / 注册」入口（已登录）
+    private static let checkJS = """
+    (function(){
+      try {
+        var reg = document.querySelector('div.reg_text');
+        return reg ? '0' : '1';
+      } catch(e) { return '0'; }
+    })()
+    """
 }

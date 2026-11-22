@@ -68,6 +68,8 @@ struct ReferencePlaybackView: View {
     @State private var focusedLyricID: UUID?
     /// 沉浸舞台：点一下屏幕才呼出极简控制层，默认全部隐藏
     @State private var stageChromeVisible = false
+    /// 进入舞台后先露出 3 秒控制层（含右上角设置入口），随后自动淡出
+    @State private var stageChromeAutoHideTask: Task<Void, Never>?
     @State private var lyricsViewportHeight: CGFloat = 0
     @State private var isDraggingLyrics = false
     @State private var resumeTask: Task<Void, Never>?
@@ -161,15 +163,24 @@ struct ReferencePlaybackView: View {
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
         }
-        .onDisappear { resumeTask?.cancel() }
+        .onDisappear {
+            resumeTask?.cancel()
+            stageChromeAutoHideTask?.cancel()
+        }
         .onChange(of: lyricStageID) { _ in lyricStageReady = false }
         .onChange(of: lyricStageEnabled) { _ in lyricStageReady = false }
         .onChange(of: showLyrics) { _ in
             lyricStageReady = false
             stageChromeVisible = false
+            stageChromeAutoHideTask?.cancel()
         }
         .onChange(of: lyricStageActive) { active in
-            if !active { stageChromeVisible = false }
+            if active {
+                showStageChromeTemporarily()
+            } else {
+                stageChromeAutoHideTask?.cancel()
+                stageChromeVisible = false
+            }
         }
         // 兜底：2.4s 仍未 ready 就直接放行，避免舞台被 ready 门控永久挡住。
         // 资源缺失时不能放行，否则空 WebView 会顶掉原生歌词。
@@ -355,11 +366,8 @@ struct ReferencePlaybackView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            stageChromeVisible.toggle()
-                        }
+                        toggleStageChrome()
                     }
-                    .simultaneousGesture(lyricsSwipeBackGesture)
 
                 if stageChromeVisible {
                     immersiveChrome(insets: insets)
@@ -368,6 +376,28 @@ struct ReferencePlaybackView: View {
             }
         }
         .ignoresSafeArea()
+        // 控制层露出时也要能从左往右滑回封面（chrome 会盖住上面的点击层）
+        .simultaneousGesture(lyricsSwipeBackGesture, including: lyricStageActive ? GestureMask.all : GestureMask.none)
+    }
+
+    /// 轻点切换控制层；呼出时 3.2 秒后自动淡出，避免常驻遮挡歌词
+    private func toggleStageChrome() {
+        if stageChromeVisible {
+            stageChromeAutoHideTask?.cancel()
+            withAnimation(.easeInOut(duration: 0.18)) { stageChromeVisible = false }
+        } else {
+            showStageChromeTemporarily()
+        }
+    }
+
+    private func showStageChromeTemporarily() {
+        stageChromeAutoHideTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.18)) { stageChromeVisible = true }
+        stageChromeAutoHideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_200_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.35)) { stageChromeVisible = false }
+        }
     }
 
     /// 沉浸模式下临时呼出的控制层：没有毛玻璃、没有常驻栏，只在点击后出现
@@ -396,6 +426,22 @@ struct ReferencePlaybackView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                // 播放设置入口：舞台全屏后唯一能进设置的地方，跟随控制层自动隐藏
+                Button {
+                    BeansHaptics.tap()
+                    stageChromeAutoHideTask?.cancel()
+                    withAnimation(.easeInOut(duration: 0.18)) { stageChromeVisible = false }
+                    onPlayerSettings()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(.black.opacity(0.34)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("播放设置")
+
                 Button {
                     BeansHaptics.tap()
                     withAnimation(.easeInOut(duration: 0.18)) { stageChromeVisible = false }
@@ -631,7 +677,16 @@ struct ReferencePlaybackView: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            HStack(spacing: 48) {
+            HStack(spacing: 26) {
+                // 收藏：与歌词页头部、播放设置里的「我的收藏」共用本地歌单，
+                // 点一下加入默认收藏歌单，再点一下取消，实心/空心实时反映状态。
+                referenceActionButton(
+                    icon: localLibrary.containsSong(song) ? "heart.fill" : "heart",
+                    active: localLibrary.containsSong(song)
+                ) {
+                    guard song != nil else { return }
+                    onFavorite()
+                }
                 referenceActionButton(icon: "quote.bubble", active: showLyrics) {
                     guard !lyrics.isEmpty else { return }
                     showLyrics.toggle()

@@ -128,9 +128,9 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .netease: return "BrandNetease"
         case .qq: return "BrandQQ"
         case .kugou: return "BrandKugou"
-        case .migu: return nil
+        case .migu: return "BrandMigu"
         case .bodian: return "BrandBodian"
-        case .kuwo: return nil
+        case .kuwo: return "BrandKuwo"
         case .all: return "BrandAll"
         }
     }
