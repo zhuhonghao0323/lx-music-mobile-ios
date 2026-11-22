@@ -26,6 +26,8 @@ struct ReferencePlaybackView: View {
     let lyrics: [LyricLine]
     @Binding var showLyrics: Bool
     let onFavorite: () -> Void
+    /// 底部一键收藏：直接进「我的收藏歌单」，不弹歌单选择（头部心形仍保留选择逻辑）
+    var onQuickFavorite: (() -> Void)? = nil
     let onQueue: () -> Void
     let onComments: () -> Void
     let onSleepTimer: () -> Void
@@ -685,7 +687,11 @@ struct ReferencePlaybackView: View {
                     active: localLibrary.containsSong(song)
                 ) {
                     guard song != nil else { return }
-                    onFavorite()
+                    if let onQuickFavorite {
+                        onQuickFavorite()
+                    } else {
+                        onFavorite()
+                    }
                 }
                 referenceActionButton(icon: "quote.bubble", active: showLyrics) {
                     guard !lyrics.isEmpty else { return }

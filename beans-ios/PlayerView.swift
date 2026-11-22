@@ -215,6 +215,18 @@ struct PlayerView: View {
         }
     }
 
+    /// 播放页底部收藏按钮：一键进「我的收藏歌单」，不弹歌单选择，
+    /// 点一下就是收藏 / 取消收藏，符合「收藏按钮」的直觉。
+    private func quickFavorite(_ song: Song) {
+        if localLibrary.containsSong(song) {
+            let removed = localLibrary.removeSongFromAllPlaylists(song)
+            ToastCenter.shared.show(removed > 0 ? "已取消收藏" : "歌曲不在收藏中")
+        } else {
+            ToastCenter.shared.show(localLibrary.addToDefaultFavorites(song))
+        }
+        BeansHaptics.success()
+    }
+
     private var playerDustMode: BeansPlayerDustMode {
         return BeansPlayerDustMode(rawValue: playerDustModeRaw) ?? .off
     }
@@ -392,6 +404,10 @@ struct PlayerView: View {
                         onFavorite: {
                             guard let song else { return }
                             toggleLocalFavorite(song)
+                        },
+                        onQuickFavorite: {
+                            guard let song else { return }
+                            quickFavorite(song)
                         },
                         onQueue: {
                             showQueue = true
