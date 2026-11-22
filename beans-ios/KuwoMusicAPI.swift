@@ -483,6 +483,10 @@ struct KuwoLoginSheet: View {
                 .font(BeansFont.appFont(12, .semibold))
                 .foregroundStyle(.red)
             }
+            Text(status)
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
             Button {
                 Task { await refreshPlaylists() }
             } label: {
@@ -943,7 +947,8 @@ final class KuwoCookieValidator: NSObject, WKNavigationDelegate {
     (function(){
       try {
         var reg = document.querySelector('div.reg_text');
-        return reg ? '0' : '1';
+        var text = (document.body && document.body.innerText || '').length;
+        return (!reg && text > 50) ? '1' : '0';
       } catch(e) { return '0'; }
     })()
     """
