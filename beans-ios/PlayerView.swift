@@ -648,6 +648,7 @@ struct PlayerView: View {
         .onAppear {
             layoutPart = PlayerLayoutPart(rawValue: layoutPartRaw) ?? .progress
             showLyrics = lastLyricsPage
+            player.lyricsPanelOpen = showLyrics
             if let path = LyricBackgroundStore.restoreFromBackup(), lyricBackgroundImagePath != path {
                 lyricBackgroundImagePath = path
             }
@@ -665,6 +666,7 @@ struct PlayerView: View {
         }
         .onChange(of: showLyrics) { newValue in
             lastLyricsPage = newValue
+            player.lyricsPanelOpen = newValue
         }
         .onChange(of: layoutPartRaw) { rawValue in
             layoutPart = PlayerLayoutPart(rawValue: rawValue) ?? .progress
@@ -1105,13 +1107,8 @@ struct PlayerView: View {
                         .foregroundStyle(albumTitleForeground)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    if showSongVIPBadge, song?.isVIP == true {
-                        Text("VIP")
-                            .font(BeansFont.appFont(8, .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                    if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                        PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                     }
                 }
                 Text(subtitle)
@@ -1305,13 +1302,8 @@ struct PlayerView: View {
                         .foregroundStyle(albumTitleForeground)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    if showSongVIPBadge, song?.isVIP == true {
-                        Text("VIP")
-                            .font(BeansFont.appFont(8, .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                    if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                        PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                     }
                 }
                 Text(subtitle)
@@ -1607,14 +1599,8 @@ struct PlayerView: View {
                         .minimumScaleFactor(0.55)
                         .multilineTextAlignment(.center)
                         .shadow(color: albumGlow(albumTitleColor, strong: true), radius: albumTextGlow ? 10 : 0, y: 2)
-                    if showSongVIPBadge, song?.isVIP == true {
-                        Text("VIP")
-                            .font(BeansFont.appFont(9, .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
-                            .shadow(color: palette.accent.opacity(0.45), radius: 6)
+                    if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                        PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                     }
                 }
                 .shadow(color: albumTextGlow ? palette.accent.opacity(0.30) : .clear, radius: albumTextGlow ? 10 : 0)
@@ -2028,13 +2014,8 @@ struct PlayerView: View {
                                 .foregroundStyle(stageOn ? .white : palette.text)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                            if showSongVIPBadge, song?.isVIP == true {
-                                Text("VIP")
-                                    .font(BeansFont.appFont(8, .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1.5)
-                                    .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                            if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                                PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                             }
                         }
                         HStack(spacing: 8) {
@@ -2370,13 +2351,8 @@ struct PlayerView: View {
                     .minimumScaleFactor(0.6)
                     .multilineTextAlignment(.leading)
                     .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
-                if showSongVIPBadge, song?.isVIP == true {
-                    Text("VIP")
-                        .font(BeansFont.appFont(9, .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                    PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                 }
             }
             Text(song?.artists ?? "")

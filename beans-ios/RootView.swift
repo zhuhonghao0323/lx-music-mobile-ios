@@ -380,6 +380,7 @@ struct BeansNowPlayingPresentation<Content: View>: View {
     let usesSystemInteractiveDismissal: Bool
     let content: Content
     @ObservedObject private var appleLayout = AppleMusicLayoutStore.shared
+    @ObservedObject private var playback = PlayerManager.shared
     @State private var dragOffset: CGFloat = 0
     /// 左边缘右滑返回的横向位移
     @State private var backDragOffset: CGFloat = 0
@@ -426,6 +427,8 @@ struct BeansNowPlayingPresentation<Content: View>: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .highPriorityGesture(backSwipeGesture)
+            // 停在歌词页时让出这条边缘：第一次右滑只回封面，第二次右滑才退出播放页
+            .allowsHitTesting(!playback.lyricsPanelOpen)
             .accessibilityHidden(true)
     }
 

@@ -135,8 +135,12 @@ struct LibraryView: View {
     @State private var kuwoPlaylists: [Playlist] = []
     @State private var kuwoLoading = false
     @State private var kuwoSavedAt = Date.distantPast
+    @State private var miguPlaylists: [Playlist] = []
+    @State private var miguLoading = false
+    @State private var miguSavedAt = Date.distantPast
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @ObservedObject private var kuwoAuth = KuwoMusicAuth.shared
+    @ObservedObject private var miguAuth = MiguMusicAuth.shared
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
     @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
     @ObservedObject private var localLibrary = LocalLibraryStore.shared
@@ -146,6 +150,7 @@ struct LibraryView: View {
     @State private var showCloudSyncSheet = false
     @State private var showPlaylistOrder = false
     @State private var showKuwoLogin = false
+    @State private var showMiguLogin = false
     @State private var showAllPlaylistsSheet = false
     @State private var showAllSongsSheet = false
     @State private var selectedLocalPlaylist: LocalPlaylist?
@@ -180,6 +185,10 @@ struct LibraryView: View {
         SyncedPlaylistOrderStore.shared.ordered(kuwoPlaylists, source: .kuwo)
     }
 
+    private var orderedMiguPlaylists: [Playlist] {
+        SyncedPlaylistOrderStore.shared.ordered(miguPlaylists, source: .migu)
+    }
+
     private var qqCacheAccountID: String {
         let raw = qqAuth.rawUin
         return raw.isEmpty ? qqAuth.playlistUin : raw
@@ -197,6 +206,10 @@ struct LibraryView: View {
         kuwoAuth.isLoggedIn ? kuwoAuth.uid : "kuwo-guest"
     }
 
+    private var miguCacheAccountID: String {
+        miguAuth.isLoggedIn ? "migu-user" : "migu-guest"
+    }
+
     private var syncedPlaylistBinding: Binding<[Playlist]> {
         Binding(
             get: {
@@ -204,7 +217,7 @@ struct LibraryView: View {
                 case .netease: return orderedNeteasePlaylists
                 case .qq: return orderedQQPlaylists
                 case .kugou: return orderedKugouPlaylists
-                case .migu: return []
+                case .migu: return orderedMiguPlaylists
                 case .bodian: return orderedBodianPlaylists
                 case .kuwo: return orderedKuwoPlaylists
                 }
@@ -214,7 +227,7 @@ struct LibraryView: View {
                 case .netease: auth.playlists = value
                 case .qq: qqPlaylists = value
                 case .kugou: kugouPlaylists = value
-                case .migu: break
+                case .migu: miguPlaylists = value
                 case .bodian: bodianPlaylists = value
                 case .kuwo: kuwoPlaylists = value
                 }
@@ -267,6 +280,8 @@ struct LibraryView: View {
                                 if libraryShowsImported {
                                     importedSection
                                 } else if source == .migu {
+                                    if !miguAuth.isLoggedIn { miguLoginBanner }
+                                    playlistsWallSection
                                     miguSection
                                 } else {
                                     if source == .kuwo && !kuwoAuth.isLoggedIn {
@@ -338,6 +353,11 @@ struct LibraryView: View {
             if kuwoAuth.isLoggedIn { source = .kuwo }
             Task { await loadKuwoPlaylists(force: true) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .beansMiguLoginDidUpdate)) { _ in
+            guard platformPrefs.isEnabled(SearchProvider.migu) else { return }
+            if miguAuth.isLoggedIn { source = .migu }
+            Task { await loadMiguPlaylists(force: true) }
+        }
         .sheet(isPresented: $showHistory) {
             HistoryView()
                 .environmentObject(player)
@@ -370,6 +390,10 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showKuwoLogin) {
             KuwoLoginSheet()
+                .environmentObject(theme)
+        }
+        .sheet(isPresented: $showMiguLogin) {
+            MiguLoginSheet()
                 .environmentObject(theme)
         }
         .sheet(isPresented: $showPlaylistOrder) {
@@ -563,49 +587,39 @@ struct LibraryView: View {
                 Label("手动导入歌单", systemImage: libraryShowsImported ? "checkmark" : "square.and.arrow.down")
             }
         } label: {
-            // 大图标 + 小名称：去掉与副标题重复的大号标题文字，图标放大更美观
-            let iconSize: CGFloat = isNativeClean ? 40 : 36
-            HStack(spacing: 6) {
-                // 图标与主页「全部」一致：BrandAll 图片，缺失时用 grid 兜底
+            // 只留一个平台图标：不显示平台名，方形品牌图裁成圆形，
+            // 避免「方形 + 圆角」的 App 图标外形出现在标题行里。
+            let iconSize: CGFloat = isNativeClean ? 38 : 34
+            Group {
                 if libraryShowsImported {
                     Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: iconSize * 0.62, weight: .semibold))
+                        .font(.system(size: iconSize * 0.52, weight: .semibold))
                         .foregroundStyle(Color.beansLabel)
-                        .frame(width: iconSize, height: iconSize)
                 } else if libraryShowsAll {
                     if let allIcon = UIImage(named: "BrandAll") {
                         Image(uiImage: allIcon)
                             .resizable()
-                            .scaledToFit()
-                            .frame(width: iconSize, height: iconSize)
+                            .scaledToFill()
+                            .clipShape(Circle())
                     } else {
                         Image(systemName: "square.grid.2x2.fill")
-                            .font(.system(size: iconSize * 0.62, weight: .semibold))
+                            .font(.system(size: iconSize * 0.52, weight: .semibold))
                             .foregroundStyle(Color.beansLabel)
-                            .frame(width: iconSize, height: iconSize)
                     }
                 } else if let brand = source.brandImageName, let img = UIImage(named: brand) {
                     Image(uiImage: img)
                         .resizable()
-                        .scaledToFit()
-                        .frame(width: iconSize, height: iconSize)
+                        .scaledToFill()
+                        .clipShape(Circle())
                 } else {
                     Image(systemName: source.icon)
-                        .font(.system(size: iconSize * 0.62, weight: .semibold))
+                        .font(.system(size: iconSize * 0.52, weight: .semibold))
                         .foregroundStyle(Color.beansLabel)
-                        .frame(width: iconSize, height: iconSize)
-                }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(verbatim: libraryTitleText)
-                        .font(BeansFont.appFont(13, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.beansComment.opacity(0.7))
                 }
             }
-            .contentShape(Rectangle())
+            .frame(width: iconSize, height: iconSize)
+            .clipShape(Circle())
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(libraryTitleText + "，" + librarySubtitle))
@@ -613,6 +627,13 @@ struct LibraryView: View {
 
 
     // MARK: - 歌单墙（3 列 × 2 行，可一直右滑）
+
+    /// 歌单墙标题跟随左上角平台切换：网易云 → 网易云歌单，酷我 → 酷我歌单
+    private var playlistWallTitle: String {
+        if libraryShowsImported { return "导入歌单" }
+        if libraryShowsAll { return "全部歌单" }
+        return "\(source.shortName)歌单"
+    }
 
     private var playlistsWallSection: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -633,7 +654,7 @@ struct LibraryView: View {
                 }
             }
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: "全部歌单", trailing: wallItems.isEmpty ? nil : "查看全部") {
+                SectionHeader(title: playlistWallTitle, trailing: wallItems.isEmpty ? nil : "查看全部") {
                     BeansHaptics.tap()
                     showAllPlaylistsSheet = true
                 }
@@ -677,6 +698,45 @@ struct LibraryView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.98))
     }
 
+    /// 咪咕未登录时的引导卡：咪咕网页登录后同步「我的歌单」
+    private var miguLoginBanner: some View {
+        Button {
+            BeansHaptics.tap()
+            showMiguLogin = true
+        } label: {
+            HStack(spacing: 12) {
+                if let img = UIImage(named: "BrandMigu") {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                } else {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color(red: 0.90, green: 0.20, blue: 0.36))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("登录咪咕音乐")
+                        .font(BeansFont.appFont(14, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text("网页登录后自动同步「我的歌单」，会员状态也会一起识别")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.beansComment.opacity(0.6))
+            }
+            .padding(14)
+            .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous)) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.98))
+    }
+
     /// 置顶歌单：按置顶顺序取墙上的卡片，隐藏/删除后自动消失
     private var pinnedWallItems: [LibraryWallItem] {
         guard !playlistPrefs.pinned.isEmpty else { return [] }
@@ -692,7 +752,7 @@ struct LibraryView: View {
         case .kugou: return kugouAuth.isLoggedIn ? kugouPlaylists : []
         case .bodian: return bodianAuth.isLoggedIn ? bodianPlaylists : []
         case .kuwo: return kuwoAuth.isLoggedIn ? kuwoPlaylists : []
-        case .migu: return []
+        case .migu: return miguAuth.isLoggedIn ? miguPlaylists : []
         }
     }
     // 音乐库歌单区现在展示全部平台（见 allCloudPlaylists），这个属性保留给其它板块使用。
@@ -718,7 +778,8 @@ struct LibraryView: View {
                 guard kuwoAuth.isLoggedIn else { continue }
                 result += orderedKuwoPlaylists.map { ($0, .kuwo) }
             case .migu:
-                continue
+                guard miguAuth.isLoggedIn else { continue }
+                result += orderedMiguPlaylists.map { ($0, .migu) }
             }
         }
         return result
@@ -731,7 +792,7 @@ struct LibraryView: View {
         case .kugou: return kugouCacheAccountID
         case .bodian: return bodianCacheAccountID
         case .kuwo: return kuwoCacheAccountID
-        case .migu: return ""
+        case .migu: return miguCacheAccountID
         }
     }
 
@@ -843,7 +904,8 @@ struct LibraryView: View {
             LibraryCloudSyncSource(source: .qq, accountID: qqCacheAccountID, playlists: qqAuth.isLoggedIn ? qqPlaylists : []),
             LibraryCloudSyncSource(source: .kugou, accountID: kugouCacheAccountID, playlists: kugouAuth.isLoggedIn ? kugouPlaylists : []),
             LibraryCloudSyncSource(source: .bodian, accountID: bodianCacheAccountID, playlists: bodianAuth.isLoggedIn ? bodianPlaylists : []),
-            LibraryCloudSyncSource(source: .kuwo, accountID: kuwoCacheAccountID, playlists: kuwoAuth.isLoggedIn ? kuwoPlaylists : [])
+            LibraryCloudSyncSource(source: .kuwo, accountID: kuwoCacheAccountID, playlists: kuwoAuth.isLoggedIn ? kuwoPlaylists : []),
+            LibraryCloudSyncSource(source: .migu, accountID: miguCacheAccountID, playlists: miguAuth.isLoggedIn ? miguPlaylists : [])
         ]
     }
 
@@ -1257,6 +1319,9 @@ struct LibraryView: View {
             if platformPrefs.isEnabled(SearchProvider.kuwo) && kuwoAuth.isLoggedIn {
                 group.addTask { await loadKuwoPlaylists(force: false) }
             }
+            if platformPrefs.isEnabled(SearchProvider.migu) && miguAuth.isLoggedIn {
+                group.addTask { await loadMiguPlaylists(force: false) }
+            }
         }
     }
 
@@ -1269,8 +1334,7 @@ struct LibraryView: View {
         case .kugou:
             await loadKugouPlaylists(force: force)
         case .migu:
-            // 咪咕没有云端歌单，收藏为本地数据，无需刷新
-            break
+            await loadMiguPlaylists(force: force)
         case .bodian:
             await loadBodianPlaylists(force: force)
         case .kuwo:
@@ -1633,6 +1697,33 @@ struct LibraryView: View {
             BeansLogger.shared.log("酷我歌单同步失败：\(error.localizedDescription)", level: .warn)
         }
         kuwoLoading = false
+    }
+
+    private func loadMiguPlaylists(force: Bool = false) async {
+        guard miguAuth.isLoggedIn else {
+            miguPlaylists = []
+            miguLoading = false
+            return
+        }
+        let cache = SyncedPlaylistCache.shared
+        if miguPlaylists.isEmpty,
+           let cached = cache.cachedPlaylists(source: .migu, accountID: miguCacheAccountID) {
+            miguPlaylists = cached.playlists
+            miguSavedAt = cached.savedAt
+        }
+        if !force, !miguPlaylists.isEmpty, Date().timeIntervalSince(miguSavedAt) < cache.playlistTTL { return }
+        miguLoading = miguPlaylists.isEmpty
+        if miguPlaylists.isEmpty, !miguAuth.playlists.isEmpty {
+            miguPlaylists = miguAuth.playlists
+        }
+        let list = await MiguWebPlaylistLoader.load(cookie: miguAuth.cookieHeader)
+        if !list.isEmpty {
+            miguPlaylists = list
+            miguSavedAt = Date()
+            miguAuth.savePlaylists(list)
+            cache.savePlaylists(list, source: .migu, accountID: miguCacheAccountID)
+        }
+        miguLoading = false
     }
 
     private func fillQQPlaylistCovers(_ list: [Playlist]) async {

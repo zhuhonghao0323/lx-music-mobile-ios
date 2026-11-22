@@ -61,8 +61,8 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     /// 咪咕目前只做搜索、播放、歌词，不提供这些板块；聚合模式视作提供。
     var supportsHomeFeed: Bool {
         switch self {
-        case .netease, .qq, .kugou, .bodian, .all: return true
-        case .migu, .kuwo: return false
+        case .netease, .qq, .kugou, .bodian, .kuwo, .all: return true
+        case .migu: return false
         }
     }
 
@@ -71,16 +71,16 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
     /// 平台是否提供排行榜（咪咕、波点没有公开榜单接口）
     var supportsCharts: Bool {
         switch self {
-        case .netease, .qq, .kugou, .all: return true
-        case .migu, .bodian, .kuwo: return false
+        case .netease, .qq, .kugou, .kuwo, .all: return true
+        case .migu, .bodian: return false
         }
     }
 
     /// 平台是否提供歌单广场内容
     var supportsPlaylistSquare: Bool {
         switch self {
-        case .netease, .qq, .kugou, .bodian, .all: return true
-        case .migu, .kuwo: return false
+        case .netease, .qq, .kugou, .bodian, .kuwo, .all: return true
+        case .migu: return false
         }
     }
 

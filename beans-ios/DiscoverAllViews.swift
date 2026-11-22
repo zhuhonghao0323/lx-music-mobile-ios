@@ -52,6 +52,7 @@ struct AllChartsView: View {
     @State private var neteaseCharts: [TopList] = []
     @State private var qqCharts: [QQTopInfo] = []
     @State private var kugouCharts: [KugouTopInfo] = []
+    @State private var kuwoCharts: [KuwoTopInfo] = []
     @State private var loading = false
     @State private var errorText: String?
     @State private var loadedSources: Set<String> = []
@@ -105,6 +106,17 @@ struct AllChartsView: View {
                 )
             }))
         }
+        if !kuwoCharts.isEmpty {
+            groups.append((.kuwo, kuwoCharts.map { chart in
+                ChartEntry(
+                    id: "kuwo-\(chart.id)",
+                    name: chart.name,
+                    subtitle: chart.updateFrequency,
+                    coverURL: chart.coverURL,
+                    route: .kuwoTopList(chart)
+                )
+            }))
+        }
         return groups
     }
 
@@ -150,7 +162,8 @@ struct AllChartsView: View {
         case .netease: return neteaseCharts.count
         case .qq: return qqCharts.count
         case .kugou: return kugouCharts.count
-        case .migu, .bodian, .kuwo: return 0
+        case .kuwo: return kuwoCharts.count
+        case .migu, .bodian: return 0
         case .all: return allChartEntries.count
         }
     }
@@ -225,7 +238,16 @@ struct AllChartsView: View {
                         divider
                     }
                 }
-            case .migu, .bodian, .kuwo:
+            case .kuwo:
+                ForEach(Array(kuwoCharts.enumerated()), id: \.offset) { index, chart in
+                    row(index: index, name: chart.name, subtitle: chart.updateFrequency, coverURL: chart.coverURL) {
+                        onOpen(.kuwoTopList(chart))
+                    }
+                    if index < kuwoCharts.count - 1 {
+                        divider
+                    }
+                }
+            case .migu, .bodian:
                 EmptyView()
             case .all:
                 ForEach(Array(chartGroups.enumerated()), id: \.offset) { _, group in
@@ -324,14 +346,19 @@ struct AllChartsView: View {
                 if force || kugouCharts.isEmpty {
                     kugouCharts = try await KugouMusicAPI.shared.topLists(limit: 50)
                 }
-            case .migu, .bodian, .kuwo:
-                // 咪咕 / 波点 / 酷我暂未开放榜单接口
+            case .kuwo:
+                if force || kuwoCharts.isEmpty {
+                    kuwoCharts = try await KuwoMusicAPI.shared.charts(limit: 10)
+                }
+            case .migu, .bodian:
+                // 咪咕 / 波点暂未开放榜单接口
                 break
             case .all:
                 if force {
                     neteaseCharts = (try? await NetEaseAPI.shared.topLists()) ?? neteaseCharts
                     qqCharts = (try? await QQMusicAPI.shared.topLists()) ?? qqCharts
                     kugouCharts = (try? await KugouMusicAPI.shared.topLists(limit: 50)) ?? kugouCharts
+                    kuwoCharts = (try? await KuwoMusicAPI.shared.charts(limit: 10)) ?? kuwoCharts
                 } else {
                     if neteaseCharts.isEmpty {
                         neteaseCharts = (try? await NetEaseAPI.shared.topLists()) ?? []
@@ -341,6 +368,9 @@ struct AllChartsView: View {
                     }
                     if kugouCharts.isEmpty {
                         kugouCharts = (try? await KugouMusicAPI.shared.topLists(limit: 50)) ?? []
+                    }
+                    if kuwoCharts.isEmpty {
+                        kuwoCharts = (try? await KuwoMusicAPI.shared.charts(limit: 10)) ?? []
                     }
                 }
             }
@@ -819,7 +849,7 @@ struct PlaylistSquareView: View {
         case .bodian:
             return try await BodianMusicAPI.shared.recommendPlaylists(limit: limit)
         case .kuwo:
-            return []
+            return try await KuwoMusicAPI.shared.recommendPlaylists(limit: limit)
         case .all:
             return await fetchAllPlatforms()
         }
@@ -868,11 +898,14 @@ struct PlaylistSquareView: View {
             group.addTask {
                 (3, (try? await BodianMusicAPI.shared.recommendPlaylists(limit: cap)) ?? [])
             }
+            group.addTask {
+                (4, (try? await KuwoMusicAPI.shared.recommendPlaylists(limit: cap)) ?? [])
+            }
             var buckets: [Int: [Playlist]] = [:]
             for await (index, list) in group {
                 buckets[index] = list
             }
-            groups = (0..<4).map { buckets[$0] ?? [] }
+            groups = (0..<5).map { buckets[$0] ?? [] }
         }
         return Self.dedupe(Self.interleave(groups))
     }

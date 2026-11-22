@@ -876,6 +876,7 @@ struct AccountHubSheet: View {
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @ObservedObject private var kuwoAuth = KuwoMusicAuth.shared
+    @ObservedObject private var miguAuth = MiguMusicAuth.shared
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
     @AppStorage("beans.language") private var languageRaw = AppLanguage.chinese.rawValue
     @Environment(\.dismiss) private var dismiss
@@ -885,7 +886,9 @@ struct AccountHubSheet: View {
     @State private var showKugouLogin = false
     @State private var showBodianLogin = false
     @State private var showKuwoLogin = false
+    @State private var showMiguLogin = false
     @State private var confirmKuwoLogout = false
+    @State private var confirmMiguLogout = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
     @State private var confirmKugouLogout = false
@@ -919,6 +922,7 @@ struct AccountHubSheet: View {
                         if platformPrefs.isEnabled(SearchProvider.kugou) { kugouCard }
                         if platformPrefs.isEnabled(SearchProvider.bodian) { bodianCard }
                         if platformPrefs.isEnabled(SearchProvider.kuwo) { kuwoCard }
+                        if platformPrefs.isEnabled(SearchProvider.migu) { miguCard }
                         Text(isEnglish ? "Sign in to \(displayPlatformSummary) to sync playlists and improve playback availability" : "\(platformPrefs.summaryText) 登录后可同步歌单并提升可播成功率")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
@@ -957,6 +961,10 @@ struct AccountHubSheet: View {
             KuwoLoginSheet()
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showMiguLogin) {
+            MiguLoginSheet()
+                .environmentObject(theme)
+        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -993,6 +1001,13 @@ struct AccountHubSheet: View {
                 kuwoAuth.logout()
                 WebLoginDataCleaner.clearKuwo()
                 ToastCenter.shared.show("已退出酷我账号")
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("退出咪咕音乐？", isPresented: $confirmMiguLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                miguAuth.logout()
+                ToastCenter.shared.show("已退出咪咕账号")
             }
             Button("取消", role: .cancel) {}
         }
@@ -1195,6 +1210,54 @@ struct AccountHubSheet: View {
                 Text(bodianAuth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(bodianAuth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background { BeansSurface(shape: Capsule()) }
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+
+    private var miguCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if miguAuth.isLoggedIn { confirmMiguLogout = true } else { showMiguLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                if let img = UIImage(named: "BrandMigu") {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } else {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .foregroundStyle(Color(red: 0.90, green: 0.20, blue: 0.36))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("咪咕音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(miguAuth.isLoggedIn
+                         ? (miguAuth.nickname.isEmpty ? "已登录" : miguAuth.nickname)
+                         : "未登录 · 网页登录同步歌单")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer()
+                Text(miguAuth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(miguAuth.isLoggedIn ? Color.red : Color.beansAmber)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background { BeansSurface(shape: Capsule()) }

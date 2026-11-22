@@ -277,13 +277,8 @@ struct ReferencePlaybackView: View {
                         .foregroundStyle(primaryColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    if showSongVIPBadge, song?.isVIP == true {
-                        Text("VIP")
-                            .font(BeansFont.appFont(9, .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color(red: 0.93, green: 0.25, blue: 0.22), in: Capsule())
+                    if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                        PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                     }
                 }
                 Text(subtitle)

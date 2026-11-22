@@ -84,6 +84,11 @@ final class PlayerManager: NSObject, ObservableObject {
     private var equalizerSettingsObserver: NSObjectProtocol?
     private var playbackConfirmed = false
     private var pendingThirdPartyVIPNotice: ThirdPartyVIPNotice?
+    /// 当前这歌实际走的是哪个自定义音源（如「聆澜」）。官方地址播放时为 nil。
+    @Published private(set) var activeThirdPartySourceName: String?
+    /// 播放页是否正停留在歌词页。全屏播放器容器的「左边缘右滑返回」
+    /// 需要在这时候让开，否则第一次右滑就被容器吞掉直接退出播放页。
+    @Published var lyricsPanelOpen = false
     private var sessionConfigured = false
     private var systemPlaybackPrepared = false
     private var routeObserverInstalled = false
@@ -588,6 +593,7 @@ final class PlayerManager: NSObject, ObservableObject {
                         thirdPartyVIPNotice: notice,
                         resumeAt: initialProgress,
                         isThirdParty: true,
+                        thirdPartySourceTitle: resolved.sourceTitle,
                         thirdPartyQuality: resolved.quality
                     )
                 }
@@ -939,6 +945,7 @@ final class PlayerManager: NSObject, ObservableObject {
                         thirdPartyVIPNotice: notice,
                         resumeAt: resume,
                         isThirdParty: true,
+                        thirdPartySourceTitle: resolved.sourceTitle,
                         thirdPartyQuality: resolved.quality
                     )
                     BeansLogger.shared.log(
@@ -1058,6 +1065,7 @@ final class PlayerManager: NSObject, ObservableObject {
                         thirdPartyVIPNotice: notice,
                         resumeAt: resume,
                         isThirdParty: true,
+                        thirdPartySourceTitle: resolved.sourceTitle,
                         thirdPartyQuality: resolved.quality
                     )
                     BeansLogger.shared.log(
@@ -1078,12 +1086,15 @@ final class PlayerManager: NSObject, ObservableObject {
         thirdPartyVIPNotice: ThirdPartyVIPNotice? = nil,
         resumeAt: Double = 0,
         isThirdParty: Bool = false,
+        thirdPartySourceTitle: String? = nil,
         thirdPartyQuality: ThirdPartyAudioQuality? = nil,
         qqOfficialBR: String? = nil,
         attemptedQQOfficialBRs: [String] = []
     ) {
         guard ensurePlaybackAllowed(), let loadedSong = currentSong else { return }
         if isThirdParty {
+            let name = thirdPartySourceTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            activeThirdPartySourceName = name.isEmpty ? nil : name
             let quality = thirdPartyQuality ?? ThirdPartyAudioQuality.current
             activeThirdPartyQuality = quality
             activeQQOfficialBR = nil
@@ -1091,6 +1102,7 @@ final class PlayerManager: NSObject, ObservableObject {
                 attemptedThirdPartyQualitiesBySong[songKey, default: []].insert(quality.rawValue)
             }
         } else {
+            activeThirdPartySourceName = nil
             activeThirdPartyQuality = nil
             activeQQOfficialBR = qqOfficialBR
             if let songKey = currentSong?.identityKey, !attemptedQQOfficialBRs.isEmpty {
@@ -1567,15 +1579,11 @@ final class PlayerManager: NSObject, ObservableObject {
     }
 
     private func thirdPartyVIPNotice(for song: Song, sourceTitle: String) -> ThirdPartyVIPNotice? {
-        guard song.isVIP else { return nil }
-        guard defaults.object(forKey: thirdPartyVIPNoticeKey) as? Bool ?? true else { return nil }
-        guard !hasMembership(for: song.source) else { return nil }
-        let sourceName = sourceTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let suffix = sourceName.isEmpty ? "第三方音源" : "第三方音源「\(sourceName)」"
-        return ThirdPartyVIPNotice(
-            songKey: song.identityKey,
-            message: "当前账号未识别到对应会员，《\(song.name)》已通过\(suffix)播放"
-        )
+        // 不再弹「未识别到对应会员」：会员/音源信息改为播放页与迷你播放条上的小标签，
+        // 每次播放都弹一次 toast 会盖住界面，用户明确要求去掉。
+        _ = song
+        _ = sourceTitle
+        return nil
     }
 
     private func showPendingThirdPartyVIPNoticeIfNeeded() {
@@ -1595,6 +1603,24 @@ final class PlayerManager: NSObject, ObservableObject {
         pendingThirdPartyVIPNotice = nil
     }
 
+    /// 播放页 / 迷你播放条上的来源标签。
+    /// - 走自定义音源：显示音源简称（例如「聆澜」）
+    /// - 官方地址 + 账号有该平台会员：显示「VIP」
+    /// - 其余情况不显示，避免所有歌曲都挂一个红底 VIP
+    var playbackSourceBadge: String? {
+        guard let song = currentSong, song.isVIP else { return nil }
+        if let name = activeThirdPartySourceName,
+           !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return String(name.prefix(8))
+        }
+        return hasMembership(for: song.source) ? "VIP" : nil
+    }
+
+    /// 标签是不是音源名（决定配色：音源用青色，会员用金色）
+    var playbackBadgeIsSource: Bool {
+        activeThirdPartySourceName?.isEmpty == false
+    }
+
     private func hasMembership(for source: SongSource) -> Bool {
         switch source {
         case .qq:
@@ -1608,8 +1634,8 @@ final class PlayerManager: NSObject, ObservableObject {
             }
             return user.vipBadge != nil
         case .migu:
-            // 咪咕没有账号体系，会员歌曲统一交给自定义音源处理
-            return false
+            // 咪咕网页登录后即可识别会员（登录态保存在 MiguMusicAuth）
+            return MiguMusicAuth.shared.isLoggedIn
         case .bodian:
             // 波点只能扫码登录，登录后按同一账号继续走官方地址
             return BodianMusicAuth.shared.isLoggedIn

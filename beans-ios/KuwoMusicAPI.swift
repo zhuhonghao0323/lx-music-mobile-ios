@@ -202,6 +202,128 @@ final class KuwoMusicAPI {
         return json
     }
 
+    // MARK: 排行榜 / 推荐歌单（首页，全部公开接口）
+
+    /// 酷我官方榜单的 bangId，顺序即首页展示顺序（与 LX Music 的 kw 榜单一致）
+    static let chartIDs: [Int] = [16, 17, 93, 145, 158, 151, 152, 155]
+
+    /// 榜单列表：逐个请求 `ksong.s` 拿名称 / 封面 / 更新时间。
+    /// 接口本身公开，不依赖登录；失败的榜直接跳过，不影响其它榜。
+    func charts(limit: Int = 10) async throws -> [KuwoTopInfo] {
+        var result: [KuwoTopInfo] = []
+        for bangID in Self.chartIDs.prefix(limit) {
+            if let info = await chartInfo(bangID: bangID) {
+                result.append(info)
+            }
+        }
+        guard !result.isEmpty else { throw KuwoError.invalid("酷我排行榜暂时不可用") }
+        return result
+    }
+
+    private func chartInfo(bangID: Int) async -> KuwoTopInfo? {
+        var comps = URLComponents(string: "https://kbangserver.kuwo.cn/ksong.s")
+        comps?.queryItems = [
+            .init(name: "from", value: "pc"),
+            .init(name: "fmt", value: "json"),
+            .init(name: "pn", value: "0"),
+            .init(name: "rn", value: "1"),
+            .init(name: "type", value: "bang"),
+            .init(name: "data", value: "content"),
+            .init(name: "id", value: "\(bangID)"),
+            .init(name: "show_copyright_off", value: "0"),
+            .init(name: "pcmp4", value: "1"),
+            .init(name: "isbang", value: "1")
+        ]
+        guard let url = comps?.url,
+              let json = try? await requestJSON(url, headers: ["User-Agent": mobileUA]) else { return nil }
+        let name = Self.string(json["name"])
+        guard !name.isEmpty else { return nil }
+        // small 缩略图换成大图，首页卡片才不糊
+        let pic = Self.string(json["pic"])
+            .replacingOccurrences(of: "/small/", with: "/")
+            .replacingOccurrences(of: "http://", with: "https://")
+        return KuwoTopInfo(
+            id: bangID,
+            name: name,
+            updateFrequency: Self.string(json["pub"]),
+            coverURL: URL(string: pic)
+        )
+    }
+
+    /// 榜单歌曲：`ksong.s` 一次最多返回 300 首
+    func chartSongs(bangID: Int, limit: Int = 200) async throws -> [Song] {
+        var comps = URLComponents(string: "https://kbangserver.kuwo.cn/ksong.s")
+        comps?.queryItems = [
+            .init(name: "from", value: "pc"),
+            .init(name: "fmt", value: "json"),
+            .init(name: "pn", value: "0"),
+            .init(name: "rn", value: "\(max(1, min(limit, 300)))"),
+            .init(name: "type", value: "bang"),
+            .init(name: "data", value: "content"),
+            .init(name: "id", value: "\(bangID)"),
+            .init(name: "show_copyright_off", value: "0"),
+            .init(name: "pcmp4", value: "1"),
+            .init(name: "isbang", value: "1")
+        ]
+        guard let url = comps?.url else { throw KuwoError.invalid("榜单参数错误") }
+        let json = try await requestJSON(url, headers: ["User-Agent": mobileUA])
+        let list = json["musiclist"] as? [[String: Any]] ?? []
+        guard !list.isEmpty else { throw KuwoError.invalid("该排行榜暂时没有歌曲") }
+        return list.compactMap(Self.chartSong(from:))
+    }
+
+    private static func chartSong(from raw: [String: Any]) -> Song? {
+        guard let rid = int(raw["id"]), rid > 0 else { return nil }
+        let name = string(raw["name"])
+        guard !name.isEmpty else { return nil }
+        let artist = string(raw["artist"])
+        let album = string(raw["album"])
+        let pay = int(raw["pay"]) ?? 0
+        return Song(
+            id: rid,
+            name: decodeEntities(name),
+            artists: decodeEntities(artist.isEmpty ? "未知歌手" : artist),
+            album: decodeEntities(album),
+            coverURL: nil,
+            duration: 0,
+            source: .kuwo,
+            fee: pay == 0 ? 0 : 1
+        )
+    }
+
+    /// 推荐歌单（首页歌单板块）：公开的 PC 端推荐接口，按热度排序
+    func recommendPlaylists(limit: Int = 18) async throws -> [Playlist] {
+        var comps = URLComponents(string: "https://wapi.kuwo.cn/api/pc/classify/playlist/getRcmPlayList")
+        comps?.queryItems = [
+            .init(name: "pn", value: "1"),
+            .init(name: "rn", value: "\(max(1, min(limit, 50)))"),
+            .init(name: "order", value: "hot"),
+            .init(name: "httpsStatus", value: "1")
+        ]
+        guard let url = comps?.url else { throw KuwoError.invalid("歌单参数错误") }
+        let json = try await requestJSON(url, headers: [
+            "User-Agent": mobileUA,
+            "Referer": "https://www.kuwo.cn/"
+        ])
+        let data = json["data"] as? [String: Any]
+        let list = (data?["data"] as? [[String: Any]]) ?? (json["data"] as? [[String: Any]]) ?? []
+        return list.compactMap { raw in
+            guard let pid = Self.int(raw["id"]), pid > 0 else { return nil }
+            let name = Self.string(raw["name"])
+            guard !name.isEmpty else { return nil }
+            let img = Self.string(raw["img"]).replacingOccurrences(of: "http://", with: "https://")
+            let total = Self.int(raw["total"]) ?? 0
+            return Playlist(
+                id: pid,
+                name: Self.decodeEntities(name),
+                coverURL: URL(string: img),
+                trackCount: total,
+                source: .kuwo,
+                externalID: "\(pid)"
+            )
+        }
+    }
+
     // MARK: 播放 / 歌词
 
     /// 酷我公开播放地址（anti.s），无需登录；拿不到时由调用方回退第三方音源。
@@ -244,14 +366,23 @@ final class KuwoMusicAPI {
             .init(name: "plat", value: "web_www")
         ]
         guard let url = comps?.url else { throw KuwoError.invalid("歌单参数错误") }
-        let json = try await requestJSON(url, headers: [
+        var headers: [String: String] = [
             "User-Agent": webUA,
-            "Referer": "https://www.kuwo.cn/",
+            "Referer": "https://www.kuwo.cn/my/playlist",
             "Cookie": cookie,
             "Secret": secret
-        ])
+        ]
+        // 酷我服务端会校验 csrf 与 Cookie 里的 kw_token 一致
+        if let token = Self.cookieValue(named: "kw_token", in: cookie), !token.isEmpty {
+            headers["csrf"] = token
+        }
+        let json = try await requestJSON(url, headers: headers)
         if let success = json["success"] as? Bool, !success {
-            throw KuwoError.invalid(Self.string(json["message"]).isEmpty ? "酷我歌单接口暂不可用，可在下方手动粘贴歌单链接" : Self.string(json["message"]))
+            let message = Self.string(json["message"])
+            if message.lowercased().contains("illegal") {
+                throw KuwoError.invalid("酷我拒绝了这次请求（网页接口风控）。可以在下方手动导入歌单链接，或重新登录一次让网页刷新登录态")
+            }
+            throw KuwoError.invalid(message.isEmpty ? "酷我歌单接口暂不可用，可在下方手动粘贴歌单链接" : message)
         }
         let data = json["data"] as? [String: Any] ?? json
         let candidates = (data["data"] as? [[String: Any]])
@@ -287,7 +418,9 @@ final class KuwoMusicAPI {
         guard let r = Int(String(picked)), r >= 2 else { return "" }
         let c = (name.count + 1) / 2
         let limit = 2_147_483_647
-        var n = digits + String(Int.random(in: 0...99_999_999))
+        // JS: d = Math.round(1e9*random())%1e8; n += d  （d 是数字，拼接时没有前导 0）
+        let random = Int.random(in: 0..<100_000_000)
+        var n = digits + String(random)
         while n.count > 10 {
             let first = Int(n.prefix(10)) ?? 0
             let rest = Int(n.dropFirst(10)) ?? 0
@@ -301,7 +434,11 @@ final class KuwoMusicAPI {
             out += String(format: "%02x", mixed)
             state = (r * state + c) % limit
         }
-        return out
+        // 关键：JS 末尾把随机数 d 的 16 进制（补足 8 位）拼在签名后面，
+        // 少了这 8 位服务端一律判为 "The request is illegal!"。
+        var tail = String(random, radix: 16)
+        while tail.count < 8 { tail = "0" + tail }
+        return out + tail
     }
 
     private static func cookieValue(named name: String, in cookie: String) -> String? {
@@ -386,6 +523,10 @@ final class KuwoMusicAPI {
         if let text = value as? String { return Int(text) }
         return nil
     }
+
+    /// 给 `KuwoLoginWebView.Coordinator`（不同文件作用域）使用的解析helper
+    static func intPublic(_ value: Any?) -> Int? { int(value) }
+    static func stringPublic(_ value: Any?) -> String { string(value) }
 
     // MARK: 网络
 
@@ -525,14 +666,17 @@ struct KuwoLoginSheet: View {
 
             KuwoLoginWebView(loginPromptToken: loginPromptToken) { cookie, uid, playlists in
                 guard !uid.isEmpty else { return }
+                // 注意顺序：网页里先把歌单抓完再回调，这里才写登录态。
+                // 之前先写登录态会立刻把这张卡片换成「已登录」，WebView 被销毁，
+                // 正在进行的歌单抓取就断了 —— 表现就是「登录成功但 0 个歌单」。
                 auth.saveLogin(cookie: cookie, uid: uid, nickname: auth.nickname.isEmpty ? "酷我用户" : auth.nickname)
                 if !playlists.isEmpty {
                     auth.savePlaylists(playlists)
                     status = "已登录，读到 \(playlists.count) 个歌单"
                 } else {
-                    status = "已登录，正在读取歌单…"
+                    status = "已登录，但网页没返回歌单，正在换原生接口再试…"
+                    Task { await refreshPlaylists() }
                 }
-                Task { await refreshPlaylists() }
             }
             .frame(height: 460)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -761,6 +905,7 @@ private struct KuwoLoginWebView: UIViewRepresentable {
         private var timer: Timer?
         private var reported = false
         private var openedLoginPanel = false
+        private var delivered = false
         var lastPromptToken = 0
 
         init(onLogin: @escaping (String, String, [Playlist]) -> Void) {
@@ -805,10 +950,194 @@ private struct KuwoLoginWebView: UIViewRepresentable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     guard !self.reported else { return }
                     self.reported = true
-                    self.onLogin(header, uid, [])
+                    self.collectPlaylists(cookie: header, uid: uid)
                 }
             }
         }
+
+        // MARK: 登录后读歌单（页面内同源请求 + DOM 兜底）
+
+        /// 登录成功后进「我的歌单」页。原生请求带不全浏览器的 Cookie / Referer / 签名，
+        /// 所以改成在页面里用同源 fetch 请求接口 —— 浏览器的 Cookie、Referer、
+        /// 设备指纹都是真的，成功率远高于原生 URLSession。
+        private func collectPlaylists(cookie: String, uid: String) {
+            guard let webView else {
+                deliver(cookie: cookie, uid: uid, list: [])
+                return
+            }
+            let target = "https://www.kuwo.cn/my/playlist"
+            if webView.url?.absoluteString.hasPrefix(target) != true {
+                webView.load(URLRequest(url: URL(string: target)!))
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak self] in
+                self?.fetchPlaylistsInPage(cookie: cookie, uid: uid, attempt: 0)
+            }
+        }
+
+        private func fetchPlaylistsInPage(cookie: String, uid: String, attempt: Int) {
+            guard let webView, !delivered else { return }
+            let js = Self.playlistFetchJS.replacingOccurrences(of: "__UID__", with: uid)
+            webView.evaluateJavaScript(js, completionHandler: nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+                guard let self, !self.delivered else { return }
+                self.webView?.evaluateJavaScript("window.__kuwoPlaylistPayload || ''") { result, _ in
+                    let text = (result as? String) ?? ""
+                    let list = Self.parsePlaylists(text)
+                    if !list.isEmpty {
+                        self.deliver(cookie: cookie, uid: uid, list: list)
+                    } else if attempt < 2 {
+                        self.fetchPlaylistsInPage(cookie: cookie, uid: uid, attempt: attempt + 1)
+                    } else {
+                        self.scrapePlaylistDOM(cookie: cookie, uid: uid, attempt: 0)
+                    }
+                }
+            }
+        }
+
+        /// 接口被风控时退回 DOM：直接抓页面上的歌单卡片链接
+        private func scrapePlaylistDOM(cookie: String, uid: String, attempt: Int) {
+            guard let webView, !delivered else { return }
+            webView.evaluateJavaScript(Self.scrapeJS) { [weak self] result, _ in
+                guard let self, !self.delivered else { return }
+                let list = Self.parseScraped(result)
+                if !list.isEmpty {
+                    self.deliver(cookie: cookie, uid: uid, list: list)
+                } else if attempt < 2 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                        self.scrapePlaylistDOM(cookie: cookie, uid: uid, attempt: attempt + 1)
+                    }
+                } else {
+                    self.deliver(cookie: cookie, uid: uid, list: [])
+                }
+            }
+        }
+
+        private func deliver(cookie: String, uid: String, list: [Playlist]) {
+            guard !delivered else { return }
+            delivered = true
+            onLogin(cookie, uid, list)
+        }
+
+        /// 页面内同源请求「我的歌单」。Secret 用酷我前端同一套算法
+        /// （`f(cookieValue, cookieName)`），在页面里算比在 Swift 里算更不容易出错。
+        /// 结果写进 `window.__kuwoPlaylistPayload`，Swift 侧轮询读取。
+        static let playlistFetchJS = #"""
+        (function(){
+          window.__kuwoPlaylistPayload = "";
+          function sign(t,e){
+            if(!e||e.length<=0) return null;
+            var n="";for(var i=0;i<e.length;i++)n+=e.charCodeAt(i).toString();
+            var o=Math.floor(n.length/5),
+                r=parseInt(n.charAt(o)+n.charAt(2*o)+n.charAt(3*o)+n.charAt(4*o)+n.charAt(5*o)),
+                c=Math.ceil(e.length/2),
+                l=Math.pow(2,31)-1;
+            if(r<2) return null;
+            var d=Math.round(1e9*Math.random())%1e8;
+            for(n+=d;n.length>10;)n=(parseInt(n.substring(0,10))+parseInt(n.substring(10,n.length))).toString();
+            n=(r*n+c)%l;
+            var h="";
+            for(i=0;i<t.length;i++){
+              var x=parseInt(t.charCodeAt(i)^Math.floor(n/l*255));
+              h+=x<16?"0"+x.toString(16):x.toString(16);
+              n=(r*n+c)%l;
+            }
+            for(d=d.toString(16);d.length<8;)d="0"+d;
+            return h+d;
+          }
+          var NAME="Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324";
+          function readCookie(name){
+            var m=document.cookie.match(new RegExp("(^|;\\s*)"+name+"=([^;]*)"));
+            return m?decodeURIComponent(m[2]):"";
+          }
+          var cv=readCookie(NAME), tk=readCookie("kw_token");
+          var headers={"Accept":"application/json, text/plain, */*"};
+          if(tk) headers["csrf"]=tk;
+          var s=sign(cv,NAME);
+          if(s) headers["Secret"]=s;
+          var url="/api/www/user/playlist?uid=__UID__&pn=1&rn=100&httpsStatus=1&reqId="+Date.now()+"&plat=web_www";
+          fetch(url,{headers:headers,credentials:"include"})
+            .then(function(r){return r.text();})
+            .then(function(t){window.__kuwoPlaylistPayload=t;})
+            .catch(function(){window.__kuwoPlaylistPayload="";});
+          return "ok";
+        })()
+        """#
+
+        /// 从接口返回里捞歌单数组：兼容 data.data / data.list / data.playlist 等层级
+        static func parsePlaylists(_ text: String) -> [Playlist] {
+            guard !text.isEmpty,
+                  let data = text.data(using: .utf8),
+                  let root = try? JSONSerialization.jsonObject(with: data) else { return [] }
+            var found: [[String: Any]] = []
+            func walk(_ any: Any, depth: Int) {
+                guard depth < 5 else { return }
+                if let arr = any as? [[String: Any]] {
+                    if arr.count > found.count,
+                       let first = arr.first,
+                       (first["id"] != nil || first["pid"] != nil),
+                       first["name"] != nil,
+                       first["musiclist"] == nil {
+                        found = arr
+                    }
+                    for item in arr { walk(item, depth: depth + 1) }
+                } else if let dict = any as? [String: Any] {
+                    for (_, value) in dict { walk(value, depth: depth + 1) }
+                }
+            }
+            walk(root, depth: 0)
+            return found.compactMap { raw in
+                let pid = KuwoMusicAPI.intPublic(raw["id"] ?? raw["pid"] ?? raw["playlistId"])
+                let name = KuwoMusicAPI.stringPublic(raw["name"] ?? raw["title"])
+                guard let pid, pid > 0, !name.isEmpty else { return nil }
+                let pic = KuwoMusicAPI.stringPublic(raw["img"] ?? raw["pic"] ?? raw["cover"])
+                let count = KuwoMusicAPI.intPublic(raw["total"] ?? raw["songCount"] ?? raw["musicNum"]) ?? 0
+                return Playlist(
+                    id: pid,
+                    name: name,
+                    coverURL: URL(string: pic.hasPrefix("http") ? pic : ""),
+                    trackCount: count,
+                    source: .kuwo,
+                    externalID: "\(pid)"
+                )
+            }
+        }
+
+        /// DOM 抓取结果（JSON 字符串）转歌单
+        static func parseScraped(_ result: Any?) -> [Playlist] {
+            guard let text = result as? String,
+                  let data = text.data(using: .utf8),
+                  let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return []
+            }
+            return raw.compactMap { item in
+                guard let id = KuwoMusicAPI.intPublic(item["id"]), id > 0 else { return nil }
+                let name = KuwoMusicAPI.stringPublic(item["name"])
+                guard !name.isEmpty else { return nil }
+                let cover = KuwoMusicAPI.stringPublic(item["cover"])
+                return Playlist(id: id, name: name,
+                                coverURL: cover.hasPrefix("http") ? URL(string: cover) : nil,
+                                trackCount: 0, source: .kuwo, externalID: "\(id)")
+            }
+        }
+
+        private static let scrapeJS = #"""
+        (function(){
+          var out=[],seen={};
+          document.querySelectorAll('a[href*="playlist_detail"], a[href*="/playlist/"]').forEach(function(a){
+            var m=(a.href||'').match(/(?:playlist_detail\/|\/playlist\/)(\d+)/);
+            if(!m) return;
+            var id=m[1];
+            if(seen[id]) return;
+            seen[id]=1;
+            var img=a.querySelector('img');
+            var name=(a.innerText||a.textContent||'').replace(/\s+/g,' ').trim();
+            if(!name) name=(a.getAttribute('title')||'').trim();
+            if(!name) return;
+            out.push({id:id,name:name.slice(0,60),cover:img?img.src:''});
+          });
+          return JSON.stringify(out);
+        })()
+        """#
 
         /// 桌面版首页的「登录 / 注册」入口（div.reg_text），点开后是手机号快捷登录 /
         /// 账号密码 / 微信 / QQ。登录成功后该节点会被昵称替换，可据此判断状态。

@@ -6,4 +6,5 @@ extension Notification.Name {
     static let beansKugouLoginDidUpdate = Notification.Name("beans.kugou.login.didUpdate")
     static let beansBodianLoginDidUpdate = Notification.Name("beans.bodian.login.didUpdate")
     static let beansKuwoLoginDidUpdate = Notification.Name("beans.kuwo.login.didUpdate")
+    static let beansMiguLoginDidUpdate = Notification.Name("beans.migu.login.didUpdate")
 }

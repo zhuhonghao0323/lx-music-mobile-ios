@@ -434,6 +434,15 @@ struct KugouTopInfo: Identifiable, Hashable {
     let coverURL: URL?
 }
 
+/// 酷我官方排行榜总览项（bangserver `ksong.s` 的 bangId）
+struct KuwoTopInfo: Identifiable, Hashable {
+    let id: Int
+    let name: String
+    /// 榜单更新时间（接口 `pub`，形如 2026-11-22）
+    let updateFrequency: String
+    let coverURL: URL?
+}
+
 struct LyricLine: Identifiable, Hashable {
     let id: UUID
     let time: Double

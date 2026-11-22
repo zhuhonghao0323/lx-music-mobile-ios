@@ -568,6 +568,35 @@ struct CoverImage: View {
     }
 }
 
+
+// MARK: - 播放来源标签（VIP / 音源简称）
+
+/// 播放页与迷你播放条上的小标签：
+/// - 账号有该平台会员 → 金色「VIP」
+/// - 通过自定义音源播放 → 青色音源简称（如「聆澜」）
+/// 之前统一的红底白字 VIP 会让人误以为每首歌都要会员，也不区分音源来源。
+struct PlaybackSourceBadge: View {
+    let text: String
+    var isSource: Bool = false
+
+    private var tint: Color {
+        isSource
+            ? Color(red: 0.36, green: 0.80, blue: 0.88)
+            : Color(red: 0.96, green: 0.78, blue: 0.36)
+    }
+
+    var body: some View {
+        Text(text)
+            .font(BeansFont.appFont(9, .bold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(tint.opacity(0.14)))
+            .overlay(Capsule().strokeBorder(tint.opacity(0.55), lineWidth: 0.6))
+    }
+}
+
 // MARK: - 会员标识小标（SVIP 金色 / VIP 红色）
 
 struct VIPBadgeView: View {

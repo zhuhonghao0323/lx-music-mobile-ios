@@ -6,6 +6,7 @@ enum DiscoverRoute: Hashable {
     case playlist(Playlist)
     case qqTopList(QQTopInfo)
     case kugouTopList(KugouTopInfo)
+    case kuwoTopList(KuwoTopInfo)
     case dailySongs([Song])
     /// 全部排行榜
     case allCharts
@@ -98,6 +99,7 @@ struct DiscoverView: View {
 
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var kugouTopLists: [KugouTopInfo] = []
+    @State private var kuwoTopLists: [KuwoTopInfo] = []
     /// 排行榜展开状态：收起显示前 3，展开显示前 10
     @State private var ranksExpanded = false
     /// 歌单广场展开状态：收起显示前 6，展开显示全部
@@ -285,6 +287,10 @@ struct DiscoverView: View {
                 .environmentObject(auth)
         case .kugouTopList(let info):
             KugouTopListDetailView(topList: info)
+                .environmentObject(player)
+                .environmentObject(auth)
+        case .kuwoTopList(let info):
+            KuwoTopListDetailView(topList: info)
                 .environmentObject(player)
                 .environmentObject(auth)
         case .dailySongs(let songs):
@@ -606,7 +612,8 @@ struct DiscoverView: View {
         case .netease: return neteaseTopLists.count
         case .qq: return qqTopLists.count
         case .kugou: return kugouTopLists.count
-        case .migu, .bodian, .kuwo: return 0
+        case .kuwo: return kuwoTopLists.count
+        case .migu, .bodian: return 0
         case .all: return allRankEntries.count
         }
     }
@@ -621,7 +628,8 @@ struct DiscoverView: View {
         case .netease: return !topLists.isEmpty
         case .qq: return !qqTopLists.isEmpty
         case .kugou: return !kugouTopLists.isEmpty
-        case .migu, .bodian, .kuwo: return false
+        case .kuwo: return !kuwoTopLists.isEmpty
+        case .migu, .bodian: return false
         case .all: return !allRankEntries.isEmpty
         }
     }
@@ -654,6 +662,15 @@ struct DiscoverView: View {
                 subtitle: beansChartSubtitle(info.updateFrequency),
                 coverURL: info.coverURL,
                 route: .kugouTopList(info)
+            ))
+        }
+        for info in kuwoTopLists.prefix(6) {
+            entries.append(ChartEntry(
+                id: "kuwo-\(info.id)",
+                name: beansChartName(info.name),
+                subtitle: beansChartSubtitle(info.updateFrequency),
+                coverURL: info.coverURL,
+                route: .kuwoTopList(info)
             ))
         }
         return entries
@@ -727,10 +744,16 @@ struct DiscoverView: View {
                                 openRoute(DiscoverRoute.qqTopList(info))
                             }
                         }
-                    } else {
+                    } else if source == .kugou {
                         ForEach(Array(kugouTopLists.prefix(min(visibleRankCount, 10)).enumerated()), id: \.element.id) { index, info in
                             nativeRankCard(index: index, name: beansChartName(info.name), subtitle: beansChartSubtitle(info.updateFrequency), coverURL: info.coverURL) {
                                 openRoute(DiscoverRoute.kugouTopList(info))
+                            }
+                        }
+                    } else if source == .kuwo {
+                        ForEach(Array(kuwoTopLists.prefix(min(visibleRankCount, 10)).enumerated()), id: \.element.id) { index, info in
+                            nativeRankCard(index: index, name: beansChartName(info.name), subtitle: beansChartSubtitle(info.updateFrequency), coverURL: info.coverURL) {
+                                openRoute(DiscoverRoute.kuwoTopList(info))
                             }
                         }
                     }
@@ -810,6 +833,14 @@ struct DiscoverView: View {
                 rankRow(index: index, name: beansChartName(info.name), subtitle: beansChartSubtitle(info.updateFrequency), coverURL: info.coverURL) {
                     BeansHaptics.tap()
                     openRoute(DiscoverRoute.kugouTopList(info))
+                }
+                Divider().overlay(Color.beansComment.opacity(0.12))
+            }
+        } else if source == .kuwo {
+            ForEach(Array(kuwoTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
+                rankRow(index: index, name: beansChartName(info.name), subtitle: beansChartSubtitle(info.updateFrequency), coverURL: info.coverURL) {
+                    BeansHaptics.tap()
+                    openRoute(DiscoverRoute.kuwoTopList(info))
                 }
                 Divider().overlay(Color.beansComment.opacity(0.12))
             }
@@ -1607,8 +1638,10 @@ struct DiscoverView: View {
             async let playlists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 18)) ?? []
             snapshot.personalized = await playlists
         case .kuwo:
-            // 酷我暂未提供公开推荐接口，首页保持空态
-            async let playlists: [Playlist] = []
+            // 排行榜走 bangserver、歌单走 getRcmPlayList，两者都公开，无需登录
+            async let ranks: [KuwoTopInfo] = (try? await KuwoMusicAPI.shared.charts(limit: 8)) ?? []
+            async let playlists: [Playlist] = (try? await KuwoMusicAPI.shared.recommendPlaylists(limit: 18)) ?? []
+            snapshot.kuwoTopLists = await ranks
             snapshot.personalized = await playlists
         case .migu:
             // 咪咕不提供首页内容快照
@@ -1625,6 +1658,8 @@ struct DiscoverView: View {
             async let qqPlaylists: [Playlist] = (try? await QQMusicAPI.shared.hotPlaylists(limit: 12)) ?? []
             async let kugouTop: [KugouTopInfo] = (try? await KugouMusicAPI.shared.topLists(limit: 10)) ?? []
             async let kugouPlaylists: [Playlist] = (try? await KugouMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
+            async let kuwoTop: [KuwoTopInfo] = (try? await KuwoMusicAPI.shared.charts(limit: 8)) ?? []
+            async let kuwoPlaylists: [Playlist] = (try? await KuwoMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
             async let bodianPlaylists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
             // async let 已经并行发起，这里逐个取值即可
             let nt = await neteaseTop
@@ -1634,12 +1669,15 @@ struct DiscoverView: View {
             let qp = await qqPlaylists
             let kt = await kugouTop
             let kp = await kugouPlaylists
+            let kw = await kuwoTop
+            let kwp = await kuwoPlaylists
             let bp = await bodianPlaylists
             snapshot.topLists = nt
             snapshot.dailySongs = nd
             snapshot.qqTopLists = qt
             snapshot.kugouTopLists = kt
-            snapshot.personalized = Self.interleavePlaylists([np, qp, kp, bp])
+            snapshot.kuwoTopLists = kw
+            snapshot.personalized = Self.interleavePlaylists([np, qp, kp, kwp, bp])
         }
         return snapshot
     }
@@ -1676,11 +1714,12 @@ struct DiscoverView: View {
         personalized = snapshot.personalized
         qqTopLists = snapshot.qqTopLists
         kugouTopLists = snapshot.kugouTopLists
+        kuwoTopLists = snapshot.kuwoTopLists
     }
 
     private var hasAnyData: Bool {
         !dailySongs.isEmpty || !topLists.isEmpty || !personalized.isEmpty
-            || !qqTopLists.isEmpty || !kugouTopLists.isEmpty
+            || !qqTopLists.isEmpty || !kugouTopLists.isEmpty || !kuwoTopLists.isEmpty
     }
 }
 
@@ -2229,6 +2268,144 @@ struct KugouTopListDetailView: View {
             } else {
                 BeansLogger.shared.log(
                     "酷狗排行榜详情后台刷新失败，继续使用缓存 id=\(topList.id) error=\(error.localizedDescription)",
+                    level: .warn
+                )
+            }
+            loading = false
+        }
+    }
+}
+
+// MARK: - 酷我排行榜详情
+
+struct KuwoTopListDetailView: View {
+    @EnvironmentObject private var player: PlayerManager
+    @EnvironmentObject private var theme: ThemeStore
+
+    let topList: KuwoTopInfo
+    @State private var tracks: [Song] = []
+    @State private var loading = true
+    @State private var errorMessage: String?
+    @State private var searchText = ""
+
+    var body: some View {
+        let _ = theme.accent
+        ZStack {
+            GlassBackdrop(customColor: theme.backgroundSyncAll ? theme.customBackground : nil)
+            Group {
+                if loading {
+                    LoadingStateView()
+                } else if let errorMessage {
+                    ErrorStateView(message: errorMessage) {
+                        Task { await load() }
+                    }
+                } else if tracks.isEmpty {
+                    EmptyStateView(icon: "music.note.list", text: beansLocalized("该排行榜暂无歌曲", "This chart has no songs yet"))
+                } else {
+                    List {
+                        header
+                        Section {
+                            HStack(spacing: 12) {
+                                GlassButton(title: "播放全部", systemName: "play.fill", prominent: true) {
+                                    guard !filteredTracks.isEmpty else { return }
+                                    BeansHaptics.tap()
+                                    player.play(songs: filteredTracks, startAt: 0)
+                                }
+                                GlassButton(title: "随机播放", systemName: "shuffle") {
+                                    guard !filteredTracks.isEmpty else { return }
+                                    BeansHaptics.tap()
+                                    player.play(songs: filteredTracks, startAt: Int.random(in: 0..<filteredTracks.count))
+                                }
+                            }
+                            .listRowBackground(Color.clear)
+                            .padding(.vertical, 8)
+                        }
+                        Section {
+                            ForEach(Array(filteredTracks.enumerated()), id: \.element.identityKey) { index, song in
+                                SongCell(song: song, glassRow: true) {
+                                    player.play(songs: filteredTracks, startAt: index)
+                                }
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
+                    .beansScrollContentBackgroundHidden()
+                    .listStyle(.plain)
+                }
+            }
+        }
+        .navigationTitle(beansChartName(topList.name))
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: beansLocalized("搜索榜单歌曲", "Search chart songs"))
+        .task { await load() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            CoverImage(url: topList.coverURL, size: 88, cornerRadius: 8)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(beansChartName(topList.name))
+                    .font(BeansFont.appFont(18, .bold))
+                    .foregroundStyle(Color.beansLabel)
+                    .lineLimit(2)
+                if !topList.updateFrequency.isEmpty {
+                    Text(beansChartSubtitle(topList.updateFrequency))
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Text(beansSongCountText(tracks.count))
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansComment)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background {
+            BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .beansCardShadow(radius: 8, y: 3)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var filteredTracks: [Song] {
+        let kw = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !kw.isEmpty else { return tracks }
+        return tracks.filter { song in
+            song.name.lowercased().contains(kw)
+                || song.artists.lowercased().contains(kw)
+                || song.album.lowercased().contains(kw)
+        }
+    }
+
+    @MainActor
+    private func load() async {
+        let cache = DetailSongsCache.shared
+        let cacheKey = "kuwo-top-\(topList.id)"
+        if let cached = cache.cachedSongs(for: cacheKey) {
+            tracks = cached.songs
+            loading = false
+            errorMessage = nil
+            if cache.isFresh(cached) { return }
+        } else {
+            loading = true
+            errorMessage = nil
+        }
+        do {
+            let songs = try await KuwoMusicAPI.shared.chartSongs(bangID: topList.id)
+            if !songs.isEmpty {
+                tracks = songs
+                cache.save(songs, for: cacheKey)
+            }
+            loading = false
+        } catch {
+            if tracks.isEmpty {
+                errorMessage = error.localizedDescription
+            } else {
+                BeansLogger.shared.log(
+                    "酷我排行榜详情后台刷新失败，继续使用缓存 id=\(topList.id) error=\(error.localizedDescription)",
                     level: .warn
                 )
             }

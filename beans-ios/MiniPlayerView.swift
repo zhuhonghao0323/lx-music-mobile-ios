@@ -106,13 +106,8 @@ struct MiniPlayerView: View {
                             .font(BeansFont.appFont(12, .semibold))
                             .foregroundStyle(Color.beansLabel)
                             .lineLimit(1)
-                        if showSongVIPBadge, player.currentSong?.isVIP == true {
-                            Text("VIP")
-                                .font(BeansFont.appFont(8, .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                        if showSongVIPBadge, let badge = player.playbackSourceBadge {
+                            PlaybackSourceBadge(text: badge, isSource: player.playbackBadgeIsSource)
                         }
                     }
                     Text(currentLyricLine?.text ?? player.currentSong?.artists ?? "")

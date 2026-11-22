@@ -18,6 +18,10 @@ enum WebLoginDataCleaner {
         clear(domains: ["kuwo.cn", "www.kuwo.cn", "m.kuwo.cn"])
     }
 
+    static func clearMigu() {
+        clear(domains: ["migu.cn", "music.migu.cn", "passport.migu.cn"])
+    }
+
     private static func clear(domains: [String]) {
         let store = WKWebsiteDataStore.default()
         store.httpCookieStore.getAllCookies { cookies in
