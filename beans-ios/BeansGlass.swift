@@ -21,11 +21,12 @@ enum BeansGlassThickness {
     case floating
 
     /// 旧系统上叠加的白色填充（越厚越亮）
+    /// floating 与 regular 差距保持 2 倍以上，保证主播放键在深色背景上是唯一的高亮面。
     var fillWhite: Double {
         switch self {
         case .thin: return 0.055
         case .regular: return 0.075
-        case .floating: return 0.115
+        case .floating: return 0.150
         }
     }
 
@@ -34,7 +35,7 @@ enum BeansGlassThickness {
         switch self {
         case .thin: return 0.16
         case .regular: return 0.20
-        case .floating: return 0.30
+        case .floating: return 0.34
         }
     }
 
@@ -42,7 +43,7 @@ enum BeansGlassThickness {
         switch self {
         case .thin: return 0.20
         case .regular: return 0.24
-        case .floating: return 0.30
+        case .floating: return 0.36
         }
     }
 }

@@ -419,8 +419,8 @@ struct ImmersivePlayerView: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.94))
+                .font(.system(size: 25, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
                 .frame(width: 58, height: 72)
                 .contentShape(Rectangle())
         }
@@ -435,7 +435,7 @@ struct ImmersivePlayerView: View {
             ZStack {
                 LiquidGlassSurface(shape: Circle(), thickness: .floating)
                     .frame(width: 74, height: 74)
-                PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 25)
+                PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 26)
                     .foregroundStyle(.white.opacity(0.97))
                     .offset(x: player.isPlaying ? 0 : 1.5)
             }
