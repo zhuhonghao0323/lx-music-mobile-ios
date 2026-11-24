@@ -295,7 +295,7 @@ enum BeansCoverPlayerStyle: String, CaseIterable, Identifiable {
         case .classic: return "封面、歌名和预览歌词分层显示"
         case .appleMusic: return "大封面、细进度条和简洁播放控制"
         case .vinyl: return beansLocalized("黑胶唱片、唱臂和旋转唱盘", "Vinyl record, tonearm, and spinning turntable")
-        case .immersive: return "封面溶于背景，整屏一体沉浸"
+        case .immersive: return "Liquid Glass 动态取色、大封面与沉浸歌词"
         }
     }
 

@@ -59,6 +59,59 @@
 
 > 平台级接入的真实成本：`SongSource` 只有 5 个硬编码 case（`netease/qq/kugou/migu/bodian`），全仓 `.bodian` 相关分支 111 处；`Song` 还要为每家加专属字段（酷我 rid、B 站 bvid/cid），并各自实现「搜索 / 歌单 / 播放地址 / 歌词 / 登录态」五条链路（参考 `KugouMusicAPI.swift` 2479 行、`BodianMusicAPI.swift` 556 行）。两个平台约等于 2500~3000 行新代码 + 贯穿 20+ 文件的 switch 扩展，需要单独一轮专项做，否则极易把已稳定的播放链路改崩。另：B 站还需要 SESSDATA Cookie 与 wbi 签名，版权音轨大量不可播，体验会明显弱于现有平台。
 
+### 0.7.0 本轮（2026-11-25，版本 **1.20.0 (93)**）
+
+用户对沉浸式播放页提出系统性重构（不是逐项打补丁）：Apple Liquid Glass + 动态封面背景 + 高级播放器体验，仅 iOS（最低 17）。这一轮**只替换 `.immersive` 方案**，经典封面 / Apple Music / 黑胶三套布局与全部播放能力保持原样。
+
+#### 一、代码审查结论（改前的真实实现）
+
+| 项 | 改前 |
+|---|---|
+| 技术栈 | SwiftUI（`beans-ios/PlayerView.swift` 5500 行，全部四套方案塞在一个文件里），无 UIKit 播放页 |
+| 播放页入口 | `PlayerView.body` 按 `coverPlayerStyle` 四分支；沉浸式在 `PlayerView.swift:463` 起 |
+| 背景 | `CoverBlurBackground.swift`：封面缩 480 → CI 高斯模糊 → UIImageView；沉浸式再叠 `scaleEffect(1.35)+blur(18)+opacity(0.78)` 与五段黑渐变 |
+| 封面 | `ImmersiveCoverArt`，宽度=屏宽、高度=46% 屏高，**径向羽化 mask**（`immersiveFeatherMask`）让四周渐隐 |
+| 顶栏 | `headerBar`：chevron + 状态/专辑 + 红心，三个圆形 `playerButtonSurface` |
+| 歌词 | `LyricsSection`（3817 行起）：二分查找当前行 + `ScrollViewReader` 滚动 + 逐字/大字/经典三种模式 |
+| 进度 | `SeekBar`（3540 行起）四种样式，沉浸式传 style=用户设置 |
+| 控制 | `immersiveControlBar`：模式 / 上一首 / 66pt 播放 / 下一首 / 队列 |
+| 数据 | 歌名歌手来自 `Song`；进度来自 `PlaybackClock`；seek 走 `PlayerManager.seek(to:)`；歌词由 `loadLyrics()` 按平台拉取 |
+
+截图暴露的根因：① 封面用径向 mask 直接压在模糊封面上，四周出现一圈亮边（"光晕"），中间又发灰 → 脏；② 背景只用 `CoverBlurBackground` 的上下平均色渐变，没有主色参与，封面色与背景色脱节；③ 顶栏与内容之间靠 5 段黑渐变硬压，出现色块分界；④ 所有按钮都是 `Circle().fill(.white.opacity(0.1~0.16))`，没有真实材质；⑤ 歌词预览用 `● / ·` 符号 + 12pt 正文，且把 LRC 里的「作词 : xxx」当成歌词一起排；⑥ 播放键只是灰色圆饼，控制行 5 个按钮视觉重量接近，没有焦点。
+
+#### 二、新结构
+
+新增 3 个文件（不动播放引擎）：
+
+| 文件 | 职责 |
+|---|---|
+| `BeansGlass.swift` | Liquid Glass 材质系统：`BeansGlassThickness`（thin/regular/floating）+ `LiquidGlassSurface`（iOS 26 走 `glassEffect`，iOS 17~25 走 `ultraThinMaterial` + 顶部镜面 + 0.7pt 双层描边）+ `LiquidGlassButtonStyle` + `GlassCircleButton` |
+| `ImmersiveArtwork.swift` | `ImmersivePalette`（accent/glow/base 三档，由封面主色 HSL 派生）、`ImmersiveArtworkCache`（300px 缩略 + CI 高斯模糊 + NSCache，切歌只算一次）、`ImmersiveBackdrop`（底色 + 模糊封面 + 顶部色雾 + 上下压暗，新旧两层 `fade` 交叉淡入）、`ImmersiveArtwork`（主封面，缓存命中直显 + 新图淡入） |
+| `ImmersivePlayerView.swift` | 全新沉浸式播放页 + `ImmersiveScrubber` + `LyricCreditFilter` |
+
+`PlayerView` 的改动只有 3 处：`.immersive` 分支换成 `ImmersivePlayerView(...)` 并把 9 个动作回调出去；`showLyricStagePicker` 的 sheet 提到 body 顶层（子视图也要用）；`loadLyrics` 的 `apply` 里加 `LyricCreditFilter.sanitize`。旧沉浸式私有函数保留但不再被调用（便于回滚，不影响编译）。
+
+#### 三、设计参数（可直接对照代码）
+
+- 封面：`min(屏宽-56, 屏高-预留, 380)`，圆角 20，`black 0.42 / r28 / y16` 单层软阴影 + 0.7pt 内描边；**不再用径向羽化**，改为背景层向封面自然过渡。
+- 六层：顶栏 44 / 间距 22 / 封面 / 间距 26 / 信息（26pt bold 歌名 + 13.5 歌手 + 36pt 红心）/ 18 / 歌词预览 84（三行：16.5 当前 + 14.5 两侧，透明度 0.92 / 0.26）/ 弹性留白 / 控制区 134。
+- 控制：模式 42 玻璃圆钮 · 上一首 58×72 纯图标 · **播放 74 悬浮玻璃** · 下一首 · 队列 42；间距用 Spacer 均分，最大宽 396。
+- 进度：3pt 轨 / 9pt 手柄，拖动时变 4pt / 13pt，时间跟随手指，松手才 `seek`。
+- 歌词页：44 小封面 + 歌名歌手 + 舞台 / 红心；`LyricsSection` 传白色 accent、glow 0、blurStart 3 / 0.6，字号行距沿用用户设置。
+- 动效：封面↔歌词 `spring(0.44, 0.92)` 横向推入；切歌 0.17s 滑出 + 0.42s 弹回；背景 0.62s 交叉淡入；按压 `spring(0.26, 0.80)` 缩放。
+- 安全区：`GeometryReader + .ignoresSafeArea()` 后手动加 `insets.top`，避免不同呈现容器下二次内缩。
+
+#### 四、验证清单（真机）
+
+1. 顶部状态栏、顶栏、背景是否同一层渐变，没有色块分界
+2. 封面四周是否还有亮边/灰雾；切歌时背景是否平滑换色、不闪黑
+3. 播放键是否明显高于其它按钮；模式按钮切换后图标 + 强调色是否同时变
+4. 拖动进度时手柄放大、时间跟随，松手是否跳到目标位置
+5. 歌词页是否只显示纯歌词（作词/作曲已剔除），当前行是否明显突出
+6. 封面右滑进歌词、歌词右滑回封面、上下滑切歌、左滑收起是否都正常
+7. 歌词舞台开启后是否全屏、轻点能否呼出控制层
+8. iOS 17/18 与 iOS 26 的玻璃质感是否一致（26 为系统原生）
+
 ### 0.6.0 本轮（2026-11-22，版本 **1.19.2 (92)**，提交 `e5a15f9d`）
 
 用户 6 条反馈 + 5 图（1.19.1 真机验证后的补充）。核心是把酷我从「只能搜索/播放」补成**有首页内容**的平台，并解决登录后 0 歌单、歌词右滑直接退出、VIP 标签误导三个体验问题。

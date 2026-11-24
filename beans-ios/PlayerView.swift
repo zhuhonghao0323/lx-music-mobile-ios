@@ -461,42 +461,49 @@ struct PlayerView: View {
                     }
                 }
             } else if coverPlayerStyle == .immersive {
-                GeometryReader { geo in
-                    ZStack {
-                        immersiveBackground(geo: geo)
+                // 沉浸式：整页重写为 Liquid Glass 布局（背景取色 / 大封面 / 三段控制），
+                // 业务能力全部回调到 PlayerManager，不在此处改播放逻辑。
+                ZStack {
+                    ImmersivePlayerView(
+                        song: song,
+                        lyrics: lyrics,
+                        showLyrics: $showLyrics,
+                        onClose: { isPresented = false },
+                        onMore: {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                                showMoreActions = true
+                            }
+                        },
+                        onQueue: { showQueue = true },
+                        onQuickFavorite: {
+                            guard let song else { return }
+                            quickFavorite(song)
+                        },
+                        onFavorite: {
+                            guard let song else { return }
+                            toggleLocalFavorite(song)
+                        },
+                        onArtist: { openArtistHome() },
+                        onLyricStage: { showLyricStagePicker = true },
+                        onSettings: { openPlayerSettings() }
+                    )
 
-                        VStack(spacing: 0) {
-                            if !stageImmersive { headerBar }
-                            content(geo: geo)
-                                .offset(y: verticalSwitchOffset)
-                        }
-                        .foregroundStyle(.white)
-
-                        if stageImmersive {
-                            stageExitChrome
-                        }
-
-                        if !stageImmersive {
-                            immersiveControlBar(bottomInset: geo.safeAreaInsets.bottom)
-                        }
-
-                        if showMoreActions {
-                            Color.black.opacity(0.001)
-                                .ignoresSafeArea()
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
-                                        showMoreActions = false
-                                    }
+                    if showMoreActions {
+                        Color.black.opacity(0.001)
+                            .ignoresSafeArea()
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                    showMoreActions = false
                                 }
-                                .zIndex(70)
+                            }
+                            .zIndex(70)
 
-                            playerMoreActionsPanel
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                                .padding(.top, 76)
-                                .zIndex(80)
-                                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
-                        }
+                        playerMoreActionsPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .padding(.top, 76)
+                            .zIndex(80)
+                            .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
                     }
                 }
             } else if coverPlayerStyle == .vinyl {
@@ -675,6 +682,10 @@ struct PlayerView: View {
             QueueView()
                 .environmentObject(player)
                 .environmentObject(theme)
+        }
+        // 沉浸式页面的「歌词舞台」入口也复用这一处 sheet，避免在子视图里重复绑定
+        .sheet(isPresented: $showLyricStagePicker) {
+            LyricStagePickerSheet()
         }
         .sheet(isPresented: $showSleepTimer) { SleepTimerSheet().environmentObject(player) }
         .sheet(isPresented: $showAddToPlaylist) {
@@ -2109,9 +2120,6 @@ struct PlayerView: View {
             guard !Task.isCancelled else { return }
             if !lyricStageReady { lyricStageReady = true }
         }
-        .sheet(isPresented: $showLyricStagePicker) {
-            LyricStagePickerSheet()
-        }
     }
 
     private var lyricStage: LyricStage? {
@@ -3489,7 +3497,8 @@ struct PlayerView: View {
         let identity = song.identityKey
         func apply(_ parsed: [LyricLine]) {
             guard self.song?.identityKey == identity else { return }
-            self.lyrics = parsed
+            // 作词/作曲/编曲等元信息不是歌词，统一剔除，避免和歌词混排影响阅读
+            self.lyrics = LyricCreditFilter.sanitize(parsed)
         }
         if song.source == .kugou, let hash = song.kugouHash {
             let raw = await KugouMusicAPI.shared.lyric(hash: hash, duration: song.duration)
