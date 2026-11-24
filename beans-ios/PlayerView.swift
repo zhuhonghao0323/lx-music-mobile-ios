@@ -501,7 +501,7 @@ struct PlayerView: View {
 
                         playerMoreActionsPanel
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .padding(.top, 76)
+                            .padding(.top, 112)
                             .zIndex(80)
                             .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
                     }

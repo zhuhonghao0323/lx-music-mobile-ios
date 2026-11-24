@@ -168,10 +168,10 @@ struct ImmersiveBackdrop: View {
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [palette.glow.opacity(0.52), palette.glow.opacity(0.10), .clear],
+                colors: [palette.glow.opacity(0.34), palette.glow.opacity(0.08), .clear],
                 center: UnitPoint(x: 0.5, y: 0.10),
                 startRadius: 0,
-                endRadius: max(w, h) * 0.62
+                endRadius: max(w, h) * 0.58
             )
         }
     }
