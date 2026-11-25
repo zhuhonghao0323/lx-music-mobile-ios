@@ -18,11 +18,14 @@ struct ImmersivePalette: Equatable {
     var glow: Color
     /// 底色：整页暗部基调（保持封面色相，但压到很低亮度）
     var base: Color
+    /// 封面是否偏亮：亮封面要把模糊层压下去、把顶部压暗加强，否则白色文字和玻璃按钮会糊在背景里
+    var isLight: Bool = false
 
     static let fallback = ImmersivePalette(
         accent: Color(red: 0.96, green: 0.78, blue: 0.42),
         glow: Color(red: 0.30, green: 0.22, blue: 0.12),
-        base: Color(red: 0.10, green: 0.08, blue: 0.07)
+        base: Color(red: 0.10, green: 0.08, blue: 0.07),
+        isLight: false
     )
 
     static func make(from color: RGBColor?) -> ImmersivePalette {
@@ -43,7 +46,12 @@ struct ImmersivePalette: Equatable {
             s: min(max(hsl.s * 1.05, 0.38), 0.88),
             l: 0.70
         )
-        return ImmersivePalette(accent: accent.color, glow: glow.color, base: base.color)
+        return ImmersivePalette(
+            accent: accent.color,
+            glow: glow.color,
+            base: base.color,
+            isLight: hsl.l > 0.60
+        )
     }
 }
 
@@ -135,10 +143,12 @@ struct ImmersiveBackdrop: View {
                 }
 
                 if let previous {
-                    artwork(previous.image, w: w, h: h).opacity(0.64 * (1 - fade))
+                    artwork(previous.image, palette: previous.palette, w: w, h: h)
+                        .opacity(artworkOpacity(previous.palette) * (1 - fade))
                 }
                 if let current {
-                    artwork(current.image, w: w, h: h).opacity(0.64 * fade)
+                    artwork(current.image, palette: current.palette, w: w, h: h)
+                        .opacity(artworkOpacity(current.palette) * fade)
                 }
 
                 scrims(w: w, h: h)
@@ -176,13 +186,19 @@ struct ImmersiveBackdrop: View {
         }
     }
 
-    private func artwork(_ image: UIImage, w: CGFloat, h: CGFloat) -> some View {
+    /// 亮封面少给一点模糊层，让底色透出来，白字才有对比
+    private func artworkOpacity(_ palette: ImmersivePalette) -> Double {
+        palette.isLight ? 0.44 : 0.64
+    }
+
+    private func artwork(_ image: UIImage, palette: ImmersivePalette, w: CGFloat, h: CGFloat) -> some View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
             .frame(width: w * 1.75, height: h * 0.92)
             .blur(radius: 8)
             .saturation(1.06)
+            .brightness(palette.isLight ? -0.05 : 0)
             .offset(y: -h * 0.07)
             .mask(
                 LinearGradient(
@@ -205,8 +221,8 @@ struct ImmersiveBackdrop: View {
         ZStack {
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.42), location: 0.00),
-                    .init(color: .black.opacity(0.10), location: 0.16),
+                    .init(color: .black.opacity(palette.isLight ? 0.58 : 0.42), location: 0.00),
+                    .init(color: .black.opacity(palette.isLight ? 0.26 : 0.10), location: 0.16),
                     .init(color: .clear, location: 0.34),
                     .init(color: .clear, location: 0.52),
                     .init(color: palette.base.opacity(0.55), location: 0.68),

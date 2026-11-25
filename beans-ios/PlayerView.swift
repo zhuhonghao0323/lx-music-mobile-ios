@@ -3497,8 +3497,8 @@ struct PlayerView: View {
         let identity = song.identityKey
         func apply(_ parsed: [LyricLine]) {
             guard self.song?.identityKey == identity else { return }
-            // 作词/作曲/编曲等元信息不是歌词，统一剔除，避免和歌词混排影响阅读
-            self.lyrics = LyricCreditFilter.sanitize(parsed)
+            // 作词/作曲/编曲等元信息、以及首行的「歌名 - 歌手」，都不是歌词，统一剔除
+            self.lyrics = LyricCreditFilter.sanitize(parsed, title: song.name, artist: song.artists)
         }
         if song.source == .kugou, let hash = song.kugouHash {
             let raw = await KugouMusicAPI.shared.lyric(hash: hash, duration: song.duration)

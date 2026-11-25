@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - ios-adaptation
+    # Beans 播放器（beans-ios/）是独立工程，改它不必重打 LX 主工程包。
+    # 否则一次推送会同时占用两个 macOS Runner，先排队的那个 15 分钟拿不到机器就被取消。
+    paths-ignore:
+      - 'beans-ios/**'
+      - 'beans-project.yml'
+      - 'HANDOFF.md'
+      - '**.md'
     tags:
       - 'v*'
   workflow_dispatch:

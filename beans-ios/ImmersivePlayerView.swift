@@ -58,28 +58,33 @@ struct ImmersivePlayerView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let insets = geo.safeAreaInsets
-            let layout = ImmersiveLayout(size: geo.size, insets: insets)
+            let layout = ImmersiveLayout(size: geo.size)
+            // 兜底：正常情况下内容已经落在安全区内（inset 为 0），
+            // 若某个呈现容器把整屏交给 GeometryReader，这里再补一次，避免顶栏再次压到状态栏。
+            let extraTop = max(geo.safeAreaInsets.top, 0)
+            let extraBottom = max(geo.safeAreaInsets.bottom, 0)
 
             ZStack(alignment: .bottom) {
+                // 背景单独铺满整屏；内容仍留在安全区内，顶栏不会再压到状态栏
                 ImmersiveBackdrop(songURL: song?.coverURL)
+                    .ignoresSafeArea()
 
                 pages(layout: layout)
-                    .padding(.top, insets.top)
-                    .padding(.bottom, layout.deckReserve + insets.bottom)
+                    .padding(.top, extraTop)
+                    .padding(.bottom, layout.deckReserve + extraBottom)
                     .offset(y: switchOffset)
                     .opacity(contentOpacity)
 
                 if !stageActive {
                     deck
-                        .padding(.bottom, max(insets.bottom, 12) + 4)
+                        .padding(.bottom, 6 + extraBottom)
                         .transition(.opacity)
                 }
 
                 // 舞台常驻：未就绪时用 0.001 透明度预热（opacity 0 会被 WebKit 判定不可见而暂停渲染），
                 // 就绪后再整块顶上来，避免首次进入舞台黑屏。
                 if stageConfigured {
-                    stageLayer(insets: insets)
+                    stageLayer
                         .opacity(stageActive ? 1 : 0.001)
                         .allowsHitTesting(stageActive)
                         .zIndex(stageActive ? 3 : 0)
@@ -88,8 +93,6 @@ struct ImmersivePlayerView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .animation(.easeInOut(duration: 0.28), value: stageActive)
         }
-        // 明确以「整屏」为画布：安全区由 insets 手动处理，避免不同呈现容器下重复内缩或压到状态栏
-        .ignoresSafeArea()
         .onChange(of: showLyrics) { _ in
             stageReady = false
             stageChromeVisible = false
@@ -452,8 +455,8 @@ struct ImmersivePlayerView: View {
         VStack(spacing: 0) {
             lyricsHeader
                 .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
 
             if lyrics.isEmpty {
                 emptyLyrics
@@ -464,7 +467,8 @@ struct ImmersivePlayerView: View {
                     secondary: .white.opacity(0.92),
                     gradientStart: nil,
                     gradientEnd: nil,
-                    baseFontSize: CGFloat(min(max(lyricFontSize, 15), 24)),
+                    // 沉浸页单行更宽、还要留翻译行，字号上限收到 21：再大当前行会折成两行把整页撑乱
+                    baseFontSize: CGFloat(min(max(lyricFontSize, 15), 21)),
                     lineSpacing: CGFloat(min(max(lyricSpacing, 16), 34)),
                     glowRadius: 0,
                     showTranslation: lyricTranslation,
@@ -588,7 +592,7 @@ struct ImmersivePlayerView: View {
     }
 
     @ViewBuilder
-    private func stageLayer(insets: EdgeInsets) -> some View {
+    private var stageLayer: some View {
         ZStack {
             if let stage = LyricStage.stage(id: lyricStageID) {
                 LyricStageWebView(
@@ -609,15 +613,14 @@ struct ImmersivePlayerView: View {
                 .onTapGesture { toggleStageChrome() }
 
             if stageChromeVisible {
-                stageChrome(insets: insets)
+                stageChrome
                     .transition(.opacity)
             }
         }
-        .ignoresSafeArea()
         .simultaneousGesture(lyricsSwipeBackGesture)
     }
 
-    private func stageChrome(insets: EdgeInsets) -> some View {
+    private var stageChrome: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 GlassCircleButton(systemName: "chevron.down", size: 38, iconSize: 15, thickness: .thin) {
@@ -629,7 +632,7 @@ struct ImmersivePlayerView: View {
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.top, max(insets.top, 20) + 4)
+            .padding(.top, 8)
 
             Spacer(minLength: 0)
 
@@ -642,7 +645,7 @@ struct ImmersivePlayerView: View {
                 }
             }
             .padding(.horizontal, 26)
-            .padding(.bottom, max(insets.bottom, 16) + 12)
+            .padding(.bottom, 18)
         }
         .background {
             VStack(spacing: 0) {
@@ -753,13 +756,12 @@ struct ImmersivePlayerView: View {
 
 private struct ImmersiveLayout {
     let size: CGSize
-    let insets: EdgeInsets
 
     /// 封面尺寸：宽度优先，同时给信息、歌词和三段控制区留足空间。
     /// 屏幕越矮封面越小，保证任何机型都不会挤压播放控制。
     var coverSide: CGFloat {
         let widthLimit = max(size.width - 56, 132)
-        let reserved = insets.top + 44 + topGap + coverGap + 96 + 18 + 84 + deckReserve + insets.bottom + 10
+        let reserved: CGFloat = 44 + topGap + coverGap + 96 + 18 + 84 + deckReserve + 12
         let heightLimit = max(size.height - reserved, 132)
         return min(min(widthLimit, heightLimit), 380)
     }
@@ -879,8 +881,37 @@ enum LyricCreditFilter {
         return false
     }
 
-    static func sanitize(_ lines: [LyricLine]) -> [LyricLine] {
-        let filtered = lines.filter { !isCredit($0.text) }
+    static func sanitize(_ lines: [LyricLine], title: String? = nil, artist: String? = nil) -> [LyricLine] {
+        var filtered = lines.filter { !isCredit($0.text) }
+        filtered = dropLeadingMetadata(filtered, title: title, artist: artist)
         return filtered.isEmpty ? lines : filtered
+    }
+
+    /// 有些音源会在最前面塞一行「歌名 - 歌手」或残留 [ti:]/[ar:] 标签，同样不是歌词。
+    /// 只看前两行，避免误删正文里出现歌名的句子。
+    private static func dropLeadingMetadata(_ lines: [LyricLine], title: String?, artist: String?) -> [LyricLine] {
+        let name = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let singer = (artist ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let tags = ["[ti:", "[ar:", "[al:", "[by:", "[offset:", "ti:", "ar:"]
+
+        var result = lines
+        var dropped = 0
+        while dropped < 2, let first = result.first {
+            let text = first.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                result.removeFirst()
+                dropped += 1
+                continue
+            }
+            let lower = text.lowercased()
+            let isTag = tags.contains { lower.hasPrefix($0) }
+            let hasName = !name.isEmpty && lower.contains(name)
+            let hasSinger = singer.isEmpty || lower.contains(singer)
+            let isTitleLine = hasName && hasSinger && text.count <= 80
+            guard isTag || isTitleLine else { break }
+            result.removeFirst()
+            dropped += 1
+        }
+        return result
     }
 }
