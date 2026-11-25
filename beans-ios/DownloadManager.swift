@@ -216,6 +216,10 @@ final class DownloadManager {
             guard let urlString = await KuwoMusicAPI.shared.songURL(id: song.id),
                   let url = URL(string: urlString) else { return nil }
             return ResolvedDownloadURL(url: url, actualQuality: quality, sourceName: nil)
+        } else if song.source == .qishui, let trackID = song.qishuiTrackID {
+            guard let urlString = try? await QishuiMusicAPI.shared.songURL(trackID: trackID),
+                  let url = URL(string: urlString) else { return nil }
+            return ResolvedDownloadURL(url: url, actualQuality: quality, sourceName: nil)
         } else {
             let urls = try? await NetEaseAPI.shared.songURLs(ids: [song.id], level: quality.neteaseLevel)
             guard let urlString = urls?[song.id], let url = URL(string: urlString) else { return nil }

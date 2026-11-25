@@ -511,7 +511,7 @@ enum UnblockService {
         let sourceDefault = ThirdPartyAudioQuality(sourceValue: source.quality)
         let platformDefault: ThirdPartyAudioQuality = {
             switch songSource {
-            case .netease, .qq, .kugou, .migu, .bodian, .kuwo:
+            case .netease, .qq, .kugou, .migu, .bodian, .kuwo, .qishui:
                 return .kb320
             }
         }()
@@ -637,6 +637,8 @@ enum UnblockService {
         case .migu: return "mg"
         case .bodian: return "kw"
         case .kuwo: return "kw"
+        // 汽水没有对应的自定义源处理器，不参与脚本音源
+        case .qishui: return ""
         }
     }
 

@@ -114,39 +114,59 @@ final class KugouMusicAPI {
         let auth = KugouMusicAuth.shared
         guard auth.isLoggedIn else { return [] }
         await refreshMembershipStatusIfNeeded()
-        let dataBody: [String: Any] = [
-            "total_ver": 979,
-            "type": 2,
-            "page": 1,
-            "pagesize": 200,
-            "userid": Int(auth.userId) ?? 0,
-            "token": auth.token,
-        ]
-        let response = try await gatewayRequest(
-            "/v7/get_all_list",
-            method: "POST",
-            params: [
-                "total_ver": "979",
-                "type": "2",
-                "page": "1",
-                "pagesize": "200",
-                "userid": auth.userId,
-                "token": auth.token,
-            ],
-            data: dataBody,
-            headers: ["x-router": "cloudlist.service.kugou.com"]
-        )
-        let json = response.json
-        let code = Self.deepInt(json, names: ["error_code", "errcode", "code"])
-        let status = Self.deepInt(json, names: ["status"])
-        let raw = Self.deepArrays(json, names: ["lists", "list", "info", "data", "listinfo", "collection_list", "playlist"])
-        BeansLogger.shared.log("酷狗歌单同步：status=\(status) code=\(code) 返回 \(raw.count) 个", level: .debug)
-        var seen = Set<Int>()
-        return raw.compactMap { item in
-            guard let playlist = Self.mapPlaylist(item), !seen.contains(playlist.id) else { return nil }
-            seen.insert(playlist.id)
-            return playlist
+        var playlists: [Playlist] = []
+        var seen = Set<String>()
+        var page = 1
+        let pageSize = 200
+        var lastStatus = 0
+        var lastCode = 0
+        var lastBatch = 0
+        // 以前只请求第 1 页：歌单超过 200 个就会少。现在按页翻到不满一页为止。
+        while page <= 20 {
+            let response = try await gatewayRequest(
+                "/v7/get_all_list",
+                method: "POST",
+                params: [
+                    "total_ver": "979",
+                    "type": "2",
+                    "page": "\(page)",
+                    "pagesize": "\(pageSize)",
+                    "userid": auth.userId,
+                    "token": auth.token,
+                ],
+                data: [
+                    "total_ver": 979,
+                    "type": 2,
+                    "page": page,
+                    "pagesize": pageSize,
+                    "userid": Int(auth.userId) ?? 0,
+                    "token": auth.token,
+                ],
+                headers: ["x-router": "cloudlist.service.kugou.com"]
+            )
+            let json = response.json
+            lastCode = Self.deepInt(json, names: ["error_code", "errcode", "code"])
+            lastStatus = Self.deepInt(json, names: ["status"])
+            let raw = Self.deepArrays(json, names: ["lists", "list", "info", "data", "listinfo", "collection_list", "playlist"])
+            lastBatch = raw.count
+            var added = 0
+            for item in raw {
+                guard let playlist = Self.mapPlaylist(item) else { continue }
+                // 同一份数据里 listid 与 gcid 可能各出现一次，按平台标识去重
+                let key = playlist.externalID ?? "id-\(playlist.id)"
+                guard seen.insert(key).inserted else { continue }
+                playlists.append(playlist)
+                added += 1
+            }
+            // 服务端忽略 page 参数时会反复回同一页，added == 0 必须停，否则空转到 20 页
+            if raw.count < pageSize || added == 0 { break }
+            page += 1
         }
+        BeansLogger.shared.log(
+            "酷狗歌单同步：status=\(lastStatus) code=\(lastCode) 末页 \(lastBatch) 个 → 共 \(playlists.count) 个（第 \(page) 页结束）",
+            level: playlists.isEmpty ? .warn : .debug
+        )
+        return playlists
     }
 
     /// 酷狗私人漫游：使用 KuGouMusicApi 的 personal_fm 请求协议，连续取几批推荐，
@@ -1092,23 +1112,26 @@ final class KugouMusicAPI {
     /// 是 KuGouMusicApi / LIZI 里实测可用的那条路径（v4 get_list_all_file 常返回空）。
     private func collectionSongs(
         collectionID: String,
-        page: Int,
+        beginIdx: Int,
         pageSize: Int
     ) async throws -> (rows: [[String: Any]], total: Int) {
-        let result = try await collectionPage(collectionID: collectionID, page: page, pageSize: pageSize)
+        let result = try await collectionPage(collectionID: collectionID, beginIdx: beginIdx, pageSize: pageSize)
         return (result.rows, result.total)
     }
 
     /// 云歌单单页：除歌曲外还把 `list_info` 带回来，用于「概念版分享链接」导入时补歌单名 / 封面 / 曲目数。
+    ///
+    /// `begin_idx` 传「已经收了多少条」，不要用页码换算：服务端会把过大的 pagesize 悄悄截断
+    ///（实测 100 / 300），按页码 × 请求 pagesize 算偏移会整段跳过歌曲。
     private func collectionPage(
         collectionID: String,
-        page: Int,
+        beginIdx: Int,
         pageSize: Int
     ) async throws -> (rows: [[String: Any]], total: Int, info: [String: Any]) {
         let auth = KugouMusicAuth.shared
         var params = baseParams()
         params["area_code"] = "1"
-        params["begin_idx"] = "\(max(0, (page - 1) * pageSize))"
+        params["begin_idx"] = "\(max(0, beginIdx))"
         params["plat"] = "1"
         params["type"] = "1"
         params["mode"] = "1"
@@ -1140,10 +1163,59 @@ final class KugouMusicAPI {
         return (rows, total, info)
     }
 
+    /// 读完一整张云歌单。只在「空页」或「整页重复」时收尾：
+    /// 服务端截断 pagesize 时若按 `rows.count < pageSize` 提前返回，就只剩前 100 首
+    /// —— 这是「歌单同步不全」的另一半原因。
+    private func collectionSongsAll(collectionID: String) async throws -> [Song] {
+        let pageSize = 200
+        let maxSongs = 10_000
+        var received = 0
+        var songs: [Song] = []
+        var seen = Set<String>()
+        var total = 0
+        var retriedEmptyPage = false
+        while received < maxSongs {
+            let page = try await collectionPage(collectionID: collectionID, beginIdx: received, pageSize: pageSize)
+            if page.total > 0 { total = page.total }
+            if page.rows.isEmpty {
+                // 偶发空页但 total 还没读满：再要一次，仍为空才收尾
+                if total > received, !retriedEmptyPage {
+                    retriedEmptyPage = true
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    continue
+                }
+                break
+            }
+            var freshRows = 0
+            for (offset, row) in page.rows.enumerated() {
+                var key = Self.string(row["hash"] ?? row["Hash"] ?? row["file_hash"])
+                    + "|" + Self.string(row["album_audio_id"] ?? row["audio_id"] ?? row["mixsongid"] ?? row["songid"] ?? row["filename"])
+                // 两个字段都没有时用绝对位置兜底，避免整页被当成重复
+                if key == "|" { key = "row-\(received + offset)" }
+                if seen.insert(key).inserted { freshRows += 1 }
+                if let song = Self.mapTrack(row), seen.insert("song-" + song.identityKey).inserted {
+                    songs.append(song)
+                }
+            }
+            received += page.rows.count
+            // 服务端不认 begin_idx、反复回同一页：整页都重复就必须停，否则空转
+            if freshRows == 0 { break }
+            if total > 0 && received >= total { break }
+        }
+        BeansLogger.shared.log(
+            "酷狗云歌单：gcid=\(collectionID) 接口 total=\(total) 收到 \(received) 条 解析 \(songs.count) 首",
+            level: songs.isEmpty ? .warn : .info
+        )
+        if total > 0 && received < total {
+            BeansLogger.shared.log("酷狗云歌单未读全：total=\(total) 实际 \(received) 条", level: .warn)
+        }
+        return songs
+    }
+
     /// 云歌单元信息：`collection_…` / `gcid_…` 都能用，公开接口不需要登录。
     /// 概念版分享链接解析出来的就是这种 global_collection_id。
     private func collectionDetail(collectionID: String) async throws -> Playlist? {
-        let result = try await collectionPage(collectionID: collectionID, page: 1, pageSize: 1)
+        let result = try await collectionPage(collectionID: collectionID, beginIdx: 0, pageSize: 1)
         let info = result.info
         guard !info.isEmpty else { return nil }
         let name = Self.string(info["name"] ?? info["list_name"] ?? info["specialname"])
@@ -1157,7 +1229,7 @@ final class KugouMusicAPI {
             level: .debug
         )
         return Playlist(
-            id: abs(collectionID.hashValue),
+            id: Self.stablePlaylistID(collectionID),
             name: name,
             coverURL: URL(string: cover),
             trackCount: count > 0 ? count : result.total,
@@ -1168,33 +1240,21 @@ final class KugouMusicAPI {
 
     func playlistSongs(listID: Int, externalID: String? = nil) async throws -> [Song] {
         let gcid = (externalID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        // 0) 云歌单：先用 gcid 反解 specialid，再走移动端公开接口拿全量歌曲。
-        //    这是「外面显示 1602 首、里面空空如也」的根因修复点。
+        // 0) 云歌单：先按 global_collection_id 游标读全量。
+        //    这一步以前排在 specialid 反解之后，而 special/song 对概念版歌单只给一部分，
+        //    「外面显示 1602 首、里面只剩前 100 首」就是这么来的。
+        if !gcid.isEmpty,
+           let songs = try? await collectionSongsAll(collectionID: gcid),
+           !songs.isEmpty {
+            return songs
+        }
+        // 1) 云歌单兜底：gcid 反解 specialid，再走移动端公开接口
         if gcid.hasPrefix("gcid_") || gcid.contains("collection_") {
             if let ref = try? await decodeCollection(gcid: gcid), ref.specialID > 0 {
                 if let songs = try? await specialSongs(specialID: ref.specialID), !songs.isEmpty {
                     return songs
                 }
             }
-        }
-        // 1) 自己的云歌单：优先公开的 gcid 接口
-        if !gcid.isEmpty {
-            var collected: [[String: Any]] = []
-            var page = 1
-            let pageSize = 200
-            while page <= 60 {
-                guard let result = try? await collectionSongs(collectionID: gcid, page: page, pageSize: pageSize) else { break }
-                collected.append(contentsOf: result.rows)
-                if result.rows.isEmpty || result.rows.count < pageSize { break }
-                if result.total > 0 && collected.count >= result.total { break }
-                page += 1
-            }
-            let mapped = collected.compactMap(Self.mapTrack)
-            BeansLogger.shared.log(
-                "酷狗云歌单歌曲：gcid=\(gcid) 原始 \(collected.count) 首 可播放 \(mapped.count) 首",
-                level: mapped.isEmpty ? .warn : .info
-            )
-            if !mapped.isEmpty { return mapped }
         }
         // 2) 公开 special 页（歌单广场里的歌单）
         if listID >= 1000,
@@ -1210,10 +1270,12 @@ final class KugouMusicAPI {
         guard auth.isLoggedIn else { return [] }
         let pid = "\(listID)"
         var all: [[String: Any]] = []
+        var seenTrackKeys = Set<String>()
         var page = 1
         let pageSize = 200
         let maxSongs = 10_000
-        repeat {
+        // 只认「空页」为结束：这个接口也会把 pagesize 截断，按 count < pageSize 提前退出会漏歌。
+        while page <= 60 {
             let body: [String: Any] = [
                 "listid": pid,
                 "page": page,
@@ -1226,22 +1288,33 @@ final class KugouMusicAPI {
                 "userid": Int(auth.userId) ?? 0,
                 "token": auth.token,
             ]
-            let json = try await cloudlistRequest("/v4/get_list_all_file", params: ["listid": pid, "page": "\(page)", "pagesize": "200"], data: body)
+            let json = try await cloudlistRequest("/v4/get_list_all_file", params: ["listid": pid, "page": "\(page)", "pagesize": "\(pageSize)"], data: body)
             let pageTracks = Self.deepArrays(json, names: ["songs", "songlist", "list", "info", "files", "data"])
             let status = Self.deepInt(json, names: ["status", "error_code", "errcode", "code"])
             BeansLogger.shared.log(
                 "酷狗歌单歌曲：listid=\(pid) page=\(page) 返回 \(pageTracks.count) 首 status=\(status)",
                 level: pageTracks.isEmpty ? .warn : .debug
             )
-            if pageTracks.isEmpty && page == 1 {
-                let hint = Self.deepString(json, names: ["error", "msg", "error_msg", "info"])
-                BeansLogger.shared.log("酷狗歌单歌曲为空：status=\(status) msg=\(hint)", level: .warn)
+            if pageTracks.isEmpty {
+                if page == 1 {
+                    let hint = Self.deepString(json, names: ["error", "msg", "error_msg", "info"])
+                    BeansLogger.shared.log("酷狗歌单歌曲为空：status=\(status) msg=\(hint)", level: .warn)
+                }
+                break
             }
+            var fresh = 0
+            for (offset, row) in pageTracks.enumerated() {
+                var key = Self.string(row["hash"] ?? row["Hash"] ?? row["file_hash"])
+                    + "|" + Self.string(row["album_audio_id"] ?? row["audio_id"] ?? row["mixsongid"] ?? row["songid"] ?? row["filename"])
+                if key == "|" { key = "row-\(all.count)-\(offset)" }
+                if seenTrackKeys.insert(key).inserted { fresh += 1 }
+            }
+            // 服务端忽略 page 参数时整页重复，必须停
+            if fresh == 0 { break }
             all.append(contentsOf: pageTracks)
             if all.count >= maxSongs { break }
-            if pageTracks.count < pageSize { break }
             page += 1
-        } while page <= maxSongs / pageSize
+        }
         if all.count > maxSongs {
             all = Array(all.prefix(maxSongs))
         }
@@ -2088,15 +2161,25 @@ final class KugouMusicAPI {
         return mapTrack(normalized)
     }
 
+    /// 稳定的 31 位哈希。云歌单有时只回 `global_collection_id`（`collection_…` 字符串），
+    /// 没有数字 listid；这类歌单以前会被整条丢掉，表现为「我的歌单少了好几个」。
+    /// 不能用 `hashValue`：它每次启动都变，收藏 / 置顶 / 缓存会全部失效。
+    static func stablePlaylistID(_ text: String) -> Int {
+        var hash: UInt32 = 5381
+        for byte in text.utf8 { hash = (hash &* 33) &+ UInt32(byte) }
+        return Int(hash & 0x7FFF_FFFF)
+    }
+
     private static func mapPlaylist(_ raw: [String: Any]) -> Playlist? {
-        let id = int(raw["listid"] ?? raw["id"] ?? raw["global_collection_id"] ?? raw["specialid"])
+        let numericID = int(raw["listid"] ?? raw["id"] ?? raw["specialid"])
+        // 云歌单的歌曲接口只认 global_collection_id，必须和数字 listid 一起带出去
+        let gcid = string(raw["global_collection_id"] ?? raw["globalCollectionId"] ?? raw["global_collect_id"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let id = numericID > 0 ? numericID : (gcid.isEmpty ? 0 : Self.stablePlaylistID(gcid))
         guard id > 0 else { return nil }
         let name = string(raw["name"] ?? raw["listname"] ?? raw["list_name"] ?? raw["specialname"] ?? raw["title"])
         let cover = string(raw["pic"] ?? raw["img"] ?? raw["cover"] ?? raw["sizable_cover"] ?? raw["list_pic"]).replacingOccurrences(of: "{size}", with: "240")
         let count = int(raw["count"] ?? raw["song_count"] ?? raw["total"] ?? raw["file_count"] ?? raw["songcount"])
-        // 云歌单的歌曲接口只认 global_collection_id，必须和数字 listid 一起带出去
-        let gcid = string(raw["global_collection_id"] ?? raw["globalCollectionId"] ?? raw["global_collect_id"])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
         return Playlist(
             id: id,
             name: name.isEmpty ? "酷狗歌单" : name,

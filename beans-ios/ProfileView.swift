@@ -44,6 +44,7 @@ struct ProfileView: View {
     @State private var showWeChatOpenError = false
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
+    @ObservedObject private var qishuiAuth = QishuiMusicAuth.shared
     @ObservedObject private var platformPrefs = PlatformPreferenceStore.shared
     @AppStorage("beans.language") private var languageRaw = AppLanguage.chinese.rawValue
 
@@ -1300,6 +1301,49 @@ struct AccountHubSheet: View {
                 Text(kuwoAuth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(kuwoAuth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background { BeansSurface(shape: Capsule()) }
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+
+        // 汽水音乐：单独一页承载推荐 / 我的歌单，不并进全站平台切换
+        NavigationLink {
+            QishuiHomeView()
+                .environmentObject(theme)
+                .environmentObject(auth)
+                .environmentObject(player)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "s.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .foregroundStyle(Color(red: 0.10, green: 0.78, blue: 0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color(red: 0.10, green: 0.78, blue: 0.72).opacity(0.26), radius: 10, y: 4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("汽水音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(qishuiAuth.isLoggedIn
+                         ? (qishuiAuth.nickname.isEmpty ? "已登录 · 进入我的歌单" : "\(qishuiAuth.nickname) · 进入我的歌单")
+                         : "未登录 · 浏览推荐歌单")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer()
+                Text("进入")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(Color.beansAmber)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background { BeansSurface(shape: Capsule()) }

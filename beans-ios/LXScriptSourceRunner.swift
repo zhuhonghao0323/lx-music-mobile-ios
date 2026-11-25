@@ -773,6 +773,8 @@ final class LXScriptSourceRunner {
         case .migu: return "mg"
         case .bodian: return "kw"
         case .kuwo: return "kw"
+        // 汽水没有对应的自定义源处理器
+        case .qishui: return ""
         }
     }
 

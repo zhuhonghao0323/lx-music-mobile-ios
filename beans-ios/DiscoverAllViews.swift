@@ -1119,6 +1119,7 @@ struct FavoritePlaylistsView: View {
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
         case .kuwo: return "酷我音乐"
+        case .qishui: return "汽水音乐"
         }
     }
 

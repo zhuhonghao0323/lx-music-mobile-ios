@@ -33,6 +33,7 @@ private extension SongSource {
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
         case .kuwo: return "酷我音乐"
+        case .qishui: return "汽水音乐"
         }
     }
 }
@@ -202,7 +203,7 @@ enum PlaylistImportService {
             playlist = nil
         case .kuwo:
             playlist = nil
-        case .migu:
+        case .migu, .qishui:
             throw PlaylistImportError.unsupportedPlatform(source.displayName)
         }
         let songs = dedupe(try await songs(source: source, sourceID: sourceID, fallbackID: numericID))
@@ -247,7 +248,7 @@ enum PlaylistImportService {
             return try await BodianMusicAPI.shared.playlistTracks(playlistID: sourceID)
         case .kuwo:
             return try await KuwoMusicAPI.shared.playlistTracks(id: sourceID)
-        case .migu:
+        case .migu, .qishui:
             throw PlaylistImportError.unsupportedPlatform(source.displayName)
         }
     }

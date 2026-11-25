@@ -151,6 +151,7 @@ struct ImportPlaylistSheet: View {
         case .bodian: return "填写波点歌单 id（纯数字）"
         case .kuwo: return "粘贴酷我歌单链接，例如 https://www.kuwo.cn/playlist_detail/2947959139"
         case .migu: return "咪咕暂不支持导入歌单"
+        case .qishui: return "汽水歌单暂不支持粘贴导入"
         }
     }
 
@@ -162,6 +163,7 @@ struct ImportPlaylistSheet: View {
         case .bodian: return "波点"
         case .kuwo: return "酷我"
         case .migu: return "咪咕"
+        case .qishui: return "汽水"
         }
     }
 

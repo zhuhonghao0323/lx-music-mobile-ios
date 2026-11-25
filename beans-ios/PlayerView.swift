@@ -3337,6 +3337,10 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://music.migu.cn/v3/search?keyword=\(encoded)")
+        case .qishui:
+            // 汽水没有稳定的单曲网页路由，退回搜索页，保证分享出去能打开
+            let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://music.douyin.com/search/\(encoded)")
         case .bodian:
             if song.id > 0 {
                 return URL(string: "https://www.kuwo.cn/play_detail/\(song.id)")
@@ -3513,6 +3517,10 @@ struct PlayerView: View {
             }
         } else if song.source == .kuwo {
             if let raw = await KuwoMusicAPI.shared.lyric(id: song.id) {
+                apply(LyricParser.parse(raw))
+            }
+        } else if song.source == .qishui, let trackID = song.qishuiTrackID {
+            if let raw = try? await QishuiMusicAPI.shared.lyric(trackID: trackID) {
                 apply(LyricParser.parse(raw))
             }
         } else if song.source == .qq, let mid = song.qqMid {

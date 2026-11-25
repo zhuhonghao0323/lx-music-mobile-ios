@@ -17,6 +17,8 @@ final class FavoritesStore: ObservableObject {
     @Published private(set) var bodianFavoriteSongs: [Song] = []
     /// 酷我红心收藏（本地持久化；酷我网页红心接口未公开）
     @Published private(set) var kuwoFavoriteSongs: [Song] = []
+    /// 汽水红心收藏（本地持久化；写入汽水云端需要签名服务，先不入云）
+    @Published private(set) var qishuiFavoriteSongs: [Song] = []
 
     private let defaults = UserDefaults.standard
     private let neteaseKey = "beans.fav.netease.v1"
@@ -25,6 +27,7 @@ final class FavoritesStore: ObservableObject {
     private let miguKey = "beans.fav.migu.v1"
     private let bodianKey = "beans.fav.bodian.v1"
     private let kuwoKey = "beans.fav.kuwo.v1"
+    private let qishuiKey = "beans.fav.qishui.v1"
 
     private init() {
         qqFavoriteSongs = Self.loadSongs(qqKey)
@@ -33,6 +36,7 @@ final class FavoritesStore: ObservableObject {
         miguFavoriteSongs = Self.loadSongs(miguKey)
         bodianFavoriteSongs = Self.loadSongs(bodianKey)
         kuwoFavoriteSongs = Self.loadSongs(kuwoKey)
+        qishuiFavoriteSongs = Self.loadSongs(qishuiKey)
     }
 
     /// 该歌曲是否已收藏
@@ -54,6 +58,8 @@ final class FavoritesStore: ObservableObject {
             return bodianFavoriteSongs.contains { $0.identityKey == song.identityKey }
         case .kuwo:
             return kuwoFavoriteSongs.contains { $0.identityKey == song.identityKey }
+        case .qishui:
+            return qishuiFavoriteSongs.contains { $0.identityKey == song.identityKey }
         }
     }
 
@@ -104,6 +110,10 @@ final class FavoritesStore: ObservableObject {
         case .kuwo:
             let liked = !isLiked(song)
             updateKuwo(song, liked: liked)
+            return true
+        case .qishui:
+            let liked = !isLiked(song)
+            updateQishui(song, liked: liked)
             return true
         }
     }
@@ -186,6 +196,16 @@ final class FavoritesStore: ObservableObject {
             kuwoFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
         }
         saveSongs(kuwoFavoriteSongs, key: kuwoKey)
+    }
+
+    private func updateQishui(_ song: Song, liked: Bool) {
+        if liked {
+            qishuiFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+            qishuiFavoriteSongs.insert(song, at: 0)
+        } else {
+            qishuiFavoriteSongs.removeAll { $0.identityKey == song.identityKey }
+        }
+        saveSongs(qishuiFavoriteSongs, key: qishuiKey)
     }
 
     private func updateBodian(_ song: Song, liked: Bool) {

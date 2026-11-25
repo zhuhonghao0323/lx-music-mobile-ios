@@ -11,6 +11,31 @@
 
 电脑关机后，手机 App 用「云端工作」执行环境接手。云端沙箱是 **Linux**，没有 Xcode，**改完必须靠 GitHub Actions 出包**。
 
+### 0.0 本轮（2026-11-26，版本 **1.21.0 (94)**）：酷狗歌单修复 + 汽水接入
+
+参照 `https://github.com/Wow-CaiCai/Coda`（AGPL-3.0，仅作协议对照，未复制其代码）修了两件事。
+
+**一、酷狗歌单同步不全**：三个独立原因，都在 `KugouMusicAPI.swift`。
+
+| # | 原因 | 修法 |
+| --- | --- | --- |
+| 1 | `collectionPage` 用 `begin_idx = (page-1)*pageSize`，服务端把 pagesize 截断到 100/300 时整段跳歌；且 `rows.count < pageSize` 直接 break，第一页只给 100 就只剩 100 首 | `beginIdx` 改为「已收条数」；新增 `collectionSongsAll`，只在空页 / 整页重复时收尾，total 对不上再重试一次 |
+| 2 | 云歌单优先 `decodeCollection → specialSongs`，概念版歌单的虚拟 specialid 只给一部分 | 顺序反过来：先公开游标接口读全量，`special/song` 降为兜底 |
+| 3 | `userPlaylists` 只取第 1 页（200 个）；`mapPlaylist` 对只有 `global_collection_id` 的歌单 `int()` 得 0 直接丢弃 | 按页翻到不满一页；无数字 id 时用 `stablePlaylistID`（djb2，31 位）生成稳定 id，并保留 gcid |
+
+自建歌单的 `v4/get_list_all_file` 兜底路径也改成只在空页结束 + 重复页检测。
+
+**二、汽水音乐**：Coda 的实现里，搜索与 App 播放流走 `X-Helios` / `X-Medusa` 签名，签名靠一个**明文 HTTP 的第三方 IP 服务**，请求还带 Cookie。这个不能内置（凭证泄露 + ATS 拦截 + 服务随时失效），所以按能力分层接入：
+
+- 已验证免签名可用：`POST /luna/discover/mix`（推荐歌单）、`GET /luna/pc/playlist/detail`（游标分页）、`GET /luna/h5/seo_track`（曲目 + KRC 逐字歌词 + `video_model` 播放地址）、`/luna/pc/me*`（带 Cookie 的账号资料与歌单）
+- 实测匿名 `video_model` 是 **30 秒试听**（`playable_range` = 143.8s 起 35.1s），且音频**未加密**（`ftyp` M4A，无 `enca`），所以没有移植 Coda 的 MP4 解密器
+- 搜索需要签名：做成「高级设置里填自部署签名服务」，默认关闭，签名请求**不携带 Cookie**
+- 新增文件：`QishuiMusicAuth.swift`（Cookie 存储）、`QishuiMusicAPI.swift`（接口 + KRC→LRC）、`QishuiHomeView.swift`（独立入口）、`QishuiLoginSheet.swift`
+- 接入点：`SongSource.qishui`、`Song.qishuiTrackID`、`PlayerManager.loadCurrent` 的 `qishuiResolve`、歌词两处（PlayerView / MiniPlayerView）、下载、红心（本地）、分享链接
+- **没有**并进 `LibraryProvider` / `SearchProvider`：这两个枚举各自带 15+ 处 UI 分支，并进去会把「搜索里选到汽水但没有结果」暴露给用户
+
+汽水未做：扫码登录、评论、歌单编辑、云端红心、歌单导入。
+
 ### 0.1 快速开始（可直接粘给云端会话）
 
 ```
@@ -111,6 +136,25 @@
 6. 封面右滑进歌词、歌词右滑回封面、上下滑切歌、左滑收起是否都正常
 7. 歌词舞台开启后是否全屏、轻点能否呼出控制层
 8. iOS 17/18 与 iOS 26 的玻璃质感是否一致（26 为系统原生）
+
+### 0.7.1 修复轮（2026-11-25，版本 **1.20.0 (93)** 重发，提交 `5f328958`）
+
+用户真机截图反馈「布局完全乱了」，并抱怨「每次打包能不能只打包一个」。
+
+**布局根因**：`ImmersivePlayerView.body` 的 `GeometryReader` 外面套了 `.ignoresSafeArea()`，`geo.safeAreaInsets` 因此归零 → 歌词页 header 顶进状态栏（系统时间压住歌手名、收藏按钮压住电池），封面页整体上移。经典 / Apple Music / 黑胶三套方案都只在**背景**上 ignore 安全区，内容留在安全区里，所以它们没这个问题。修法：背景单独 `.ignoresSafeArea()`，内容回到安全区；另加 `extraTop / extraBottom` 兜底（仅当某个容器仍上报非零 inset 时补，正常情况为 0，不会二次内缩）。
+
+**同一轮顺手修的四处**：
+
+| # | 问题 | 处理 |
+|---|---|---|
+| 1 | 亮封面（如 PLANET 白底图）顶部发灰，白色图标与文字糊在背景里 | `ImmersivePalette.isLight`（HSL 亮度 > 0.60）：模糊层 0.64 → 0.44、`brightness(-0.05)`、顶部压暗 0.42 → 0.58 |
+| 2 | 歌词首行把「歌名 - 歌手」当歌词（截图里的 `PLANET - ラムジ`） | `LyricCreditFilter.dropLeadingMetadata`：只看前两行，要求同时含歌名与歌手才丢，避免误删正文 |
+| 3 | 当前行 34pt 折成两行，把整页撑乱 | 沉浸页歌词字号上限 24 → 21（当前行约 29.8pt） |
+| 4 | 歌词舞台单独 ignore 安全区，chrome 贴边 | 舞台回到安全区（WebView 透明，看不出接缝），chrome 顶部 / 底部改固定 8 / 18 |
+
+**流水线**：`ios-ipa.yml` 增加 `paths-ignore: beans-ios/**, beans-project.yml, HANDOFF.md, **.md`；`beans-ipa.yml` 增加 `concurrency: beans-ipa`。改 beans 代码只会出一条流水线。
+
+**Runner 的坑（重要）**：这台账号的 hosted macOS runner 并发很有限。一次 push 同时触发 `Build iOS IPA`（macos-15）与 `Build Beans SwiftUI IPA`（macos-26）时，后拿到排队的那个会在**排队 15 分钟后被 GitHub 直接取消**（run `45452620502`、`45457500761` 都是因此变红，日志里 `runner_name` 为空、`steps` 为空）。要出包时先等主工程跑完，再 `workflow_dispatch` 单独触发 Beans，就能稳定成功（run `45456591494` 即此路径）。
 
 ### 0.6.0 本轮（2026-11-22，版本 **1.19.2 (92)**，提交 `e5a15f9d`）
 

@@ -244,6 +244,8 @@ struct MiniPlayerView: View {
             raw = await BodianMusicAPI.shared.lyric(id: song.id)
         } else if song.source == .kuwo {
             raw = await KuwoMusicAPI.shared.lyric(id: song.id)
+        } else if song.source == .qishui, let trackID = song.qishuiTrackID {
+            raw = try? await QishuiMusicAPI.shared.lyric(trackID: trackID)
         } else if song.source == .qq, let mid = song.qqMid {
             raw = try? await QQMusicAPI.shared.lyric(songmid: mid)
         } else {

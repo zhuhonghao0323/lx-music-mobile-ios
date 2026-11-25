@@ -575,6 +575,13 @@ final class PlayerManager: NSObject, ObservableObject {
                     thirdPartyQuality: thirdPartyQuality,
                     enableUnblock: enableUnblock
                 )
+            } else if song.source == .qishui {
+                (urlString, resolvedThirdParty) = await qishuiResolve(
+                    song: song,
+                    quality: quality,
+                    thirdPartyQuality: thirdPartyQuality,
+                    enableUnblock: enableUnblock
+                )
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(
                     song: song,
@@ -719,6 +726,41 @@ final class PlayerManager: NSObject, ObservableObject {
                 quality: thirdPartyQuality
             )
         }
+        return (urlString, resolved)
+    }
+
+    /// 汽水播放：官方 `seo_track` 给的完整流直接播；只给试听片段时按设置决定是否换音源，
+    /// 换源也失败就保留失败状态，不把 30 秒试听当成整首播放。
+    private func qishuiResolve(
+        song: Song,
+        quality: BeansAudioQuality,
+        thirdPartyQuality: ThirdPartyAudioQuality = .current,
+        enableUnblock: Bool
+    ) async -> (String?, UnblockService.Resolved?) {
+        guard let trackID = song.qishuiTrackID, !trackID.isEmpty else { return (nil, nil) }
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        do {
+            urlString = try await QishuiMusicAPI.shared.songURL(trackID: trackID)
+        } catch {
+            BeansLogger.shared.log(
+                "汽水解析：\(song.name) 失败 \(error.localizedDescription)",
+                level: .warn
+            )
+            if let qishuiError = error as? QishuiError, qishuiError.invitesUnblock, enableUnblock {
+                resolved = await UnblockService.resolve(
+                    name: song.name,
+                    artists: song.artists,
+                    neteaseID: 0,
+                    songSource: .qishui,
+                    quality: thirdPartyQuality
+                )
+            }
+        }
+        BeansLogger.shared.log(
+            "汽水解析：\(song.name) 音质=\(quality.level) 官方URL=\(urlString == nil ? "无" : "有") 换源=\(resolved == nil ? "否" : "是")",
+            level: .debug
+        )
         return (urlString, resolved)
     }
 
@@ -1445,6 +1487,9 @@ final class PlayerManager: NSObject, ObservableObject {
                 strict: strict,
                 excludedHosts: excludedHosts
             )
+        case .qishui:
+            // 汽水是官方直连音源，播放由 QishuiMusicAPI 负责，不参与第三方脚本解析
+            return nil
         }
     }
 
@@ -1642,6 +1687,9 @@ final class PlayerManager: NSObject, ObservableObject {
         case .kuwo:
             // 酷我只能扫码登录，登录后按同一账号继续走官方地址
             return KuwoMusicAuth.shared.isLoggedIn
+        case .qishui:
+            // 汽水粘贴 Cookie 登录后按同一账号走官方地址
+            return QishuiMusicAuth.shared.isLoggedIn
         }
     }
 

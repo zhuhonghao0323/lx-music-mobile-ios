@@ -16,6 +16,7 @@ struct LibraryCloudSyncSource {
         case .migu: return "咪咕音乐"
         case .bodian: return "波点音乐"
         case .kuwo: return "酷我音乐"
+        case .qishui: return "汽水音乐"
         }
     }
 }
@@ -249,6 +250,8 @@ final class LibraryCloudSyncStore: ObservableObject {
             return try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
         case .migu:
             return []
+        case .qishui:
+            return try await QishuiMusicAPI.shared.playlistSongs(playlistID: playlist.externalID ?? String(playlist.id))
         }
     }
 

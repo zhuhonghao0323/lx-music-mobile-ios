@@ -55,6 +55,10 @@ struct PlaylistView: View {
             // 酷我按当前登录账号隔离缓存，未登录用固定值
             let kuwoAuth = KuwoMusicAuth.shared
             return kuwoAuth.isLoggedIn ? kuwoAuth.uid : "kuwo-guest"
+        case .qishui:
+            // 汽水按当前登录账号隔离缓存，未登录用固定值
+            let qishuiAuth = QishuiMusicAuth.shared
+            return qishuiAuth.isLoggedIn ? qishuiAuth.userId : "qishui-guest"
         }
     }
 
@@ -275,6 +279,8 @@ struct PlaylistView: View {
                 if tracks.isEmpty, playlist.isKuwoLikedPlaylist {
                     tracks = favorites.kuwoFavoriteSongs
                 }
+            } else if playlist.source == .qishui {
+                tracks = try await QishuiMusicAPI.shared.playlistSongs(playlistID: playlist.externalID ?? String(playlist.id))
             } else {
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
             }

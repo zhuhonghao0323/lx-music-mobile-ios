@@ -156,6 +156,8 @@ enum SearchProvider: String, CaseIterable, Identifiable, Hashable {
         case .migu: self = .migu
         case .bodian: self = .bodian
         case .kuwo: self = .kuwo
+        // 汽水暂不进入搜索平台选择器（搜索需要签名服务），映射到聚合模式
+        case .qishui: self = .all
         }
     }
 }
@@ -1230,7 +1232,7 @@ struct AlbumDetailView: View {
         do {
             let result: [Song]
             switch album.source {
-            case .kuwo:
+            case .kuwo, .qishui:
                 result = []
             case .netease:
                 guard let id = Int(album.id.replacingOccurrences(of: "netease-", with: "")) else {
