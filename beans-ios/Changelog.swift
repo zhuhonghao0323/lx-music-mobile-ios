@@ -68,6 +68,7 @@ enum ChangelogStore {
             ]
         ),
         VersionLog(
+            id: "1.20.0",
             version: "1.20.0",
             title: "沉浸式播放器重构：Liquid Glass 材质与动态封面背景",
             notices: [

@@ -873,6 +873,7 @@ struct CommunityQRSheet: View {
 struct AccountHubSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
+    @ObservedObject private var qishuiAuth = QishuiMusicAuth.shared
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
@@ -1318,7 +1319,6 @@ struct AccountHubSheet: View {
             QishuiHomeView()
                 .environmentObject(theme)
                 .environmentObject(auth)
-                .environmentObject(player)
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: "s.circle.fill")

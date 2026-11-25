@@ -1843,6 +1843,8 @@ struct LibraryView: View {
             ToastCenter.shared.show("波点歌单暂不支持删除")
         case .kuwo:
             ToastCenter.shared.show("酷我歌单请到酷我 App 或网页版删除")
+        case .qishui:
+            ToastCenter.shared.show("汽水歌单请到汽水音乐 App 删除")
         }
     }
 

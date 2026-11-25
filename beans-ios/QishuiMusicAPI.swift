@@ -208,7 +208,9 @@ final class QishuiMusicAPI {
             cursor = next
         }
         if meta["id"] == nil { meta["id"] = playlistID }
-        let playlist = Self.mapPlaylist(meta, fallbackID: playlistID, trackCount: max(trackCount, songs.count))
+        guard let playlist = Self.mapPlaylist(meta, fallbackID: playlistID, trackCount: max(trackCount, songs.count)) else {
+            throw QishuiError.invalidResponse
+        }
         BeansLogger.shared.log(
             "汽水歌单：id=\(playlistID) 接口 \(trackCount) 首 解析 \(songs.count) 首",
             level: songs.isEmpty ? .warn : .debug
