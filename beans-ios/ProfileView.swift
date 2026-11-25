@@ -873,6 +873,7 @@ struct CommunityQRSheet: View {
 struct AccountHubSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var player: PlayerManager
     @ObservedObject private var qishuiAuth = QishuiMusicAuth.shared
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
@@ -924,6 +925,7 @@ struct AccountHubSheet: View {
                         if platformPrefs.isEnabled(SearchProvider.kugou) { kugouCard }
                         if platformPrefs.isEnabled(SearchProvider.bodian) { bodianCard }
                         if platformPrefs.isEnabled(SearchProvider.kuwo) { kuwoCard }
+                        qishuiCard
                         if platformPrefs.isEnabled(SearchProvider.migu) { miguCard }
                         Text(isEnglish ? "Sign in to \(displayPlatformSummary) to sync playlists and improve playback availability" : "\(platformPrefs.summaryText) 登录后可同步歌单并提升可播成功率")
                             .font(BeansFont.appFont(11))
@@ -1314,11 +1316,16 @@ struct AccountHubSheet: View {
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.97))
 
+
+    }
+
+    private var qishuiCard: some View {
         // 汽水音乐：单独一页承载推荐 / 我的歌单，不并进全站平台切换
         NavigationLink {
             QishuiHomeView()
                 .environmentObject(theme)
                 .environmentObject(auth)
+                .environmentObject(player)
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: "s.circle.fill")
