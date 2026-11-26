@@ -1661,6 +1661,8 @@ struct DiscoverView: View {
             async let kuwoTop: [KuwoTopInfo] = (try? await KuwoMusicAPI.shared.charts(limit: 8)) ?? []
             async let kuwoPlaylists: [Playlist] = (try? await KuwoMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
             async let bodianPlaylists: [Playlist] = (try? await BodianMusicAPI.shared.recommendPlaylists(limit: 12)) ?? []
+            // 汽水没有单独的首页数据源，但推荐歌单是匿名可用的，混进「热门歌单」
+            async let qishuiPlaylists: [Playlist] = (try? await QishuiMusicAPI.shared.discoverPlaylists(limit: 12)) ?? []
             // async let 已经并行发起，这里逐个取值即可
             let nt = await neteaseTop
             let nd = await neteaseDaily
@@ -1672,12 +1674,13 @@ struct DiscoverView: View {
             let kw = await kuwoTop
             let kwp = await kuwoPlaylists
             let bp = await bodianPlaylists
+            let qsp = await qishuiPlaylists
             snapshot.topLists = nt
             snapshot.dailySongs = nd
             snapshot.qqTopLists = qt
             snapshot.kugouTopLists = kt
             snapshot.kuwoTopLists = kw
-            snapshot.personalized = Self.interleavePlaylists([np, qp, kp, kwp, bp])
+            snapshot.personalized = Self.interleavePlaylists([np, qp, kp, kwp, bp, qsp])
         }
         return snapshot
     }

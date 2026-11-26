@@ -32,6 +32,13 @@ final class QishuiMusicAuth: ObservableObject {
     /// 原始 Cookie 串，请求时原样放进 `Cookie` 头
     var cookieHeader: String { auth["cookie"] ?? "" }
 
+    /// 歌单缓存按账号隔离。资料还没拉回来时用固定值，避免缓存 key 在
+    /// 「空字符串 → userId」之间跳变导致已同步的歌单读不到。
+    var cacheAccountID: String {
+        guard isLoggedIn else { return "qishui-guest" }
+        return userId.isEmpty ? "qishui-user" : userId
+    }
+
     func cookieValue(_ name: String) -> String {
         Self.parseCookie(cookieHeader)[name] ?? ""
     }

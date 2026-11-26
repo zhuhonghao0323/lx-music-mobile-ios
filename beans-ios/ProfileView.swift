@@ -873,7 +873,6 @@ struct CommunityQRSheet: View {
 struct AccountHubSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
-    @EnvironmentObject private var player: PlayerManager
     @ObservedObject private var qishuiAuth = QishuiMusicAuth.shared
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
@@ -890,8 +889,10 @@ struct AccountHubSheet: View {
     @State private var showBodianLogin = false
     @State private var showKuwoLogin = false
     @State private var showMiguLogin = false
+    @State private var showQishuiLogin = false
     @State private var confirmKuwoLogout = false
     @State private var confirmMiguLogout = false
+    @State private var confirmQishuiLogout = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
     @State private var confirmKugouLogout = false
@@ -969,6 +970,10 @@ struct AccountHubSheet: View {
             MiguLoginSheet()
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showQishuiLogin) {
+            QishuiLoginSheet()
+                .environmentObject(theme)
+        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -1012,6 +1017,13 @@ struct AccountHubSheet: View {
             Button("退出登录", role: .destructive) {
                 miguAuth.logout()
                 ToastCenter.shared.show("已退出咪咕账号")
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("退出汽水音乐？", isPresented: $confirmQishuiLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                qishuiAuth.logout()
+                ToastCenter.shared.show("已退出汽水账号，音乐库里的汽水歌单会一并移除")
             }
             Button("取消", role: .cancel) {}
         }
@@ -1320,12 +1332,11 @@ struct AccountHubSheet: View {
     }
 
     private var qishuiCard: some View {
-        // 汽水音乐：单独一页承载推荐 / 我的歌单，不并进全站平台切换
-        NavigationLink {
-            QishuiHomeView()
-                .environmentObject(theme)
-                .environmentObject(auth)
-                .environmentObject(player)
+        // 汽水音乐只占「账号」这一格：推荐歌单在主页，个人歌单与歌曲在音乐库，
+        // 这里只负责 Cookie 登录 / 退出，和网易云、QQ 的卡片职责一致。
+        Button {
+            BeansHaptics.tap()
+            if qishuiAuth.isLoggedIn { confirmQishuiLogout = true } else { showQishuiLogin = true }
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: "s.circle.fill")
@@ -1340,15 +1351,15 @@ struct AccountHubSheet: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
                     Text(qishuiAuth.isLoggedIn
-                         ? (qishuiAuth.nickname.isEmpty ? "已登录 · 进入我的歌单" : "\(qishuiAuth.nickname) · 进入我的歌单")
-                         : "未登录 · 浏览推荐歌单")
+                         ? (qishuiAuth.nickname.isEmpty ? "已登录 · 歌单已同步到音乐库" : "\(qishuiAuth.nickname) · 歌单已同步到音乐库")
+                         : "未登录 · 推荐歌单在主页，登录后同步个人歌单")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
                 }
                 Spacer()
-                Text("进入")
+                Text(qishuiAuth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(Color.beansAmber)
                     .padding(.horizontal, 14)

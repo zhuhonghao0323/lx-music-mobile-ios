@@ -81,6 +81,30 @@ enum LibraryProvider: String, CaseIterable, Identifiable {
     var badge: LibraryWallBadge {
         LibraryWallBadge(title: shortName, symbol: icon, brandImage: brandImageName, tint: solidTint)
     }
+
+    /// 汽水歌单在音乐库墙上的角标。汽水不参与 `LibraryProvider` 的平台切换
+    /// （搜索与完播依赖签名服务），只借这个角标标记歌单来源。
+    static let qishuiBadge = LibraryWallBadge(
+        title: "汽水",
+        symbol: "s.circle.fill",
+        brandImage: nil,
+        tint: Color(red: 0.06, green: 0.66, blue: 0.62)
+    )
+}
+
+/// 音乐库歌单墙上的一条云端歌单：平台账号歌单或汽水个人歌单。
+/// 只带渲染需要的信息，避免让汽水混进 `LibraryProvider` 的平台切换枚举。
+private struct CloudPlaylistEntry {
+    let playlist: Playlist
+    let accountID: String
+    let badge: LibraryWallBadge
+
+    /// 「全部歌单」以外的平台筛选：按歌单自身的 `SongSource` 比较
+    func belongs(to provider: LibraryProvider) -> Bool {
+        playlist.source == provider.songSource
+    }
+
+    var platformKey: String { playlist.source.rawValue }
 }
 
 private extension LibraryProvider {
@@ -138,9 +162,13 @@ struct LibraryView: View {
     @State private var miguPlaylists: [Playlist] = []
     @State private var miguLoading = false
     @State private var miguSavedAt = Date.distantPast
+    /// 汽水个人歌单：没有独立标签页，登录后直接进「全部歌单」，歌曲走云同步进「全部歌曲」
+    @State private var qishuiPlaylists: [Playlist] = []
+    @State private var qishuiSavedAt = Date.distantPast
     @ObservedObject private var bodianAuth = BodianMusicAuth.shared
     @ObservedObject private var kuwoAuth = KuwoMusicAuth.shared
     @ObservedObject private var miguAuth = MiguMusicAuth.shared
+    @ObservedObject private var qishuiAuth = QishuiMusicAuth.shared
     @ObservedObject private var importedStore = ImportedPlaylistStore.shared
     @ObservedObject private var hiddenPlaylists = HiddenPlaylistStore.shared
     @ObservedObject private var localLibrary = LocalLibraryStore.shared
@@ -189,6 +217,10 @@ struct LibraryView: View {
         SyncedPlaylistOrderStore.shared.ordered(miguPlaylists, source: .migu)
     }
 
+    private var orderedQishuiPlaylists: [Playlist] {
+        SyncedPlaylistOrderStore.shared.ordered(qishuiPlaylists, source: .qishui)
+    }
+
     private var qqCacheAccountID: String {
         let raw = qqAuth.rawUin
         return raw.isEmpty ? qqAuth.playlistUin : raw
@@ -209,6 +241,8 @@ struct LibraryView: View {
     private var miguCacheAccountID: String {
         miguAuth.isLoggedIn ? "migu-user" : "migu-guest"
     }
+
+    private var qishuiCacheAccountID: String { qishuiAuth.cacheAccountID }
 
     private var syncedPlaylistBinding: Binding<[Playlist]> {
         Binding(
@@ -317,6 +351,8 @@ struct LibraryView: View {
         .task {
             source = platformPrefs.ensureVisible(source)
             await cloudSync.rebuildFromCache()
+            // 汽水没有自己的标签页，进音乐库时先把它已缓存的歌单补进「全部歌单」
+            await loadQishuiPlaylists(force: false)
         }
         .task(id: source) {
             await refreshCurrentSource(force: false)
@@ -357,6 +393,14 @@ struct LibraryView: View {
             guard platformPrefs.isEnabled(SearchProvider.migu) else { return }
             if miguAuth.isLoggedIn { source = .migu }
             Task { await loadMiguPlaylists(force: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .beansQishuiLoginDidUpdate)) { _ in
+            // 汽水歌单直接进「全部歌单」，登录后回到全部视图让用户马上看到
+            if qishuiAuth.isLoggedIn {
+                libraryShowsAll = true
+                libraryShowsImported = false
+            }
+            Task { await loadQishuiPlaylists(force: true) }
         }
         .sheet(isPresented: $showHistory) {
             HistoryView()
@@ -546,7 +590,7 @@ struct LibraryView: View {
             let n = importedStore.items.count
             return n == 0 ? "用链接导入平台歌单，歌曲保存在本机" : "本地保存 \(n) 个 · 可更新 / 删除"
         }
-        let cloud = libraryShowsAll ? allCloudPlaylists : allCloudPlaylists.filter { $0.provider == source }
+        let cloud = libraryShowsAll ? allCloudPlaylists : allCloudPlaylists.filter { $0.belongs(to: source) }
         let count = cloud.count + importedStore.items.count
         if libraryShowsAll {
             if count == 0 { return "全部平台的歌单与收藏会汇总在这里" }
@@ -758,31 +802,44 @@ struct LibraryView: View {
     // 音乐库歌单区现在展示全部平台（见 allCloudPlaylists），这个属性保留给其它板块使用。
 
     /// 所有已登录平台的云端歌单（不再只看当前选中平台）
-    private var allCloudPlaylists: [(playlist: Playlist, provider: LibraryProvider)] {
-        var result: [(Playlist, LibraryProvider)] = []
+    private var allCloudPlaylists: [CloudPlaylistEntry] {
+        var result: [CloudPlaylistEntry] = []
         for provider in libraryProviders {
             switch provider {
             case .netease:
                 guard auth.isLoggedIn else { continue }
-                result += orderedNeteasePlaylists.map { ($0, .netease) }
+                result += syncEntries(orderedNeteasePlaylists, provider: .netease)
             case .qq:
                 guard qqAuth.isLoggedIn else { continue }
-                result += orderedQQPlaylists.map { ($0, .qq) }
+                result += syncEntries(orderedQQPlaylists, provider: .qq)
             case .kugou:
                 guard kugouAuth.isLoggedIn else { continue }
-                result += orderedKugouPlaylists.map { ($0, .kugou) }
+                result += syncEntries(orderedKugouPlaylists, provider: .kugou)
             case .bodian:
                 guard bodianAuth.isLoggedIn else { continue }
-                result += orderedBodianPlaylists.map { ($0, .bodian) }
+                result += syncEntries(orderedBodianPlaylists, provider: .bodian)
             case .kuwo:
                 guard kuwoAuth.isLoggedIn else { continue }
-                result += orderedKuwoPlaylists.map { ($0, .kuwo) }
+                result += syncEntries(orderedKuwoPlaylists, provider: .kuwo)
             case .migu:
                 guard miguAuth.isLoggedIn else { continue }
-                result += orderedMiguPlaylists.map { ($0, .migu) }
+                result += syncEntries(orderedMiguPlaylists, provider: .migu)
+            }
+        }
+        // 汽水没有独立的音乐库标签页（搜索与完播要签名服务，给一个默认不可用的平台入口会误导），
+        // 但个人歌单和别的平台一样进「全部歌单」，歌曲进「全部歌曲」。
+        if qishuiAuth.isLoggedIn {
+            let accountID = qishuiCacheAccountID
+            result += orderedQishuiPlaylists.map {
+                CloudPlaylistEntry(playlist: $0, accountID: accountID, badge: LibraryProvider.qishuiBadge)
             }
         }
         return result
+    }
+
+    private func syncEntries(_ playlists: [Playlist], provider: LibraryProvider) -> [CloudPlaylistEntry] {
+        let accountID = cacheAccountID(for: provider)
+        return playlists.map { CloudPlaylistEntry(playlist: $0, accountID: accountID, badge: provider.badge) }
     }
 
     private func cacheAccountID(for provider: LibraryProvider) -> String {
@@ -797,8 +854,8 @@ struct LibraryView: View {
     }
 
     /// 歌单歌曲数：优先用已同步到本机的实际条数，其次用平台返回的 trackCount
-    private func wallSongCount(for playlist: Playlist, provider: LibraryProvider) -> Int {
-        let cached = SyncedPlaylistCache.shared.meta(for: playlist, accountID: cacheAccountID(for: provider))?.count ?? 0
+    private func wallSongCount(for playlist: Playlist, accountID: String) -> Int {
+        let cached = SyncedPlaylistCache.shared.meta(for: playlist, accountID: accountID)?.count ?? 0
         return max(playlist.trackCount, cached)
     }
 
@@ -836,12 +893,12 @@ struct LibraryView: View {
         }
 
         for entry in allCloudPlaylists {
-            // 选定具体平台后，云歌单只看该平台；「全部」时不过滤
-            if !libraryShowsAll, entry.provider != source { continue }
+            // 选定具体平台后，云歌单只看该平台；「全部」时不过滤（汽水歌单只在这一档出现）
+            if !libraryShowsAll, !entry.belongs(to: source) { continue }
             let playlist = entry.playlist
             let id = "synced-\(playlist.source.rawValue)-\(playlist.id)"
             guard !hiddenPlaylists.isHidden(id) else { continue }
-            let count = wallSongCount(for: playlist, provider: entry.provider)
+            let count = wallSongCount(for: playlist, accountID: entry.accountID)
             items.append(
                 LibraryWallItem(
                     id: id,
@@ -849,8 +906,8 @@ struct LibraryView: View {
                     coverURL: playlist.coverURL,
                     count: count,
                     subtitle: count > 0 ? beansSongCountText(count) : "歌单",
-                    badge: entry.provider.badge,
-                    platformKey: entry.provider.rawValue,
+                    badge: entry.badge,
+                    platformKey: entry.platformKey,
                     onOpen: { openRoute(LibraryRoute.playlist(playlist)) },
                     onDelete: { requestDelete(playlist) }
                 )
@@ -905,7 +962,8 @@ struct LibraryView: View {
             LibraryCloudSyncSource(source: .kugou, accountID: kugouCacheAccountID, playlists: kugouAuth.isLoggedIn ? kugouPlaylists : []),
             LibraryCloudSyncSource(source: .bodian, accountID: bodianCacheAccountID, playlists: bodianAuth.isLoggedIn ? bodianPlaylists : []),
             LibraryCloudSyncSource(source: .kuwo, accountID: kuwoCacheAccountID, playlists: kuwoAuth.isLoggedIn ? kuwoPlaylists : []),
-            LibraryCloudSyncSource(source: .migu, accountID: miguCacheAccountID, playlists: miguAuth.isLoggedIn ? miguPlaylists : [])
+            LibraryCloudSyncSource(source: .migu, accountID: miguCacheAccountID, playlists: miguAuth.isLoggedIn ? miguPlaylists : []),
+            LibraryCloudSyncSource(source: .qishui, accountID: qishuiCacheAccountID, playlists: qishuiAuth.isLoggedIn ? orderedQishuiPlaylists : [])
         ]
     }
 
@@ -1322,6 +1380,9 @@ struct LibraryView: View {
             if platformPrefs.isEnabled(SearchProvider.migu) && miguAuth.isLoggedIn {
                 group.addTask { await loadMiguPlaylists(force: false) }
             }
+            if qishuiAuth.isLoggedIn {
+                group.addTask { await loadQishuiPlaylists(force: false) }
+            }
         }
     }
 
@@ -1340,6 +1401,8 @@ struct LibraryView: View {
         case .kuwo:
             await loadKuwoPlaylists(force: force)
         }
+        // 汽水没有独立标签页，但它的歌单会混在「全部歌单」里，切换平台 / 下拉刷新时一并补齐
+        await loadQishuiPlaylists(force: force)
     }
 
     /// QQ 模式整体内容：用户歌单（创建 + 收藏同步）
@@ -1724,6 +1787,35 @@ struct LibraryView: View {
             cache.savePlaylists(list, source: .migu, accountID: miguCacheAccountID)
         }
         miguLoading = false
+    }
+
+    /// 汽水个人歌单：Cookie 登录后从 `/luna/pc/me/playlist` 拉取，走和其它平台一样的
+    /// 15 分钟歌单缓存。没有独立标签页，只喂给「全部歌单」和云同步。
+    private func loadQishuiPlaylists(force: Bool = false) async {
+        guard qishuiAuth.isLoggedIn else {
+            qishuiPlaylists = []
+            return
+        }
+        let cache = SyncedPlaylistCache.shared
+        if qishuiPlaylists.isEmpty,
+           let cached = cache.cachedPlaylists(source: .qishui, accountID: qishuiCacheAccountID) {
+            qishuiPlaylists = cached.playlists
+            qishuiSavedAt = cached.savedAt
+        }
+        if !force, !qishuiPlaylists.isEmpty, Date().timeIntervalSince(qishuiSavedAt) < cache.playlistTTL { return }
+        do {
+            let list = try await QishuiMusicAPI.shared.userPlaylists()
+            if !list.isEmpty {
+                qishuiPlaylists = list
+                qishuiSavedAt = Date()
+                cache.savePlaylists(list, source: .qishui, accountID: qishuiCacheAccountID)
+                BeansLogger.shared.log("汽水歌单同步：\(list.count) 个", level: .info)
+            } else {
+                BeansLogger.shared.log("汽水歌单同步为空：确认 Cookie 是否过期", level: .warn)
+            }
+        } catch {
+            BeansLogger.shared.log("汽水歌单同步失败：\(error.localizedDescription)", level: .warn)
+        }
     }
 
     private func fillQQPlaylistCovers(_ list: [Playlist]) async {

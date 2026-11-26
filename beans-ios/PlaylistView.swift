@@ -56,9 +56,8 @@ struct PlaylistView: View {
             let kuwoAuth = KuwoMusicAuth.shared
             return kuwoAuth.isLoggedIn ? kuwoAuth.uid : "kuwo-guest"
         case .qishui:
-            // 汽水按当前登录账号隔离缓存，未登录用固定值
-            let qishuiAuth = QishuiMusicAuth.shared
-            return qishuiAuth.isLoggedIn ? qishuiAuth.userId : "qishui-guest"
+            // 汽水按当前登录账号隔离缓存，未登录用固定值（与音乐库共用同一个 key）
+            return QishuiMusicAuth.shared.cacheAccountID
         }
     }
 

@@ -57,7 +57,7 @@ struct QishuiLoginSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("用网页 Cookie 登录")
                 .font(.system(size: 17, weight: .semibold))
-            Text("1. 在电脑浏览器打开 music.douyin.com 并登录汽水音乐\n2. 按 F12 → Network → 任选一个请求 → 复制请求头里的 Cookie\n3. 粘贴到下面保存\n\nCookie 只保存在本机，不会上传到任何服务器。不登录也能浏览推荐歌单和歌词。")
+            Text("1. 在电脑浏览器打开 music.douyin.com 并登录汽水音乐\n2. 按 F12 → Network → 任选一个请求 → 复制请求头里的 Cookie\n3. 粘贴到下面保存\n\nCookie 只保存在本机，不会上传到任何服务器。不登录也能在主页浏览推荐歌单；登录后个人歌单会同步到音乐库「全部歌单」。")
                 .font(.system(size: 13))
                 .foregroundStyle(Color.beansComment)
                 .fixedSize(horizontal: false, vertical: true)
@@ -187,6 +187,7 @@ struct QishuiLoginSheet: View {
                 saving = false
                 if ok {
                     message = "登录成功：\(qishuiAuth.nickname.isEmpty ? "汽水音乐" : qishuiAuth.nickname)"
+                    ToastCenter.shared.show("汽水个人歌单已加入音乐库；歌曲可在音乐库右上角云同步汇总")
                     dismiss()
                 } else {
                     message = "Cookie 已保存，但资料校验没通过。若播放仍失败，请确认复制的是 music.douyin.com 的完整 Cookie。"

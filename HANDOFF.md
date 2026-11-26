@@ -11,7 +11,7 @@
 
 电脑关机后，手机 App 用「云端工作」执行环境接手。云端沙箱是 **Linux**，没有 Xcode，**改完必须靠 GitHub Actions 出包**。
 
-### 0.0 本轮（2026-11-26，版本 **1.21.0 (94)**）：酷狗歌单修复 + 汽水接入
+### 0.0 本轮（2026-11-26，版本 **1.21.0 (95)**）：酷狗歌单修复 + 汽水接入
 
 参照 `https://github.com/Wow-CaiCai/Coda`（AGPL-3.0，仅作协议对照，未复制其代码）修了两件事。
 
@@ -30,9 +30,14 @@
 - 已验证免签名可用：`POST /luna/discover/mix`（推荐歌单）、`GET /luna/pc/playlist/detail`（游标分页）、`GET /luna/h5/seo_track`（曲目 + KRC 逐字歌词 + `video_model` 播放地址）、`/luna/pc/me*`（带 Cookie 的账号资料与歌单）
 - 实测匿名 `video_model` 是 **30 秒试听**（`playable_range` = 143.8s 起 35.1s），且音频**未加密**（`ftyp` M4A，无 `enca`），所以没有移植 Coda 的 MP4 解密器
 - 搜索需要签名：做成「高级设置里填自部署签名服务」，默认关闭，签名请求**不携带 Cookie**
-- 新增文件：`QishuiMusicAuth.swift`（Cookie 存储）、`QishuiMusicAPI.swift`（接口 + KRC→LRC）、`QishuiHomeView.swift`（独立入口）、`QishuiLoginSheet.swift`
+- 新增文件：`QishuiMusicAuth.swift`（Cookie 存储 + `cacheAccountID`）、`QishuiMusicAPI.swift`（接口 + KRC→LRC）、`QishuiLoginSheet.swift`（登录面板）
+- **内容按 App 原有功能分区**（第一版把推荐/个人歌单塞进「我的」独立页，已废弃并删除 `QishuiHomeView.swift`）：
+  - 推荐歌单 → 主页「热门歌单」，`DiscoverView.fetchSnapshot(.all)` 里和网易云/QQ/酷狗/酷我/波点一起 `interleavePlaylists`
+  - 个人歌单 → 音乐库「全部歌单」：`LibraryView.allCloudPlaylists` 改为 `CloudPlaylistEntry`（歌单 + 账号 + 角标），汽水歌单挂「汽水」角标混排，不新增平台标签页
+  - 个人歌单歌曲 → 音乐库「全部歌曲」：`syncSources` 增加 `.qishui`，走原有 `LibraryCloudSyncStore` 云同步
+  - 「我的 → 账号 → 汽水音乐」只剩登录 / 退出，和其它平台账号卡职责一致
 - 接入点：`SongSource.qishui`、`Song.qishuiTrackID`、`PlayerManager.loadCurrent` 的 `qishuiResolve`、歌词两处（PlayerView / MiniPlayerView）、下载、红心（本地）、分享链接
-- **没有**并进 `LibraryProvider` / `SearchProvider`：这两个枚举各自带 15+ 处 UI 分支，并进去会把「搜索里选到汽水但没有结果」暴露给用户
+- **没有**并进 `LibraryProvider` / `SearchProvider`：这两个枚举各自带 15+ 处 UI 分支，并进去会把「搜索里选到汽水但没有结果」暴露给用户；音乐库靠 `CloudPlaylistEntry` 承载汽水，避免多一个默认不可用的平台 tab（顶部分段控件 7 个会挤爆）
 
 汽水未做：扫码登录、评论、歌单编辑、云端红心、歌单导入。
 
