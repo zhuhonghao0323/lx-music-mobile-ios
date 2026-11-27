@@ -142,7 +142,7 @@ struct ImmersivePlayerView: View {
 
             infoBlock
 
-            Color.clear.frame(height: 18)
+            Color.clear.frame(height: 10)
 
             lyricPreview
 
@@ -303,7 +303,7 @@ struct ImmersivePlayerView: View {
 
     private var lyricPreview: some View {
         let rows = previewRows
-        return VStack(spacing: 10) {
+        return VStack(spacing: 8) {
             if rows.isEmpty {
                 Text(lyrics.isEmpty ? "暂无歌词" : "轻点封面查看完整歌词")
                     .font(BeansFont.appFont(14, .regular))
@@ -325,7 +325,7 @@ struct ImmersivePlayerView: View {
                 }
             }
         }
-        .frame(height: 132)
+        .frame(height: 108)
         .padding(.horizontal, 26)
         .contentShape(Rectangle())
         .onTapGesture { openLyrics() }
@@ -795,19 +795,19 @@ struct ImmersivePlayerView: View {
 private struct ImmersiveLayout {
     let size: CGSize
 
-    /// 封面尺寸：宽度优先，同时给信息、歌词和三段控制区留足空间。
-    /// 屏幕越矮封面越小，保证任何机型都不会挤压播放控制。
+    /// 封面尺寸：先把顶栏、信息、5 行歌词、控制区的高度扣掉，剩下的才是封面可用空间。
+    /// 屏幕越矮封面越小，保证任何机型都不会挤压播放控制，也不会把歌词预览裁掉。
     var coverSide: CGFloat {
         let widthLimit = max(size.width - 48, 132)
-        let reserved: CGFloat = 44 + topGap + coverGap + 96 + 14 + 132 + deckReserve + 12
+        let reserved: CGFloat = 44 + topGap + coverGap + 84 + 10 + 108 + deckReserve + 8
         let heightLimit = max(size.height - reserved, 132)
         return min(min(widthLimit, heightLimit), 400)
     }
 
     var coverCorner: CGFloat { 22 }
-    var topGap: CGFloat { 14 }
-    var coverGap: CGFloat { 22 }
-    var deckReserve: CGFloat { 140 }
+    var topGap: CGFloat { 10 }
+    var coverGap: CGFloat { 16 }
+    var deckReserve: CGFloat { 136 }
 }
 
 // MARK: - 进度条（细轨 + 拖动放大手柄，点击/拖动都可跳转）
