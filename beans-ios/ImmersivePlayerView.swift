@@ -66,7 +66,7 @@ struct ImmersivePlayerView: View {
 
             ZStack(alignment: .bottom) {
                 // 背景单独铺满整屏；内容仍留在安全区内，顶栏不会再压到状态栏
-                ImmersiveBackdrop(songURL: song?.coverURL)
+                ImmersiveBackdrop(songURL: song?.coverURL, isPlaying: player.isPlaying)
                     .ignoresSafeArea()
 
                 pages(layout: layout)
@@ -297,44 +297,58 @@ struct ImmersivePlayerView: View {
     private struct PreviewRow: Identifiable {
         let id: Int
         let text: String
-        let isCurrent: Bool
+        /// 与当前行的距离：0 = 正在唱，负数已唱过，正数还没到
+        let distance: Int
     }
 
     private var lyricPreview: some View {
         let rows = previewRows
-        return VStack(spacing: 9) {
+        return VStack(spacing: 10) {
             if rows.isEmpty {
                 Text(lyrics.isEmpty ? "暂无歌词" : "轻点封面查看完整歌词")
                     .font(BeansFont.appFont(14, .regular))
                     .foregroundStyle(.white.opacity(0.28))
             } else {
                 ForEach(rows) { row in
-                    Text(row.text)
-                        .font(BeansFont.appFont(row.isCurrent ? 16.5 : 14.5, row.isCurrent ? .semibold : .regular))
-                        .foregroundStyle(.white.opacity(row.isCurrent ? 0.92 : 0.26))
+                    let gap = abs(row.distance)
+                    let isCurrent = row.distance == 0
+                    Text(row.text.isEmpty ? "♪" : row.text)
+                        .font(BeansFont.appFont(isCurrent ? 20 : max(13.5, 16 - CGFloat(gap) * 1.2),
+                                                isCurrent ? .semibold : .regular))
+                        .foregroundStyle(.white.opacity(lyricPreviewOpacity(gap: gap, isCurrent: isCurrent)))
+                        .shadow(color: isCurrent ? .white.opacity(0.22) : .clear, radius: 10)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                        .minimumScaleFactor(0.78)
+                        .blur(radius: gap >= 2 ? 0.4 : 0)
+                        .scaleEffect(isCurrent ? 1 : 0.985)
                         .frame(maxWidth: .infinity)
                 }
             }
         }
-        .frame(height: 84)
-        .padding(.horizontal, 32)
+        .frame(height: 132)
+        .padding(.horizontal, 26)
         .contentShape(Rectangle())
         .onTapGesture { openLyrics() }
-        .animation(.easeInOut(duration: 0.24), value: currentLyricIndex)
+        .animation(.spring(response: 0.46, dampingFraction: 0.88), value: currentLyricIndex)
+    }
+
+    /// 当前行最亮，越远越淡；但保底 0.12，保证整块歌词仍有轮廓
+    private func lyricPreviewOpacity(gap: Int, isCurrent: Bool) -> Double {
+        if isCurrent { return 0.96 }
+        return max(0.12, 0.40 - Double(gap - 1) * 0.11)
     }
 
     private var previewRows: [PreviewRow] {
         guard !lyrics.isEmpty else { return [] }
         let index = currentLyricIndex ?? 0
         var rows: [PreviewRow] = []
-        if let previous = neighborIndex(from: index, step: -1) {
-            rows.append(PreviewRow(id: previous, text: lyrics[previous].text, isCurrent: false))
-        }
-        rows.append(PreviewRow(id: index, text: lyrics[index].text, isCurrent: true))
-        if let next = neighborIndex(from: index, step: 1) {
-            rows.append(PreviewRow(id: next, text: lyrics[next].text, isCurrent: false))
+        for step in -2...2 {
+            if step == 0 {
+                rows.append(PreviewRow(id: index, text: lyrics[index].text, distance: 0))
+                continue
+            }
+            guard let target = neighborIndex(from: index, step: step) else { continue }
+            rows.append(PreviewRow(id: target, text: lyrics[target].text, distance: step))
         }
         return rows
     }
@@ -371,22 +385,19 @@ struct ImmersivePlayerView: View {
     // MARK: - 5/6. 底部：进度 + 控制
 
     private var deck: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             ImmersiveScrubber()
 
             HStack(spacing: 0) {
-                GlassCircleButton(
-                    systemName: player.playMode.icon,
-                    size: 42,
-                    iconSize: 16,
-                    thickness: .regular,
+                sideControl(
+                    icon: player.playMode.icon,
                     active: player.playMode != .sequential,
                     accessibility: player.playMode.title
                 ) {
                     player.togglePlayMode()
                 }
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
 
                 transportButton("backward.fill") {
                     switchSong(up: false)
@@ -398,15 +409,9 @@ struct ImmersivePlayerView: View {
                     switchSong(up: true)
                 }
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
 
-                GlassCircleButton(
-                    systemName: "list.bullet",
-                    size: 42,
-                    iconSize: 16,
-                    thickness: .regular,
-                    accessibility: "播放列表"
-                ) {
+                sideControl(icon: "list.bullet", active: false, accessibility: "播放列表") {
                     onQueue()
                 }
             }
@@ -414,6 +419,27 @@ struct ImmersivePlayerView: View {
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
+    }
+
+    /// 两侧次级控件：不做玻璃圆底，压低存在感，让视觉焦点留给封面与主播放键
+    private func sideControl(
+        icon: String,
+        active: Bool,
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            BeansHaptics.tap()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white.opacity(active ? 0.95 : 0.52))
+                .frame(width: 46, height: 46)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(LiquidGlassButtonStyle(scale: 0.90))
+        .accessibilityLabel(accessibility)
     }
 
     private func transportButton(_ icon: String, action: @escaping () -> Void) -> some View {
@@ -467,21 +493,25 @@ struct ImmersivePlayerView: View {
                     secondary: .white.opacity(0.92),
                     gradientStart: nil,
                     gradientEnd: nil,
-                    // 沉浸页单行更宽、还要留翻译行，字号上限收到 21：再大当前行会折成两行把整页撑乱
-                    baseFontSize: CGFloat(min(max(lyricFontSize, 15), 21)),
-                    lineSpacing: CGFloat(min(max(lyricSpacing, 16), 34)),
+                    // 沉浸歌词：字号整体抬高，当前行再额外放大 8pt，形成 Apple Music 那种"一句压全场"的层次
+                    baseFontSize: CGFloat(min(max(lyricFontSize, 18), 26)),
+                    lineSpacing: CGFloat(min(max(lyricSpacing, 20), 40)),
                     glowRadius: 0,
                     showTranslation: lyricTranslation,
                     alignment: lyricAlignRaw == "left" ? .leading : .center,
                     offsetX: CGFloat(lyricOffsetX),
                     anchor: .center,
                     glowColorOverride: nil,
-                    blurStart: 3,
-                    blurAmount: 0.6,
+                    blurStart: 4,
+                    blurAmount: 0.5,
                     tilt: 0,
                     tiltY: 0,
                     lyricOffset: CGFloat(lyricOffset),
-                    displayMode: LyricDisplayMode(rawValue: lyricDisplayModeRaw) ?? .classic
+                    displayMode: LyricDisplayMode(rawValue: lyricDisplayModeRaw) ?? .classic,
+                    focusBoost: 8,
+                    pendingOpacity: 0.42,
+                    playedOpacity: 0.30,
+                    focusScale: 1.02
                 ) { line in
                     BeansHaptics.tap()
                     player.seek(to: LyricTiming.seekTime(for: line, userOffset: lyricOffset))
@@ -490,6 +520,14 @@ struct ImmersivePlayerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 歌词页单独加一层极淡压暗：背景变得更通透后，保证长句仍然清晰
+        .background {
+            LinearGradient(
+                colors: [.black.opacity(0.06), .black.opacity(0.20), .black.opacity(0.08)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
         .simultaneousGesture(lyricsSwipeBackGesture)
     }
 
@@ -760,16 +798,16 @@ private struct ImmersiveLayout {
     /// 封面尺寸：宽度优先，同时给信息、歌词和三段控制区留足空间。
     /// 屏幕越矮封面越小，保证任何机型都不会挤压播放控制。
     var coverSide: CGFloat {
-        let widthLimit = max(size.width - 56, 132)
-        let reserved: CGFloat = 44 + topGap + coverGap + 96 + 18 + 84 + deckReserve + 12
+        let widthLimit = max(size.width - 48, 132)
+        let reserved: CGFloat = 44 + topGap + coverGap + 96 + 14 + 132 + deckReserve + 12
         let heightLimit = max(size.height - reserved, 132)
-        return min(min(widthLimit, heightLimit), 380)
+        return min(min(widthLimit, heightLimit), 400)
     }
 
-    var coverCorner: CGFloat { 20 }
-    var topGap: CGFloat { 22 }
-    var coverGap: CGFloat { 26 }
-    var deckReserve: CGFloat { 134 }
+    var coverCorner: CGFloat { 22 }
+    var topGap: CGFloat { 14 }
+    var coverGap: CGFloat { 22 }
+    var deckReserve: CGFloat { 140 }
 }
 
 // MARK: - 进度条（细轨 + 拖动放大手柄，点击/拖动都可跳转）

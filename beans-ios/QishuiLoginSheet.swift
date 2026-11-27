@@ -1,8 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// 汽水音乐账号：粘贴网页 Cookie 登录。
-/// 汽水扫码要求官方 `bdms.js` 生成签名，这里先用 Cookie 方案，说明写清楚避免误以为要账号密码。
+/// 汽水音乐账号。
+///
+/// 主路径：应用内打开官方网页，用户用**抖音扫码**或**手机号验证码**登录，
+/// 登录态 Cookie 由官方页面写入 WKWebView 存储后自动回收，不需要 F12 抓包。
+/// 兜底路径：仍保留网页 Cookie 粘贴，方便浏览器已经登录、或网页登录受限的情况。
 struct QishuiLoginSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
@@ -13,17 +16,24 @@ struct QishuiLoginSheet: View {
     @State private var signerURL = ""
     @State private var signerToken = ""
     @State private var showAdvanced = false
+    @State private var showCookieFallback = false
+    @State private var showWebLogin = false
     @State private var saving = false
     @State private var message: String?
 
     var body: some View {
         BeansNavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    intro
-                    cookieField
-                    if qishuiAuth.isLoggedIn { loggedInCard }
+                VStack(alignment: .leading, spacing: 16) {
+                    if qishuiAuth.isLoggedIn {
+                        loggedInCard
+                    } else {
+                        loginHero
+                    }
+
+                    cookieFallbackSection
                     advancedSection
+
                     if let message {
                         Text(message)
                             .font(.system(size: 12.5))
@@ -40,10 +50,6 @@ struct QishuiLoginSheet: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("关闭") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(qishuiAuth.isLoggedIn ? "更新" : "登录") { save() }
-                        .disabled(saving || QishuiMusicAuth.normalize(cookieText).isEmpty)
-                }
             }
             .onAppear {
                 cookieText = qishuiAuth.cookieHeader
@@ -51,15 +57,68 @@ struct QishuiLoginSheet: View {
                 signerToken = api.signerToken
             }
         }
+        .sheet(isPresented: $showWebLogin) {
+            QishuiWebLoginPanel {
+                message = "汽水音乐登录成功"
+            }
+            .environmentObject(theme)
+        }
     }
 
-    private var intro: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("用网页 Cookie 登录")
-                .font(.system(size: 17, weight: .semibold))
-            Text("1. 在电脑浏览器打开 music.douyin.com 并登录汽水音乐\n2. 按 F12 → Network → 任选一个请求 → 复制请求头里的 Cookie\n3. 粘贴到下面保存\n\nCookie 只保存在本机，不会上传到任何服务器。不登录也能在主页浏览推荐歌单；登录后个人歌单会同步到音乐库「全部歌单」。")
-                .font(.system(size: 13))
+    // MARK: - 主入口
+
+    private var loginHero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.beansAmber.opacity(0.95), Color.beansAmber.opacity(0.55)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 46, height: 46)
+                    Image(systemName: "music.note")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("登录汽水音乐")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text("抖音扫码或手机号验证码，几秒完成")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color.beansComment)
+                }
+            }
+
+            Text("登录后个人歌单会同步到音乐库「全部歌单」，歌曲进入「全部歌曲」云同步。不登录也可以浏览主页的推荐歌单。")
+                .font(.system(size: 12.5))
                 .foregroundStyle(Color.beansComment)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                BeansHaptics.tap()
+                showWebLogin = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("扫码 / 手机号登录")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(Color.beansAmber, in: Capsule())
+            }
+            .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+
+            Text("在应用内打开官方登录页：可用抖音扫一扫，或输入手机号接收验证码。Cookie 只保存在本机。")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Color.beansComment.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
@@ -67,62 +126,113 @@ struct QishuiLoginSheet: View {
         .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
     }
 
-    private var cookieField: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Cookie")
-                    .font(.system(size: 13, weight: .medium))
+    // MARK: - 已登录
+
+    private var loggedInCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.green)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(qishuiAuth.nickname.isEmpty ? "已保存登录状态" : qishuiAuth.nickname)
+                        .font(.system(size: 14, weight: .medium))
+                    Text(qishuiAuth.userId.isEmpty ? "账号 ID 会在首次刷新资料后显示" : "ID \(qishuiAuth.userId)")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Color.beansComment)
+                }
                 Spacer()
-                Button("从剪贴板粘贴") {
-                    if let text = UIPasteboard.general.string {
-                        cookieText = text
-                    }
+                Button("退出") {
+                    qishuiAuth.logout()
+                    cookieText = ""
+                    message = "已退出汽水音乐"
                 }
                 .font(.system(size: 12.5))
+                .foregroundStyle(.red)
             }
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-                TextEditor(text: $cookieText)
-                    .font(.system(size: 12, design: .monospaced))
-                    .frame(minHeight: 96)
-                    .padding(8)
-                    .background(Color.clear)
+
+            Button {
+                BeansHaptics.tap()
+                showWebLogin = true
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Text("重新登录")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.beansAmber)
             }
-            if !qishuiAuth.cookieHeader.isEmpty {
-                Text("当前已保存的 Cookie 含 \(QishuiMusicAuth.parseCookie(qishuiAuth.cookieHeader).count) 个字段")
-                    .font(.system(size: 11.5))
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
+    }
+
+    // MARK: - Cookie 兜底
+
+    private var cookieFallbackSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showCookieFallback.toggle() }
+            } label: {
+                HStack {
+                    Text("网页登录不可用？粘贴 Cookie")
+                        .font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    Image(systemName: showCookieFallback ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(Color.beansLabel)
+            }
+            .buttonStyle(.plain)
+
+            if showCookieFallback {
+                Text("1. 在电脑浏览器打开 music.douyin.com 并登录\n2. F12 → Network → 任选一个请求 → 复制请求头里的 Cookie\n3. 粘贴到下面保存")
+                    .font(.system(size: 12))
                     .foregroundStyle(Color.beansComment)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                    TextEditor(text: $cookieText)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(minHeight: 92)
+                        .padding(8)
+                        .background(Color.clear)
+                }
+
+                HStack(spacing: 12) {
+                    Button("从剪贴板粘贴") {
+                        if let text = UIPasteboard.general.string {
+                            cookieText = text
+                        }
+                    }
+                    .font(.system(size: 12.5))
+
+                    Spacer()
+
+                    Button(saving ? "保存中…" : "保存 Cookie") {
+                        save()
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.beansAmber)
+                    .disabled(saving || QishuiMusicAuth.normalize(cookieText).isEmpty)
+                }
+
+                if !qishuiAuth.cookieHeader.isEmpty {
+                    Text("当前已保存的 Cookie 含 \(QishuiMusicAuth.parseCookie(qishuiAuth.cookieHeader).count) 个字段")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Color.beansComment)
+                }
             }
         }
         .padding(14)
         .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
     }
 
-    private var loggedInCard: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(Color.green)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(qishuiAuth.nickname.isEmpty ? "已保存登录状态" : qishuiAuth.nickname)
-                    .font(.system(size: 14, weight: .medium))
-                Text(qishuiAuth.userId.isEmpty ? "账号 ID 会在首次刷新资料后显示" : "ID \(qishuiAuth.userId)")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color.beansComment)
-            }
-            Spacer()
-            Button("退出") {
-                qishuiAuth.logout()
-                cookieText = ""
-                message = "已退出汽水音乐"
-            }
-            .font(.system(size: 12.5))
-            .foregroundStyle(.red)
-        }
-        .padding(14)
-        .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
-    }
+    // MARK: - 高级：搜索签名
 
     private var advancedSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -174,6 +284,8 @@ struct QishuiLoginSheet: View {
         .padding(14)
         .background { BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
     }
+
+    // MARK: - Cookie 保存
 
     private func save() {
         let cookie = QishuiMusicAuth.normalize(cookieText)

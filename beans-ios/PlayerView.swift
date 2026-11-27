@@ -3863,6 +3863,14 @@ struct LyricsSection: View {
     var lyricOffset: CGFloat = 0
     /// 展示方式：经典 / 逐字高亮 / 大字聚焦
     var displayMode: LyricDisplayMode = .classic
+    /// 当前行相对基础字号的放大值：沉浸页给得更大，拉开与相邻行的焦点差距
+    var focusBoost: CGFloat = 4
+    /// 未唱到的行透明度基准（越小越暗）
+    var pendingOpacity: Double = 0.62
+    /// 已唱过的行透明度基准
+    var playedOpacity: Double = 0.28
+    /// 当前行缩放比例
+    var focusScale: CGFloat = 1.05
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -4097,8 +4105,8 @@ struct LyricsSection: View {
         let distance = abs(index - (visualIndex ?? playbackIndex))
         let opacity: Double = isFocused
             ? 1.0
-            : (isPlayed ? 0.28 : 0.62) - Double(min(distance, 4)) * 0.05
-        var size = isFocused ? baseFontSize + 4 : baseFontSize - CGFloat(min(distance, 2)) * 1.5
+            : (isPlayed ? playedOpacity : pendingOpacity) - Double(min(distance, 4)) * 0.05
+        var size = isFocused ? baseFontSize + focusBoost : baseFontSize - CGFloat(min(distance, 2)) * 1.5
         // 大字聚焦模式：非当前行整体缩小，突出当前大字
         if displayMode == .bigWord { size *= 0.78 }
         // 歌词行模糊：当前行与邻近行保持清晰，距离越远才越柔和（避免只剩一行清晰显得突兀）
@@ -4133,7 +4141,7 @@ struct LyricsSection: View {
                 )
                 .blur(radius: blurRadius)
                 .opacity(max(opacity, 0.15))
-                .scaleEffect(isFocused ? 1.05 : 1, anchor: .leading)
+                .scaleEffect(isFocused ? focusScale : 1, anchor: .leading)
                 .multilineTextAlignment(alignment == .leading ? .leading : .center)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)

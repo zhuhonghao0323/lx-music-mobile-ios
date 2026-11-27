@@ -111,6 +111,8 @@ enum ImmersiveArtworkCache {
 
 struct ImmersiveBackdrop: View {
     let songURL: URL?
+    /// 播放中时背景做极慢的呼吸位移，让画面"活"起来；暂停则完全静止
+    var isPlaying: Bool = false
 
     private struct Layer: Identifiable {
         let id: String
@@ -123,6 +125,8 @@ struct ImmersiveBackdrop: View {
     /// 0 → 1 的交叉淡入进度
     @State private var fade: Double = 1
     @State private var activeKey = ""
+    /// 0 → 1 的呼吸进度（只驱动轻微的缩放与光晕强弱）
+    @State private var breath: CGFloat = 0.5
 
     private var palette: ImmersivePalette {
         current?.palette ?? .fallback
@@ -142,6 +146,14 @@ struct ImmersiveBackdrop: View {
                     baseWash(current.palette, w: w, h: h).opacity(fade)
                 }
 
+                // 大色团：把封面主色扩散成整屏光晕，这一层决定"有没有颜色"
+                if let previous {
+                    bloom(previous.palette, w: w, h: h).opacity(1 - fade)
+                }
+                if let current {
+                    bloom(current.palette, w: w, h: h).opacity(fade)
+                }
+
                 if let previous {
                     artwork(previous.image, palette: previous.palette, w: w, h: h)
                         .opacity(artworkOpacity(previous.palette) * (1 - fade))
@@ -158,57 +170,84 @@ struct ImmersiveBackdrop: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .onAppear { load(songURL) }
+        .onAppear {
+            load(songURL)
+            startBreathing()
+        }
         .onChange(of: songURL) { newValue in load(newValue) }
+        .onChange(of: isPlaying) { _ in startBreathing() }
     }
 
     // MARK: 图层
 
-    /// 底色 + 顶部色雾：颜色也参与交叉淡入，切歌时不会突然换色
+    /// 底色：只压到"能看清白字"的程度，中间段刻意放开，让模糊封面与光晕透上来。
     private func baseWash(_ palette: ImmersivePalette, w: CGFloat, h: CGFloat) -> some View {
         ZStack {
             LinearGradient(
                 stops: [
-                    .init(color: palette.base.opacity(0.96), location: 0.0),
-                    .init(color: palette.base.opacity(0.86), location: 0.42),
-                    .init(color: palette.base.opacity(0.92), location: 0.70),
-                    .init(color: .black, location: 1.0)
+                    .init(color: palette.base.opacity(0.88), location: 0.00),
+                    .init(color: palette.base.opacity(0.52), location: 0.26),
+                    .init(color: palette.base.opacity(0.40), location: 0.60),
+                    .init(color: palette.base.opacity(0.72), location: 0.84),
+                    .init(color: .black.opacity(0.94), location: 1.00)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [palette.glow.opacity(0.34), palette.glow.opacity(0.08), .clear],
-                center: UnitPoint(x: 0.5, y: 0.10),
+                colors: [palette.glow.opacity(0.52), palette.glow.opacity(0.14), .clear],
+                center: UnitPoint(x: 0.5, y: 0.12),
                 startRadius: 0,
-                endRadius: max(w, h) * 0.58
+                endRadius: max(w, h) * 0.62
             )
         }
     }
 
-    /// 亮封面少给一点模糊层，让底色透出来，白字才有对比
-    private func artworkOpacity(_ palette: ImmersivePalette) -> Double {
-        palette.isLight ? 0.44 : 0.64
+    /// 主色色团：两个偏心径向渐变叠出"封面把颜色染到整个屏幕"的感觉
+    private func bloom(_ palette: ImmersivePalette, w: CGFloat, h: CGFloat) -> some View {
+        ZStack {
+            RadialGradient(
+                colors: [palette.accent.opacity(0.34 * (0.82 + 0.18 * Double(breath))),
+                         palette.accent.opacity(0.10), .clear],
+                center: UnitPoint(x: 0.30, y: 0.22),
+                startRadius: 0,
+                endRadius: max(w, h) * 0.52
+            )
+            RadialGradient(
+                colors: [palette.glow.opacity(0.46), palette.glow.opacity(0.12), .clear],
+                center: UnitPoint(x: 0.76, y: 0.62),
+                startRadius: 0,
+                endRadius: max(w, h) * 0.58
+            )
+        }
+        .blendMode(.plusLighter)
     }
 
+    /// 亮封面少给一点模糊层，让底色透出来，白字才有对比
+    private func artworkOpacity(_ palette: ImmersivePalette) -> Double {
+        palette.isLight ? 0.62 : 0.86
+    }
+
+    /// 模糊封面：整屏铺满、上下渐隐，是沉浸感的主体
     private func artwork(_ image: UIImage, palette: ImmersivePalette, w: CGFloat, h: CGFloat) -> some View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(width: w * 1.75, height: h * 0.92)
-            .blur(radius: 8)
-            .saturation(1.06)
-            .brightness(palette.isLight ? -0.05 : 0)
-            .offset(y: -h * 0.07)
+            .frame(width: w * 1.90, height: h * 1.06)
+            .blur(radius: 14)
+            .saturation(1.38)
+            .contrast(1.04)
+            .brightness(palette.isLight ? -0.06 : 0.01)
+            .scaleEffect(1 + 0.035 * breath)
+            .offset(y: -h * 0.05)
             .mask(
                 LinearGradient(
                     stops: [
-                        .init(color: .black.opacity(0.30), location: 0.00),
-                        .init(color: .black.opacity(0.92), location: 0.16),
-                        .init(color: .black, location: 0.34),
-                        .init(color: .black.opacity(0.72), location: 0.54),
-                        .init(color: .black.opacity(0.18), location: 0.72),
-                        .init(color: .clear, location: 0.86)
+                        .init(color: .black.opacity(0.55), location: 0.00),
+                        .init(color: .black, location: 0.18),
+                        .init(color: .black, location: 0.58),
+                        .init(color: .black.opacity(0.55), location: 0.80),
+                        .init(color: .clear, location: 0.97)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -216,28 +255,41 @@ struct ImmersiveBackdrop: View {
             )
     }
 
-    /// 可读性压暗：顶部保证状态栏与顶栏图标清晰，底部保证控制区白色图标清晰
+    /// 可读性压暗：只在真正的边缘（状态栏 / 控制区）加，中间不再压黑
     private func scrims(w: CGFloat, h: CGFloat) -> some View {
         ZStack {
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(palette.isLight ? 0.58 : 0.42), location: 0.00),
-                    .init(color: .black.opacity(palette.isLight ? 0.26 : 0.10), location: 0.16),
-                    .init(color: .clear, location: 0.34),
-                    .init(color: .clear, location: 0.52),
-                    .init(color: palette.base.opacity(0.55), location: 0.68),
-                    .init(color: .black.opacity(0.66), location: 0.86),
-                    .init(color: .black.opacity(0.84), location: 1.00)
+                    .init(color: .black.opacity(palette.isLight ? 0.62 : 0.50), location: 0.00),
+                    .init(color: .black.opacity(palette.isLight ? 0.20 : 0.10), location: 0.14),
+                    .init(color: .clear, location: 0.30),
+                    .init(color: .clear, location: 0.56),
+                    .init(color: palette.base.opacity(0.38), location: 0.72),
+                    .init(color: .black.opacity(0.62), location: 0.88),
+                    .init(color: .black.opacity(0.86), location: 1.00)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [palette.accent.opacity(0.10), .clear],
-                center: UnitPoint(x: 0.5, y: 0.96),
+                colors: [palette.accent.opacity(0.16), .clear],
+                center: UnitPoint(x: 0.5, y: 0.94),
                 startRadius: 0,
-                endRadius: max(w, h) * 0.42
+                endRadius: max(w, h) * 0.46
             )
+        }
+    }
+
+    // MARK: 呼吸
+
+    private func startBreathing() {
+        guard isPlaying else {
+            withAnimation(.easeOut(duration: 0.8)) { breath = 0.5 }
+            return
+        }
+        breath = 0.15
+        withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
+            breath = 1
         }
     }
 
