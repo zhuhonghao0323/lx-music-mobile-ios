@@ -57,7 +57,8 @@ final class CoverBlurView: UIView {
         gradientLayer.colors = [UIColor.systemGray.cgColor, UIColor.systemGray2.cgColor]
         gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
         gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
-        gradientLayer.opacity = 0.62
+        // 只做轻度染色：过高的不透明度会把模糊封面糊成一块纯色，沉浸感全无
+        gradientLayer.opacity = 0.40
         gradientHost.layer.addSublayer(gradientLayer)
 
         addSubview(imageView)
@@ -114,10 +115,10 @@ final class CoverBlurView: UIView {
     }
 
     func updateScheme(_ scheme: ColorScheme) {
-        // 深浅遮罩：压暗/提亮背景，保证前景文字与控件始终可读
+        // 只保留很轻的一层压暗：可读性交给页面级的上下渐变，避免把封面颜色洗掉
         tintView.backgroundColor = scheme == .dark
-            ? UIColor.black.withAlphaComponent(0.30)
-            : UIColor.white.withAlphaComponent(0.10)
+            ? UIColor.black.withAlphaComponent(0.12)
+            : UIColor.white.withAlphaComponent(0.04)
     }
 
     func load(url: URL?) {

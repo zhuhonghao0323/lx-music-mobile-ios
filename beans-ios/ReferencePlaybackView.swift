@@ -219,7 +219,9 @@ struct ReferencePlaybackView: View {
                 .ignoresSafeArea()
             } else {
                 CoverBlurBackground(url: song?.coverURL, scheme: colorScheme)
-                    .overlay(Color.black.opacity(colorScheme == .dark ? 0.48 : 0.14))
+                    // 只压很轻的一层：真正的压暗交给下面按区域分布的 scrim，
+                    // 整屏统一压黑会把封面色洗成死灰，这也是之前"不沉浸"的主因。
+                    .overlay(Color.black.opacity(colorScheme == .dark ? 0.18 : 0.05))
                     .ignoresSafeArea()
             }
 
@@ -240,6 +242,22 @@ struct ReferencePlaybackView: View {
                     intensity: djVisualIntensity
                 )
             }
+
+            // 区域压暗：只在顶部（状态栏）与底部（控制区）压，中间留给封面颜色
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.44), location: 0.00),
+                    .init(color: .black.opacity(0.12), location: 0.13),
+                    .init(color: .clear, location: 0.30),
+                    .init(color: .clear, location: 0.60),
+                    .init(color: .black.opacity(0.46), location: 0.86),
+                    .init(color: .black.opacity(0.78), location: 1.00)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
         }
     }
 
@@ -758,12 +776,16 @@ struct ReferencePlaybackView: View {
         }
     }
 
-    private var previewLyrics: [LyricLine] {
+    private var previewLyrics: [ReferencePreviewLine] {
         guard !lyrics.isEmpty else { return [] }
         let current = currentPlaybackLyricIndex ?? 0
-        let start = max(current - 1, 0)
-        let end = min(start + 3, lyrics.count)
-        return Array(lyrics[start..<end])
+        var rows: [ReferencePreviewLine] = []
+        for step in -2...2 {
+            let index = current + step
+            guard lyrics.indices.contains(index) else { continue }
+            rows.append(ReferencePreviewLine(id: index, text: lyrics[index].text, distance: step))
+        }
+        return rows
     }
 
     private var currentPlaybackLyricIndex: Int? {
@@ -1090,8 +1112,15 @@ private struct ReferenceSystemVolumeView: UIViewRepresentable {
     }
 }
 
+private struct ReferencePreviewLine: Identifiable {
+    let id: Int
+    let text: String
+    /// 与当前行的距离：0 = 正在唱
+    let distance: Int
+}
+
 private struct MiniLyricsPreview: View {
-    let lines: [LyricLine]
+    let lines: [ReferencePreviewLine]
     let primary: Color
     let secondary: Color
     let action: () -> Void
@@ -1104,18 +1133,27 @@ private struct MiniLyricsPreview: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(secondary.opacity(0.54))
                 } else {
-                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-                        Text(line.text.isEmpty ? " " : line.text)
-                            .font(BeansFont.appFont(index == 1 ? 17 : 15, index == 1 ? .semibold : .medium))
-                            .foregroundStyle((index == 1 ? primary : secondary).opacity(index == 1 ? 0.86 : 0.5))
+                    ForEach(lines) { line in
+                        let gap = abs(line.distance)
+                        let isCurrent = line.distance == 0
+                        Text(line.text.isEmpty ? "♪" : line.text)
+                            .font(BeansFont.appFont(isCurrent ? 20 : max(13.5, 16 - CGFloat(gap) * 1.2),
+                                                    isCurrent ? .semibold : .regular))
+                            .foregroundStyle(
+                                (isCurrent ? primary : secondary)
+                                    .opacity(isCurrent ? 0.96 : max(0.12, 0.44 - Double(gap - 1) * 0.12))
+                            )
+                            .shadow(color: isCurrent ? primary.opacity(0.25) : .clear, radius: 10)
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
+                            .scaleEffect(isCurrent ? 1 : 0.985)
                     }
                 }
             }
-            .frame(maxWidth: 420, minHeight: 92)
+            .frame(maxWidth: 420, minHeight: 108)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: lines.first?.id)
     }
 }

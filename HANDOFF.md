@@ -11,6 +11,25 @@
 
 电脑关机后，手机 App 用「云端工作」执行环境接手。云端沙箱是 **Linux**，没有 Xcode，**改完必须靠 GitHub Actions 出包**。
 
+### 0.0b 本轮（2026-11-28，版本 **1.21.2 (97)**）：汽水扫码登录 + Apple Music 布局的沉浸感
+
+**一、汽水登录：从「打不开的网页」改成原生扫码**
+
+- 实测 `music.douyin.com` 是「汽水音乐合作平台」落地页（微前端），**没有消费级网页版**，1.21.1 的内嵌网页方案点不到登录入口
+- 实测官方 Passport 两个接口**不需要 a_bogus 签名**：
+  - `GET https://api.qishui.com/passport/web/get_qrcode/?aid=386088&passport_jssdk_version=2.4.13&passport_jssdk_type=normal&is_from_ttaccountsdk=1&next=…` → `data.token` / `data.qrcode`（base64 PNG）/ `data.expire_time`
+  - `POST …/passport/web/check_qrconnect/`（form: token + next）→ `data.status` = new / scanned / confirmed，确认后 `Set-Cookie` 下发 `sessionid`
+- 新增 `QishuiQRLogin.swift`：原生拉二维码 + 1.8s 轮询 + 自动落库 + `refreshProfile()` 校验；2046（额外安全验证）时明确提示改走 Cookie
+- `QishuiLoginSheet.swift` 主入口改为「扫码登录」，删除 `QishuiWebLogin.swift`
+- 未做手机号验证码：`/passport/web/send_code/` 返回 4031「当前版本过低」，需要客户端版本头/签名，暂不碰
+
+**二、真正生效的播放页是 `appleMusic` 布局**
+
+- 默认 `beans.coverPlayerStyle = appleMusic`，走 `ReferencePlaybackView`；1.21.1 只改了 `immersive`，所以用户看不到变化
+- 不沉浸的根因：`CoverBlurView` 的渐变 62% + 黑遮罩 30% + 页面层 48% 黑，四层叠加把封面颜色洗成死灰
+- 改法：渐变 62%→40%、遮罩 30%→12%、页面层 48%→18%，另加只压顶部/底部的 scrim；`AmbientGlowView` 光斑 0.16/0.13→0.30/0.24
+- `MiniLyricsPreview` 3 行→5 行，当前行 20pt，按距离递减字号与透明度
+
 ### 0.0a 本轮（2026-11-28，版本 **1.21.1 (96)**）：沉浸式观感 + 汽水登录改扫码/验证码
 
 按用户反馈改了两处，只动「沉浸式」这一套播放方案的外观，播放能力与其它三套方案不动。

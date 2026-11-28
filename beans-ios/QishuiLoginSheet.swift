@@ -3,9 +3,9 @@ import UIKit
 
 /// 汽水音乐账号。
 ///
-/// 主路径：应用内打开官方网页，用户用**抖音扫码**或**手机号验证码**登录，
-/// 登录态 Cookie 由官方页面写入 WKWebView 存储后自动回收，不需要 F12 抓包。
-/// 兜底路径：仍保留网页 Cookie 粘贴，方便浏览器已经登录、或网页登录受限的情况。
+/// 主路径：**应用内扫码登录**。走官方 Passport 二维码接口（免签名），
+/// 用抖音 / 汽水 App 扫一扫即可，登录态由轮询接口直接下发。
+/// 兜底路径：网页 Cookie 粘贴，方便浏览器已登录或扫码受限的情况。
 struct QishuiLoginSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +17,7 @@ struct QishuiLoginSheet: View {
     @State private var signerToken = ""
     @State private var showAdvanced = false
     @State private var showCookieFallback = false
-    @State private var showWebLogin = false
+    @State private var showQRLogin = false
     @State private var saving = false
     @State private var message: String?
 
@@ -57,8 +57,8 @@ struct QishuiLoginSheet: View {
                 signerToken = api.signerToken
             }
         }
-        .sheet(isPresented: $showWebLogin) {
-            QishuiWebLoginPanel {
+        .sheet(isPresented: $showQRLogin) {
+            QishuiQRLoginSheet {
                 message = "汽水音乐登录成功"
             }
             .environmentObject(theme)
@@ -88,7 +88,7 @@ struct QishuiLoginSheet: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("登录汽水音乐")
                         .font(.system(size: 17, weight: .semibold))
-                    Text("抖音扫码或手机号验证码，几秒完成")
+                    Text("抖音 / 汽水 App 扫一扫，几秒完成")
                         .font(.system(size: 12.5))
                         .foregroundStyle(Color.beansComment)
                 }
@@ -101,12 +101,12 @@ struct QishuiLoginSheet: View {
 
             Button {
                 BeansHaptics.tap()
-                showWebLogin = true
+                showQRLogin = true
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.system(size: 15, weight: .semibold))
-                    Text("扫码 / 手机号登录")
+                    Text("扫码登录")
                         .font(.system(size: 15, weight: .semibold))
                 }
                 .foregroundStyle(.white)
@@ -116,7 +116,7 @@ struct QishuiLoginSheet: View {
             }
             .buttonStyle(GlassPressButtonStyle(scale: 0.96))
 
-            Text("在应用内打开官方登录页：可用抖音扫一扫，或输入手机号接收验证码。Cookie 只保存在本机。")
+            Text("二维码由汽水官方接口生成，用抖音或汽水 App 扫一扫即可；登录态只保存在本机。")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Color.beansComment.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
@@ -153,7 +153,7 @@ struct QishuiLoginSheet: View {
 
             Button {
                 BeansHaptics.tap()
-                showWebLogin = true
+                showQRLogin = true
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "arrow.triangle.2.circlepath")
