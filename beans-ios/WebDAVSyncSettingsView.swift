@@ -50,7 +50,7 @@ struct WebDAVSyncSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("用 WebDAV 在 iPhone 与桌面端之间同步")
                 .font(.system(size: 16, weight: .semibold))
-            Text("同步内容：本地歌单与其歌曲、当前播放的歌曲与进度。桌面端读取同一个 beans-sync.json 即可接续播放。\n\n支持夸克网盘、坚果云、Nextcloud、Alist 等任何标准 WebDAV 服务。密码保存在系统钥匙串，不会上传到除你填写的服务器之外的地方。")
+            Text("同步内容：本地歌单与其歌曲、当前播放的歌曲与进度。桌面端读取同一个 beans-sync.json 即可接续播放。\n\n支持坚果云、Nextcloud、Alist 等标准 WebDAV 服务。注意：夸克网盘本身不提供 WebDAV，不能直接填夸克账号，需要用 Alist 桥接（见文末说明）。密码保存在系统钥匙串。")
                 .font(.system(size: 12.5))
                 .foregroundStyle(Color.beansComment)
                 .fixedSize(horizontal: false, vertical: true)
@@ -66,6 +66,19 @@ struct WebDAVSyncSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("WebDAV 服务器")
                 .font(.system(size: 14, weight: .semibold))
+
+            HStack(spacing: 8) {
+                presetChip("坚果云") {
+                    sync.baseURL = "https://dav.jianguoyun.com/dav/"
+                    sync.directory = "/BeansMusic"
+                }
+                presetChip("Nextcloud") {
+                    sync.baseURL = "https://你的域名/remote.php/dav/files/用户名"
+                }
+                presetChip("Alist") {
+                    sync.baseURL = "http://192.168.1.10:5244/dav"
+                }
+            }
 
             field("服务器地址", text: $sync.baseURL, placeholder: "https://webdav.example.com", keyboard: .URL)
             field("用户名", text: $sync.username, placeholder: "账号或邮箱", keyboard: .default)
@@ -253,7 +266,7 @@ struct WebDAVSyncSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("怎么填")
                 .font(.system(size: 13.5, weight: .semibold))
-            Text("• 夸克网盘：先在 App 里开启 WebDAV，再填它给出的地址与账号\n• 坚果云：https://dav.jianguoyun.com/dav/（密码填应用授权码）\n• Nextcloud：https://你的域名/remote.php/dav/files/用户名\n• Alist：http://你的地址:5244/dav\n\n远程目录默认 /BeansMusic，不存在会自动创建。")
+            Text("• 坚果云：地址 https://dav.jianguoyun.com/dav/；账号是你的坚果云邮箱；密码不是登录密码，要去「账户信息 → 安全选项 → 第三方应用管理」生成一个应用密码\n• Nextcloud：https://你的域名/remote.php/dav/files/用户名\n• Alist / OpenList：http://你的地址:5244/dav\n\n夸克网盘：官方没有 WebDAV。想用夸克，需要先在一台常开的设备（NAS、小主机或云服务器）上用 Alist 挂载夸克账号，再把 Alist 的 WebDAV 地址填到这里。仅做只读挂载的工具（如 QDAV）不能用来同步，因为这里需要写入 beans-sync.json。\n\n远程目录默认 /BeansMusic，不存在会自动创建。")
                 .font(.system(size: 12))
                 .foregroundStyle(Color.beansComment)
                 .fixedSize(horizontal: false, vertical: true)
@@ -264,6 +277,18 @@ struct WebDAVSyncSettingsView: View {
     }
 
     // MARK: 动作
+
+    private func presetChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(Color.beansAmber)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.beansAmber.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
 
     private func flushPassword() {
         sync.password = password

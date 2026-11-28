@@ -48,6 +48,22 @@ enum ChangelogStore {
 
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.21.4",
+            version: "1.21.4",
+            title: "修正 WebDAV 连接指引",
+            notices: [
+                "夸克网盘官方没有 WebDAV，不能直接填夸克账号；要用夸克需要先用 Alist 在常开设备上桥接"
+            ],
+            features: [
+                "同步设置新增坚果云 / Nextcloud / Alist 一键填入地址模板",
+                "帮助文案改为逐项说明：坚果云的账号是邮箱、密码是「第三方应用管理」里生成的应用密码"
+            ],
+            fixes: [
+                "删除「在夸克 App 开启 WebDAV」的错误指引，避免按错误步骤找不到入口"
+            ]
+        ),
+
+        VersionLog(
             id: "1.21.3",
             version: "1.21.3",
             title: "新增 WebDAV 跨端同步",

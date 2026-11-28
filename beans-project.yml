@@ -37,8 +37,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app
-        MARKETING_VERSION: "1.21.3"
-        CURRENT_PROJECT_VERSION: "98"
+        MARKETING_VERSION: "1.21.4"
+        CURRENT_PROJECT_VERSION: "99"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_OBJC_BRIDGING_HEADER: beans-ios/Beans-Bridging-Header.h
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

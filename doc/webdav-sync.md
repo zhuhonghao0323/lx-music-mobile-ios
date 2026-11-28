@@ -126,8 +126,9 @@
 
 - 认证：HTTP Basic
 - 常见服务：
-  - 夸克网盘：在 App 内开启 WebDAV 后使用其给出的地址与账号
-  - 坚果云：`https://dav.jianguoyun.com/dav/`，密码用应用授权码
+  - 坚果云：`https://dav.jianguoyun.com/dav/`，账号为坚果云邮箱，密码用「第三方应用管理」生成的应用密码
+  - 夸克网盘：**官方不提供 WebDAV**，需先用 Alist / OpenList 挂载夸克，再连接 Alist 的 `/dav`
+  - 只读桥接（QDAV 等）不能用于本协议，因为同步需要写入 `beans-sync.json`
   - Nextcloud：`https://<域名>/remote.php/dav/files/<用户名>`
   - Alist：`http://<地址>:5244/dav`
 
