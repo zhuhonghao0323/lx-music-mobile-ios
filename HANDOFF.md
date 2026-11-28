@@ -11,6 +11,17 @@
 
 电脑关机后，手机 App 用「云端工作」执行环境接手。云端沙箱是 **Linux**，没有 Xcode，**改完必须靠 GitHub Actions 出包**。
 
+### 0.0c 本轮（2026-11-28，版本 **1.21.3 (98)**）：WebDAV 跨端同步
+
+为桌面端铺路，先把同步做掉。协议见 `doc/webdav-sync.md`。
+
+- 远端单文件：`<目录>/beans-sync.json`，schema `beans.sync.v1`
+- 合并：歌单按 `id` 并集 + `updatedAt` LWW；删除用墓碑（`tombstones`），删除后又被编辑会复活；播放状态取 `updatedAt` 较新者
+- iOS：`WebDAVSync.swift`（WebDAV 客户端 + 合并 + 自动同步）、`WebDAVSyncSettingsView.swift`（设置页），入口在「设置 → 数据同步（WebDAV）」
+- 自动同步触发：启动 / 回前台 / 歌单变化 6s 防抖 / 播放中每 90s；密码存 Keychain
+- 桌面端：`desktop-sync/`（零依赖 Node 18+），`src/cli.js test|sync|pull`，Electron 主进程可直接 import `sync.js`
+- 注意：`PlayerManager` 新增 `static weak var current`，供同步读取播放状态
+
 ### 0.0b 本轮（2026-11-28，版本 **1.21.2 (97)**）：汽水扫码登录 + Apple Music 布局的沉浸感
 
 **一、汽水登录：从「打不开的网页」改成原生扫码**

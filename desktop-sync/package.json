@@ -1,0 +1,8 @@
+{
+  "name": "beans-desktop-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Beans 跨端同步核心（WebDAV）",
+  "bin": { "beans-sync": "src/cli.js" }
+}

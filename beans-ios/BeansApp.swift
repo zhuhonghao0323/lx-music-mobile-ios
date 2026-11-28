@@ -56,9 +56,11 @@ struct BeansApp: App {
                 player.resumePersistedPlaybackIfEnabled()
                 FontManager.reinstallIfNeeded()
                 theme.restoreWallpapersIfNeeded()
+                await MainActor.run { WebDAVSyncStore.shared.start() }
             }
             .onChange(of: scenePhase) { phase in
                 guard phase == .active else { return }
+                Task { @MainActor in WebDAVSyncStore.shared.handleForeground() }
             }
         }
     }

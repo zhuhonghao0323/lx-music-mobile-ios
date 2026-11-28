@@ -1455,6 +1455,7 @@ struct SettingsView: View {
     @State private var showSourceManager = false
     @State private var showEqualizer = false
     @State private var backupExpanded = false
+    @State private var showSyncSettings = false
     @State private var backupIncludeAccounts = false
     @State private var backupIncludeWallpapers = false
     @State private var backupMessage: String?
@@ -1707,6 +1708,7 @@ struct SettingsView: View {
                         themeSection
                         playbackSection
                         equalizerSection
+                        syncSection
                         changelogSection
                         backupSection
                         logSection
@@ -1731,6 +1733,10 @@ struct SettingsView: View {
         .preferredColorScheme(themeMode.colorScheme)
         .onAppear {
             wallpaperAppearanceTarget = colorScheme == .dark ? .dark : .light
+        }
+        .sheet(isPresented: $showSyncSettings) {
+            WebDAVSyncSettingsView()
+                .environmentObject(theme)
         }
         .sheet(isPresented: $showWallpaperPicker) {
             WallpaperPhotoPicker { data in
@@ -2802,6 +2808,35 @@ struct SettingsView: View {
             .beansCardShadow(radius: 8, y: 3)
         }
     }
+    private var syncSection: some View {
+        Button {
+            BeansHaptics.select()
+            showSyncSettings = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.triangle.2.circlepath.icloud.fill")
+                    .foregroundStyle(Color.beansAmber)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("数据同步（WebDAV）")
+                        .font(BeansFont.appFont(15))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(WebDAVSyncStore.shared.summary)
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.beansComment)
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button {

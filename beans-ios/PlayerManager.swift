@@ -49,6 +49,8 @@ final class PlaybackClock: ObservableObject {
 }
 
 final class PlayerManager: NSObject, ObservableObject {
+    /// App 内唯一实例的弱引用：同步、小组件等能力需要读取当前播放状态，但不持有它
+    private(set) static weak var current: PlayerManager?
     @Published var queue: [Song] = []
     @Published var currentIndex = 0
     @Published var isPlaying = false
@@ -159,6 +161,7 @@ final class PlayerManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        Self.current = self
         if let raw = defaults.string(forKey: playModeKey),
            let saved = PlayMode(rawValue: raw) {
             playMode = saved

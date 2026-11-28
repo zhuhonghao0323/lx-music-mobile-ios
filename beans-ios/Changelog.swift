@@ -48,6 +48,24 @@ enum ChangelogStore {
 
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.21.3",
+            version: "1.21.3",
+            title: "新增 WebDAV 跨端同步",
+            notices: [
+                "同步为可选功能，默认关闭；开启后本地歌单与播放进度会写入你自己填写的 WebDAV 服务器，密码保存在系统钥匙串"
+            ],
+            features: [
+                "设置新增「数据同步（WebDAV）」：支持夸克网盘、坚果云、Nextcloud、Alist 等标准 WebDAV 服务，远程目录不存在会自动创建",
+                "同步内容：本地歌单与其中的歌曲、当前播放的歌曲与进度；桌面端读取同一个 beans-sync.json 即可接续播放",
+                "自动同步：启动、回到前台、歌单变化 6 秒后、播放中每 90 秒各同步一次，也可手动立即同步",
+                "其他设备的播放记录会显示在同步页，可一键继续播放"
+            ],
+            fixes: [
+                "同步冲突按实体 updatedAt 取较新者；删除使用墓碑，避免被另一端的旧数据复活"
+            ]
+        ),
+
+        VersionLog(
             id: "1.21.2",
             version: "1.21.2",
             title: "扫码登录汽水音乐，修复播放页不沉浸",
